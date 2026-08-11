@@ -86,7 +86,8 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
         }
         viewModelScope.launch {
             connection.state.collect { state ->
-                if (state is ConnectionState.Connected) {
+                // The demo has no adapter to come back to, so it is never remembered.
+                if (state is ConnectionState.Connected && !state.demo) {
                     preferences.saveAdapter(state.device.address, state.device.name)
                 }
             }
@@ -103,6 +104,12 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
         ObdConnectionService.start(getApplication())
         connection.connect(device)
     }
+
+    /**
+     * The simulated vehicle runs entirely inside the app-scoped connection: there is no
+     * link to keep alive in the background, so it needs no foreground service either.
+     */
+    fun connectDemo() = connection.connectDemo()
 
     fun disconnect() {
         connection.disconnect()

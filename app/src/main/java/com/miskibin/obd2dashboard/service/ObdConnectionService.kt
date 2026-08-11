@@ -123,8 +123,11 @@ class ObdConnectionService : Service() {
     }
 
     private fun titleFor(state: ConnectionState): String = when (state) {
-        is ConnectionState.Connected ->
+        is ConnectionState.Connected -> if (state.demo) {
+            localised.getString(R.string.status_demo)
+        } else {
             localised.getString(R.string.status_connected_to, state.device.name ?: state.device.address)
+        }
 
         is ConnectionState.Connecting -> localised.getString(R.string.status_connecting)
         is ConnectionState.Initializing -> localised.getString(R.string.status_initializing, state.step)

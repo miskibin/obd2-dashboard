@@ -3,12 +3,14 @@ package com.miskibin.obd2dashboard.ble
 import android.bluetooth.BluetoothManager
 import android.content.Context
 import com.miskibin.obd2dashboard.obd.AdapterInfo
+import com.miskibin.obd2dashboard.obd.DemoElmTransport
 import com.miskibin.obd2dashboard.obd.Diagnostics
 import com.miskibin.obd2dashboard.obd.ElmError
 import com.miskibin.obd2dashboard.obd.ElmFatalException
 import com.miskibin.obd2dashboard.obd.ElmInitConfig
 import com.miskibin.obd2dashboard.obd.ElmInitializer
 import com.miskibin.obd2dashboard.obd.ElmSession
+import com.miskibin.obd2dashboard.obd.ElmTransport
 import com.miskibin.obd2dashboard.obd.InitOutcome
 import com.miskibin.obd2dashboard.obd.Obd2Client
 import com.miskibin.obd2dashboard.obd.ObdProtocol
@@ -32,7 +34,14 @@ sealed interface ConnectionState {
     data object Scanning : ConnectionState
     data class Connecting(val device: DiscoveredDevice) : ConnectionState
     data class Initializing(val step: String) : ConnectionState
-    data class Connected(val device: DiscoveredDevice, val adapter: AdapterInfo) : ConnectionState
+
+    /** [demo] marks the simulated vehicle, which must never be mistaken for a real car. */
+    data class Connected(
+        val device: DiscoveredDevice,
+        val adapter: AdapterInfo,
+        val demo: Boolean = false,
+    ) : ConnectionState
+
     data class Reconnecting(val attempt: Int, val delayMillis: Long) : ConnectionState
     data class Error(val reason: String, val elmError: ElmError? = null) : ConnectionState
 }
@@ -70,7 +79,7 @@ class ConnectionManager(
     private var mirrorJob: Job? = null
     private var keepAliveJob: Job? = null
 
-    private var transport: BleElmTransport? = null
+    private var transport: ElmTransport? = null
     private var session: ElmSession? = null
     private var client: Obd2Client? = null
     private var scheduler: PidScheduler? = null
@@ -111,7 +120,19 @@ class ConnectionManager(
     fun connect(device: DiscoveredDevice) {
         stopScan()
         sessionJob?.cancel()
-        sessionJob = scope.launch { runSession(device) }
+        sessionJob = scope.launch { runSession(device, demo = false) }
+    }
+
+    /**
+     * Starts the built-in simulated vehicle. It swaps [DemoElmTransport] in for the radio
+     * and then runs the identical init, parser and scheduler pipeline, so demo mode needs
+     * no permissions, no Bluetooth and no foreground service — and is never remembered as
+     * an adapter, because there is nothing to reconnect to.
+     */
+    fun connectDemo() {
+        stopScan()
+        sessionJob?.cancel()
+        sessionJob = scope.launch { runSession(DEMO_DEVICE, demo = true) }
     }
 
     fun disconnect() {
@@ -147,11 +168,11 @@ class ConnectionManager(
     private suspend fun <T> withScheduler(block: suspend () -> T): T =
         scheduler?.exclusive(block) ?: block()
 
-    private suspend fun runSession(device: DiscoveredDevice) {
+    private suspend fun runSession(device: DiscoveredDevice, demo: Boolean) {
         var attempt = 0
         while (currentlyActive()) {
             try {
-                openAndPoll(device)
+                openAndPoll(device, demo)
                 return
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -172,13 +193,11 @@ class ConnectionManager(
         }
     }
 
-    private suspend fun openAndPoll(device: DiscoveredDevice) {
+    private suspend fun openAndPoll(device: DiscoveredDevice, demo: Boolean) {
         _state.value = ConnectionState.Connecting(device)
-        val bluetooth = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
-            ?: error("Bluetooth unavailable")
-        val remote = bluetooth.adapter.getRemoteDevice(device.address)
 
-        val newTransport = BleElmTransport(context, remote).also { transport = it }
+        val newTransport = (if (demo) DemoElmTransport() else bleTransport(device))
+            .also { transport = it }
         newTransport.open()
 
         val newSession = ElmSession(newTransport, scope).also { session = it }
@@ -186,13 +205,14 @@ class ConnectionManager(
 
         val outcome = ElmInitializer(
             session = newSession,
-            config = ElmInitConfig(preferredProtocol = lastProtocol),
+            config = if (demo) DEMO_INIT_CONFIG else ElmInitConfig(preferredProtocol = lastProtocol),
         ).initialize()
         val info = when (outcome) {
             is InitOutcome.Success -> outcome.info
             is InitOutcome.Failure -> throw ElmFatalException(outcome.error)
         }
-        lastProtocol = info.protocol
+        // A protocol the simulation picked says nothing about the car in the driveway.
+        if (!demo) lastProtocol = info.protocol
 
         val newClient = Obd2Client(newSession, info.protocol).also { client = it }
         _state.value = ConnectionState.Initializing("supported PIDs")
@@ -207,9 +227,15 @@ class ConnectionManager(
         newScheduler.configure(supported)
         mirrorJob = scope.launch { newScheduler.snapshot.collect { _snapshot.value = it } }
 
-        _state.value = ConnectionState.Connected(device, info)
+        _state.value = ConnectionState.Connected(device, info, demo)
         keepAliveJob = scope.launch { keepAlive(newClient, newScheduler) }
         newScheduler.run()
+    }
+
+    private fun bleTransport(device: DiscoveredDevice): BleElmTransport {
+        val bluetooth = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+            ?: error("Bluetooth unavailable")
+        return BleElmTransport(context, bluetooth.adapter.getRemoteDevice(device.address))
     }
 
     /**
@@ -246,6 +272,16 @@ class ConnectionManager(
         minOf(BASE_BACKOFF_MILLIS shl (attempt - 1), MAX_BACKOFF_MILLIS)
 
     private companion object {
+        val DEMO_DEVICE = DiscoveredDevice(
+            address = "demo",
+            name = "Demo",
+            rssi = 0,
+            looksLikeAdapter = false,
+        )
+
+        /** The simulation has no baud rate to settle and no clone quirks to wait out. */
+        val DEMO_INIT_CONFIG = ElmInitConfig(resetWaitMillis = 200, interCommandDelayMillis = 0)
+
         const val MAX_RECONNECT_ATTEMPTS = 5
         const val BASE_BACKOFF_MILLIS = 1_000L
         const val MAX_BACKOFF_MILLIS = 30_000L

@@ -1,0 +1,534 @@
+package com.miskibin.obd2dashboard.obd
+
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.receiveAsFlow
+import java.util.Locale
+import kotlin.math.PI
+import kotlin.math.min
+import kotlin.math.roundToInt
+import kotlin.math.sin
+import kotlin.random.Random
+
+/** One instant of the simulated drive cycle, in engineering units. */
+data class DemoVehicleState(
+    val runTimeSeconds: Int,
+    val rpm: Double,
+    val speedKph: Double,
+    val throttlePercent: Double,
+    val engineLoadPercent: Double,
+    val coolantC: Double,
+    val intakeC: Double,
+    val ambientC: Double,
+    val oilC: Double,
+    val manifoldKpa: Double,
+    val barometricKpa: Double,
+    val mafGramsPerSecond: Double,
+    val timingAdvanceDegrees: Double,
+    val shortTrimPercent: Double,
+    val longTrimPercent: Double,
+    val fuelLevelPercent: Double,
+    val fuelRateLitersPerHour: Double,
+    val batteryVolts: Double,
+)
+
+/**
+ * The synthetic car behind demo mode.
+ *
+ * One speed curve — idle, five upshifts to ~120 km/h, cruise, coast back down, repeat —
+ * drives everything else, so RPM saws down at each shift while speed stays continuous and
+ * load, manifold pressure and air flow move together the way an engine's do. Coolant and
+ * oil warm up once from the moment the demo starts and then stay warm, because the
+ * warm-up is the only part of a drive that never repeats.
+ */
+class DemoVehicle(seed: Long = DEFAULT_SEED) {
+
+    private val random = Random(seed)
+
+    fun sampleAt(elapsedMillis: Long): DemoVehicleState {
+        val seconds = elapsedMillis / MILLIS_PER_SECOND
+        val cruising = speedAt(seconds)
+        // Standing still is exact; only a moving wheel sensor jitters.
+        val speed = if (cruising <= 0.0) 0.0 else (cruising + noise(SPEED_NOISE)).coerceAtLeast(0.0)
+        val ratio = GEAR_KPH_PER_RPM.last { speed >= it.first }.second
+        val idling = speed < CREEP_KPH
+
+        val rpm = if (idling) {
+            IDLE_RPM + IDLE_HUNT_RPM + wobble(seconds, IDLE_HUNT_RPM, IDLE_HUNT_SECONDS)
+        } else {
+            speed / ratio
+        }.let { (it + noise(RPM_NOISE)).coerceIn(IDLE_RPM, MAX_RPM) }
+
+        val acceleration = speedAt(seconds + HALF_SECOND) - speedAt(seconds - HALF_SECOND)
+        val throttle = when {
+            idling -> IDLE_THROTTLE
+            acceleration > COASTING_KPH_PER_SECOND -> ACCEL_THROTTLE +
+                acceleration * ACCEL_THROTTLE_GAIN + speed * ACCEL_THROTTLE_SPEED_GAIN
+
+            acceleration < -COASTING_KPH_PER_SECOND -> OVERRUN_THROTTLE
+            else -> CRUISE_THROTTLE + speed * CRUISE_THROTTLE_SPEED_GAIN
+        }.let { (it + noise(THROTTLE_NOISE)).coerceIn(0.0, 100.0) }
+
+        val load = (LOAD_OFFSET + throttle).coerceIn(0.0, MAX_LOAD)
+        val manifold = (MANIFOLD_VACUUM_KPA + throttle * MANIFOLD_GAIN)
+            .coerceIn(MIN_MANIFOLD_KPA, MAX_MANIFOLD_KPA)
+        val maf = rpm / RPM_PER_THOUSAND * manifold / KPA_PER_HUNDRED * MAF_GAIN
+        val warmed = min(1.0, seconds / COOLANT_WARM_SECONDS)
+
+        return DemoVehicleState(
+            runTimeSeconds = seconds.toInt(),
+            rpm = rpm,
+            speedKph = speed,
+            throttlePercent = throttle,
+            engineLoadPercent = load,
+            coolantC = if (warmed < 1.0) {
+                COLD_C + (HOT_COOLANT_C - COLD_C) * warmed
+            } else {
+                HOT_COOLANT_C + wobble(seconds, THERMOSTAT_SWING_C, THERMOSTAT_SECONDS)
+            },
+            intakeC = INTAKE_COLD_C + INTAKE_RISE_C * warmed - INTAKE_RAM_COOLING_C * (speed / TOP_KPH),
+            ambientC = AMBIENT_C + wobble(seconds, AMBIENT_SWING_C, AMBIENT_SECONDS),
+            oilC = COLD_C + (HOT_OIL_C - COLD_C) * min(1.0, seconds / OIL_WARM_SECONDS),
+            manifoldKpa = manifold,
+            barometricKpa = BAROMETRIC_KPA,
+            mafGramsPerSecond = maf,
+            timingAdvanceDegrees = MIN_ADVANCE_DEG + ADVANCE_RANGE_DEG * (1.0 - load / 100.0),
+            shortTrimPercent = wobble(seconds, SHORT_TRIM_SWING, SHORT_TRIM_SECONDS) +
+                noise(SHORT_TRIM_NOISE),
+            longTrimPercent = LONG_TRIM_BIAS + wobble(seconds, LONG_TRIM_SWING, LONG_TRIM_SECONDS),
+            fuelLevelPercent = (FUEL_START_PERCENT - seconds / SECONDS_PER_MINUTE * FUEL_PER_MINUTE)
+                .coerceAtLeast(FUEL_RESERVE_PERCENT),
+            fuelRateLitersPerHour = maf * LITRES_PER_HOUR_PER_GRAM_PER_SECOND,
+            batteryVolts = ALTERNATOR_VOLTS + wobble(seconds, VOLTAGE_SWING, VOLTAGE_SECONDS) -
+                load / 100.0 * VOLTAGE_LOAD_DROP,
+        )
+    }
+
+    /** The drive cycle, in km/h, as a function of seconds since the demo started. */
+    private fun speedAt(seconds: Double): Double {
+        val phase = seconds.mod(CYCLE_SECONDS)
+        return when {
+            phase < IDLE_UNTIL -> 0.0
+            phase < ACCELERATE_UNTIL ->
+                TOP_KPH * (phase - IDLE_UNTIL) / (ACCELERATE_UNTIL - IDLE_UNTIL)
+
+            phase < CRUISE_UNTIL -> TOP_KPH
+            phase < COAST_UNTIL -> TOP_KPH * (COAST_UNTIL - phase) / (COAST_UNTIL - CRUISE_UNTIL)
+            else -> 0.0
+        }
+    }
+
+    private fun wobble(seconds: Double, amplitude: Double, periodSeconds: Double): Double =
+        amplitude * sin(TAU * seconds / periodSeconds)
+
+    private fun noise(amplitude: Double): Double = random.nextDouble(-amplitude, amplitude)
+
+    private companion object {
+        const val DEFAULT_SEED = 0x0BD2L
+        const val TAU = 2.0 * PI
+        const val MILLIS_PER_SECOND = 1_000.0
+        const val SECONDS_PER_MINUTE = 60.0
+        const val HALF_SECOND = 0.5
+
+        // Drive cycle
+        const val CYCLE_SECONDS = 180.0
+        const val IDLE_UNTIL = 20.0
+        const val ACCELERATE_UNTIL = 120.0
+        const val CRUISE_UNTIL = 150.0
+        const val COAST_UNTIL = 175.0
+        const val TOP_KPH = 120.0
+        const val CREEP_KPH = 1.5
+        const val SPEED_NOISE = 0.4
+        const val COASTING_KPH_PER_SECOND = 0.2
+
+        /** Which gear the box would be in at a given speed, as km/h per rpm. */
+        val GEAR_KPH_PER_RPM = listOf(
+            0.0 to 0.0075,
+            25.0 to 0.0135,
+            45.0 to 0.0205,
+            70.0 to 0.0280,
+            95.0 to 0.0360,
+        )
+
+        // Engine
+        const val IDLE_RPM = 800.0
+        const val MAX_RPM = 3_500.0
+        const val IDLE_HUNT_RPM = 25.0
+        const val IDLE_HUNT_SECONDS = 11.0
+        const val RPM_NOISE = 20.0
+        const val RPM_PER_THOUSAND = 1_000.0
+
+        const val IDLE_THROTTLE = 7.0
+        const val OVERRUN_THROTTLE = 2.0
+        const val CRUISE_THROTTLE = 14.0
+        const val CRUISE_THROTTLE_SPEED_GAIN = 0.08
+        const val ACCEL_THROTTLE = 24.0
+        const val ACCEL_THROTTLE_GAIN = 12.0
+        const val ACCEL_THROTTLE_SPEED_GAIN = 0.12
+        const val THROTTLE_NOISE = 0.8
+
+        const val LOAD_OFFSET = 12.0
+        const val MAX_LOAD = 96.0
+
+        const val MANIFOLD_VACUUM_KPA = 26.0
+        const val MANIFOLD_GAIN = 1.85
+        const val MIN_MANIFOLD_KPA = 25.0
+        const val MAX_MANIFOLD_KPA = 140.0
+        const val BAROMETRIC_KPA = 101.0
+        const val KPA_PER_HUNDRED = 100.0
+        const val MAF_GAIN = 6.5
+
+        /** Stoichiometric petrol: 3600 s ÷ (14.7 × 820 g/l). */
+        const val LITRES_PER_HOUR_PER_GRAM_PER_SECOND = 0.2987
+
+        const val MIN_ADVANCE_DEG = 6.0
+        const val ADVANCE_RANGE_DEG = 24.0
+
+        // Temperatures
+        const val COLD_C = 20.0
+        const val HOT_COOLANT_C = 90.0
+        const val HOT_OIL_C = 95.0
+        const val COOLANT_WARM_SECONDS = 180.0
+        const val OIL_WARM_SECONDS = 300.0
+        const val THERMOSTAT_SWING_C = 1.5
+        const val THERMOSTAT_SECONDS = 30.0
+        const val INTAKE_COLD_C = 25.0
+        const val INTAKE_RISE_C = 15.0
+        const val INTAKE_RAM_COOLING_C = 6.0
+        const val AMBIENT_C = 21.0
+        const val AMBIENT_SWING_C = 0.4
+        const val AMBIENT_SECONDS = 90.0
+
+        // Fuel and electrics
+        const val FUEL_START_PERCENT = 68.0
+        const val FUEL_PER_MINUTE = 0.4
+        const val FUEL_RESERVE_PERCENT = 4.0
+        const val SHORT_TRIM_SWING = 2.6
+        const val SHORT_TRIM_SECONDS = 23.0
+        const val SHORT_TRIM_NOISE = 1.4
+        const val LONG_TRIM_BIAS = -2.4
+        const val LONG_TRIM_SWING = 1.2
+        const val LONG_TRIM_SECONDS = 140.0
+        const val ALTERNATOR_VOLTS = 14.2
+        const val VOLTAGE_SWING = 0.12
+        const val VOLTAGE_SECONDS = 17.0
+        const val VOLTAGE_LOAD_DROP = 0.25
+    }
+}
+
+/**
+ * An ELM327 v2.1 sitting on a CAN 11-bit / 500 kbaud petrol car that only exists in
+ * software.
+ *
+ * It is a transport rather than a stub higher up on purpose: demo mode then goes through
+ * the same `>`-framing, echo stripping, init sequence, ISO-TP reassembly, response parser
+ * and scheduler as a real dongle, so the whole pipeline is what gets demonstrated — and
+ * what gets exercised by the tests. The AT settings that matter to the framing (`ATE0`,
+ * `ATH1`, `ATS0`) are tracked and honoured, and everything else answers `OK` or `?` the
+ * way the chip does.
+ */
+class DemoElmTransport(
+    private val vehicle: DemoVehicle = DemoVehicle(),
+    private val latencyMillis: IntRange = DEFAULT_LATENCY_MILLIS,
+    private val clock: () -> Long = System::currentTimeMillis,
+) : ElmTransport {
+
+    private val channel = Channel<ByteArray>(Channel.UNLIMITED)
+    private val random = Random(LATENCY_SEED)
+
+    private var startedAtMillis = 0L
+    private var closed = false
+
+    private var echo = true
+    private var headers = false
+    private var spaces = true
+
+    /** The `SEARCHING...` banner only ever precedes the first request that hits the bus. */
+    private var searched = false
+
+    private var stored: List<String> = STORED_CODES
+    private var pending: List<String> = PENDING_CODES
+
+    override suspend fun open() {
+        startedAtMillis = clock()
+        resetSettings()
+    }
+
+    override suspend fun write(command: String) {
+        if (closed) return
+        val normalized = command.filterNot(Char::isWhitespace).uppercase()
+        val reply = render(command.trim(), respond(normalized))
+        latency()
+        reply.toByteArray(Charsets.ISO_8859_1).toList().chunked(NOTIFICATION_CHUNK).forEach {
+            if (!closed) channel.send(it.toByteArray())
+        }
+    }
+
+    override fun incoming(): Flow<ByteArray> = channel.receiveAsFlow()
+
+    override suspend fun close() {
+        closed = true
+        channel.close()
+    }
+
+    // ---- ELM327 ---------------------------------------------------------------------
+
+    private fun respond(command: String): List<String> =
+        if (command.startsWith(AT_PREFIX)) {
+            atCommand(command.removePrefix(AT_PREFIX))
+        } else {
+            obdCommand(command)
+        }
+
+    private fun atCommand(argument: String): List<String> = when {
+        argument == "Z" || argument == "WS" || argument == "D" -> {
+            resetSettings()
+            listOf(IDENTIFIER)
+        }
+
+        argument == "I" -> listOf(IDENTIFIER)
+        argument == "RV" -> listOf(VOLTAGE_FORMAT.format(Locale.ROOT, state().batteryVolts))
+        argument == "DPN" -> listOf(PROTOCOL_NUMBER)
+        argument == "DP" -> listOf(PROTOCOL_NAME)
+        argument == "E0" -> ok { echo = false }
+        argument == "E1" -> ok { echo = true }
+        argument == "H0" -> ok { headers = false }
+        argument == "H1" -> ok { headers = true }
+        argument == "S0" -> ok { spaces = false }
+        argument == "S1" -> ok { spaces = true }
+        argument == "AL" || argument == "NL" -> ok {}
+        argument.startsWith("AT") || argument.startsWith("ST") -> ok {}
+        argument.startsWith("SP") || argument.startsWith("L") -> ok {}
+        argument.startsWith("CAF") || argument.startsWith("CFC") -> ok {}
+        else -> listOf(UNKNOWN_COMMAND)
+    }
+
+    private fun obdCommand(command: String): List<String> {
+        // Obd2Client appends the expected response-line count (`010C1`); it is not a byte.
+        val request = if (command.length % 2 == 1) command.dropLast(1) else command
+        val bytes = hexBytes(request) ?: return listOf(UNKNOWN_COMMAND)
+        val banner = if (searched) emptyList() else listOf(SEARCHING).also { searched = true }
+        val payload = when (bytes.firstOrNull()) {
+            MODE_CURRENT_DATA -> currentData(bytes.drop(1))
+            MODE_STORED_DTC -> troubleCodes(MODE_STORED_DTC, stored)
+            MODE_PENDING_DTC -> troubleCodes(MODE_PENDING_DTC, pending)
+            MODE_PERMANENT_DTC -> null
+            MODE_CLEAR_DTC -> clearCodes()
+            MODE_VEHICLE_INFO -> vehicleInfo(bytes.drop(1))
+            else -> null
+        }
+        return banner + (payload?.let(::canFrames) ?: listOf(NO_DATA))
+    }
+
+    private fun currentData(requested: List<Int>): List<Int>? {
+        val snapshot = state()
+        val payload = mutableListOf(MODE_CURRENT_DATA + ObdResponseParser.RESPONSE_OFFSET)
+        for (pid in requested) {
+            val data = dataFor(pid, snapshot) ?: continue
+            payload += pid
+            payload += data
+        }
+        return payload.takeIf { it.size > 1 }
+    }
+
+    private fun troubleCodes(mode: Int, codes: List<String>): List<Int> =
+        listOf(mode + ObdResponseParser.RESPONSE_OFFSET, codes.size) +
+            codes.flatMap { DtcDecoder.encode(it).orEmpty() }
+
+    private fun clearCodes(): List<Int> {
+        stored = emptyList()
+        pending = emptyList()
+        return listOf(MODE_CLEAR_DTC + ObdResponseParser.RESPONSE_OFFSET)
+    }
+
+    private fun vehicleInfo(requested: List<Int>): List<Int>? {
+        if (requested.firstOrNull() != VIN_PID) return null
+        return listOf(MODE_VEHICLE_INFO + ObdResponseParser.RESPONSE_OFFSET, VIN_PID, VIN_MESSAGES) +
+            VIN.map(Char::code)
+    }
+
+    /** Live data, support bitmasks and the lamp status, as raw Mode 01 data bytes. */
+    private fun dataFor(pid: Int, state: DemoVehicleState): List<Int>? = when (pid) {
+        0x00, 0x20, 0x40 -> supportMask(pid)
+        0x01 -> listOf(lampByte(), 0x07, 0x65, 0x00)
+        0x03 -> listOf(0x02, 0x00)
+        Pids.ENGINE_LOAD -> listOf(ratio(state.engineLoadPercent))
+        Pids.COOLANT_TEMP -> listOf(temperature(state.coolantC))
+        Pids.SHORT_FUEL_TRIM_1 -> listOf(fuelTrim(state.shortTrimPercent))
+        Pids.LONG_FUEL_TRIM_1 -> listOf(fuelTrim(state.longTrimPercent))
+        Pids.INTAKE_MAP -> listOf(byte(state.manifoldKpa))
+        Pids.ENGINE_RPM -> word(state.rpm * RPM_QUARTERS)
+        Pids.VEHICLE_SPEED -> listOf(byte(state.speedKph))
+        Pids.TIMING_ADVANCE -> listOf(byte((state.timingAdvanceDegrees + ADVANCE_OFFSET) * 2.0))
+        Pids.INTAKE_AIR_TEMP -> listOf(temperature(state.intakeC))
+        Pids.MAF_RATE -> word(state.mafGramsPerSecond * MAF_HUNDREDTHS)
+        Pids.THROTTLE_POSITION -> listOf(ratio(state.throttlePercent))
+        0x13 -> listOf(0x03)
+        0x1C -> listOf(OBD_STANDARD_EOBD)
+        Pids.RUN_TIME -> word(state.runTimeSeconds.toDouble())
+        Pids.DISTANCE_WITH_MIL -> word(DISTANCE_WITH_MIL_KM)
+        Pids.FUEL_LEVEL -> listOf(ratio(state.fuelLevelPercent))
+        0x30 -> listOf(WARM_UPS_SINCE_CLEARED)
+        Pids.DISTANCE_SINCE_CLEARED -> word(DISTANCE_SINCE_CLEARED_KM)
+        Pids.BAROMETRIC_PRESSURE -> listOf(byte(state.barometricKpa))
+        Pids.CONTROL_MODULE_VOLTAGE -> word(state.batteryVolts * MILLIVOLTS_PER_VOLT)
+        0x43 -> word(state.engineLoadPercent * FULL_SCALE / 100.0)
+        0x45 -> listOf(ratio(state.throttlePercent - CLOSED_THROTTLE_OFFSET))
+        Pids.AMBIENT_AIR_TEMP -> listOf(temperature(state.ambientC))
+        0x49 -> listOf(ratio(state.throttlePercent + PEDAL_OFFSET))
+        0x4A -> listOf(ratio(state.throttlePercent))
+        0x4C -> listOf(ratio(state.throttlePercent))
+        Pids.OIL_TEMP -> listOf(temperature(state.oilC))
+        Pids.FUEL_RATE -> word(state.fuelRateLitersPerHour * FUEL_RATE_TWENTIETHS)
+        else -> null
+    }
+
+    private fun lampByte(): Int =
+        if (stored.isEmpty()) 0 else MIL_BIT or stored.size
+
+    /** `0100`/`0120`/`0140`: bit A7 is `base + 1`, down to bit D0 = `base + 0x20`. */
+    private fun supportMask(base: Int): List<Int> {
+        var bits = 0L
+        for (pid in SUPPORTED_PIDS) {
+            val offset = pid - base
+            if (offset in 1..Int.SIZE_BITS) bits = bits or (1L shl (Int.SIZE_BITS - offset))
+        }
+        return (3 downTo 0).map { ((bits shr (it * Byte.SIZE_BITS)) and 0xFF).toInt() }
+    }
+
+    // ---- framing --------------------------------------------------------------------
+
+    /** Wraps [payload] in single or ISO-TP multi-frame CAN messages, as text lines. */
+    private fun canFrames(payload: List<Int>): List<String> {
+        if (payload.size <= SINGLE_FRAME_BYTES) {
+            return listOf(line(listOf(payload.size) + payload))
+        }
+        val lines = mutableListOf(
+            line(
+                listOf(FIRST_FRAME_PCI or (payload.size shr Byte.SIZE_BITS), payload.size and 0xFF) +
+                    payload.take(FIRST_FRAME_BYTES),
+            ),
+        )
+        var index = FIRST_FRAME_BYTES
+        var sequence = 1
+        while (index < payload.size) {
+            val end = min(index + CONSECUTIVE_FRAME_BYTES, payload.size)
+            lines += line(
+                listOf(CONSECUTIVE_FRAME_PCI or (sequence and 0x0F)) + payload.subList(index, end),
+            )
+            index = end
+            sequence++
+        }
+        return lines
+    }
+
+    private fun line(bytes: List<Int>): String {
+        val separator = if (spaces) " " else ""
+        val body = bytes.joinToString(separator) { "%02X".format(it) }
+        return if (headers) ECU_HEADER + separator + body else body
+    }
+
+    private fun render(command: String, lines: List<String>): String = buildString {
+        if (echo) append(command).append(LINE_END)
+        lines.forEach { append(it).append(LINE_END) }
+        append(PROMPT)
+    }
+
+    private suspend fun latency() {
+        if (latencyMillis.isEmpty()) return
+        delay(random.nextInt(latencyMillis.first, latencyMillis.last + 1).toLong())
+    }
+
+    private fun resetSettings() {
+        echo = true
+        headers = false
+        spaces = true
+        searched = false
+    }
+
+    private fun state(): DemoVehicleState = vehicle.sampleAt(clock() - startedAtMillis)
+
+    private fun ok(apply: () -> Unit): List<String> {
+        apply()
+        return listOf(OK)
+    }
+
+    private fun byte(value: Double): Int = value.roundToInt().coerceIn(0, 0xFF)
+
+    private fun ratio(percent: Double): Int = byte(percent * FULL_SCALE / 100.0)
+
+    private fun temperature(celsius: Double): Int = byte(celsius + TEMPERATURE_OFFSET)
+
+    private fun fuelTrim(percent: Double): Int = byte((percent + 100.0) * TRIM_SCALE / 100.0)
+
+    private fun word(value: Double): List<Int> {
+        val raw = value.roundToInt().coerceIn(0, 0xFFFF)
+        return listOf(raw shr Byte.SIZE_BITS, raw and 0xFF)
+    }
+
+    private fun hexBytes(text: String): List<Int>? {
+        if (text.isEmpty() || text.length % 2 != 0) return null
+        return (text.indices step 2).map {
+            text.substring(it, it + 2).toIntOrNull(16) ?: return null
+        }
+    }
+
+    companion object {
+        /** A real dongle answers in tens of milliseconds; so does this one. */
+        val DEFAULT_LATENCY_MILLIS = 20..50
+
+        const val IDENTIFIER = "ELM327 v2.1"
+        const val VIN = "WVWZZZ1KZ8W123456"
+
+        /** Realistic petrol-car support: the ~30 PIDs a 2010s CAN car answers for. */
+        val SUPPORTED_PIDS = sortedSetOf(
+            0x01, 0x03, 0x04, 0x05, 0x06, 0x07, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11,
+            0x13, 0x1C, 0x1F, 0x20,
+            0x21, 0x2F, 0x30, 0x31, 0x33, 0x40,
+            0x42, 0x43, 0x45, 0x46, 0x49, 0x4A, 0x4C, 0x5C, 0x5E,
+        )
+
+        val STORED_CODES = listOf("P0420", "P0301")
+        val PENDING_CODES = listOf("P0171")
+
+        private const val LATENCY_SEED = 0x1701L
+        private const val NOTIFICATION_CHUNK = 20
+        private const val AT_PREFIX = "AT"
+        private const val OK = "OK"
+        private const val UNKNOWN_COMMAND = "?"
+        private const val NO_DATA = "NO DATA"
+        private const val SEARCHING = "SEARCHING..."
+        private const val LINE_END = "\r"
+        private const val PROMPT = "\r>"
+        private const val ECU_HEADER = "7E8"
+        private const val PROTOCOL_NUMBER = "A6"
+        private const val PROTOCOL_NAME = "AUTO, ISO 15765-4 (CAN 11/500)"
+        private const val VOLTAGE_FORMAT = "%.1fV"
+
+        private const val SINGLE_FRAME_BYTES = 7
+        private const val FIRST_FRAME_BYTES = 6
+        private const val CONSECUTIVE_FRAME_BYTES = 7
+        private const val FIRST_FRAME_PCI = 0x10
+        private const val CONSECUTIVE_FRAME_PCI = 0x20
+
+        private const val VIN_PID = 0x02
+        private const val VIN_MESSAGES = 0x01
+        private const val MIL_BIT = 0x80
+        private const val OBD_STANDARD_EOBD = 0x06
+        private const val WARM_UPS_SINCE_CLEARED = 9
+        private const val DISTANCE_WITH_MIL_KM = 137.0
+        private const val DISTANCE_SINCE_CLEARED_KM = 412.0
+
+        private const val FULL_SCALE = 255.0
+        private const val TRIM_SCALE = 128.0
+        private const val TEMPERATURE_OFFSET = 40.0
+        private const val ADVANCE_OFFSET = 64.0
+        private const val RPM_QUARTERS = 4.0
+        private const val MAF_HUNDREDTHS = 100.0
+        private const val MILLIVOLTS_PER_VOLT = 1_000.0
+        private const val FUEL_RATE_TWENTIETHS = 20.0
+        private const val CLOSED_THROTTLE_OFFSET = 6.0
+        private const val PEDAL_OFFSET = 2.0
+    }
+}

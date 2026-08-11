@@ -246,6 +246,10 @@ private fun AppNavHost(
                     viewModel.connect(device)
                     navController.popBackStack()
                 },
+                onDemo = {
+                    viewModel.connectDemo()
+                    navController.popBackStack()
+                },
                 onDisconnect = viewModel::disconnect,
             )
         }

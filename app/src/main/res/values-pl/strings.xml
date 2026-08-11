@@ -18,12 +18,14 @@
     <string name="status_reconnecting">Ponowne łączenie, próba %1$d…</string>
     <string name="status_error">Problem z połączeniem</string>
     <string name="status_error_reason">Problem z połączeniem: %1$s</string>
+    <string name="status_demo">Tryb demo · symulowany samochód</string>
 
     <!-- Akcje -->
     <string name="action_connect">Połącz</string>
     <string name="action_disconnect">Rozłącz</string>
     <string name="action_scan">Szukaj adapterów</string>
     <string name="action_stop_scan">Zatrzymaj wyszukiwanie</string>
+    <string name="action_demo">Demo</string>
     <string name="action_done">Gotowe</string>
     <string name="action_back">Wstecz</string>
     <string name="action_cancel">Anuluj</string>
@@ -46,6 +48,8 @@
     <string name="connect_remembered">Twój zapisany adapter</string>
     <string name="connect_adapter_details">%1$s · protokół %2$s</string>
     <string name="connect_unknown_adapter">Nieznany adapter</string>
+    <string name="connect_demo_hint">Nie masz adaptera pod ręką? Demo uruchamia aplikację na symulowanym samochodzie.</string>
+    <string name="connect_demo_details">Dane symulowane · żaden samochód nie jest podłączony</string>
     <string name="permission_bluetooth_rationale">Dostęp do Bluetooth jest potrzebny, żeby znaleźć adapter OBD-II i się z nim połączyć. Przyznaj go w ustawieniach systemu, aby kontynuować.</string>
 
     <!-- Pulpit -->

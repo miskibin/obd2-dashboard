@@ -89,7 +89,13 @@ fun ConnectionPill(
 
 @Composable
 private fun ConnectionState.accentColor(): Color = when (this) {
-    is ConnectionState.Connected -> MaterialTheme.colorScheme.primary
+    // Demo gets its own colour: a green dot must only ever mean a real car.
+    is ConnectionState.Connected -> if (demo) {
+        MaterialTheme.colorScheme.secondary
+    } else {
+        MaterialTheme.colorScheme.primary
+    }
+
     is ConnectionState.Error -> MaterialTheme.colorScheme.error
     ConnectionState.Idle -> MaterialTheme.colorScheme.outline
     else -> MaterialTheme.colorScheme.secondary

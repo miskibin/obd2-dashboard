@@ -18,12 +18,14 @@
     <string name="status_reconnecting">Reconnecting, attempt %1$d…</string>
     <string name="status_error">Connection problem</string>
     <string name="status_error_reason">Connection problem: %1$s</string>
+    <string name="status_demo">Demo mode · simulated car</string>
 
     <!-- Actions -->
     <string name="action_connect">Connect</string>
     <string name="action_disconnect">Disconnect</string>
     <string name="action_scan">Scan for adapters</string>
     <string name="action_stop_scan">Stop scanning</string>
+    <string name="action_demo">Demo</string>
     <string name="action_done">Done</string>
     <string name="action_back">Back</string>
     <string name="action_cancel">Cancel</string>
@@ -46,6 +48,8 @@
     <string name="connect_remembered">Your saved adapter</string>
     <string name="connect_adapter_details">%1$s · protocol %2$s</string>
     <string name="connect_unknown_adapter">Unknown adapter</string>
+    <string name="connect_demo_hint">No adapter to hand? Demo runs the app on a simulated car.</string>
+    <string name="connect_demo_details">Simulated data · no car is connected</string>
     <string name="permission_bluetooth_rationale">Bluetooth access is needed to find and talk to your OBD-II adapter. Grant it in system settings to continue.</string>
 
     <!-- Dashboard -->

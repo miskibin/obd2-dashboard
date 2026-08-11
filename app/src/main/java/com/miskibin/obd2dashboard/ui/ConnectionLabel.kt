@@ -15,7 +15,11 @@ fun ConnectionState.label(): String = when (this) {
 
     is ConnectionState.Initializing -> stringResource(R.string.status_initializing, step)
     is ConnectionState.Connected ->
-        stringResource(R.string.status_connected_to, device.name ?: device.address)
+        if (demo) {
+            stringResource(R.string.status_demo)
+        } else {
+            stringResource(R.string.status_connected_to, device.name ?: device.address)
+        }
 
     is ConnectionState.Reconnecting -> stringResource(R.string.status_reconnecting, attempt)
     is ConnectionState.Error -> stringResource(R.string.status_error_reason, reason)

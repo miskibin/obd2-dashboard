@@ -63,6 +63,7 @@ fun ConnectScreen(
     onScan: () -> Unit,
     onStopScan: () -> Unit,
     onConnect: (DiscoveredDevice) -> Unit,
+    onDemo: () -> Unit,
     onDisconnect: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -155,32 +156,50 @@ fun ConnectScreen(
         }
 
         if (connected == null) {
-            if (scanning) {
-                OutlinedButton(
-                    onClick = onStopScan,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
-                ) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                    Spacer(Modifier.width(12.dp))
-                    Text(stringResource(R.string.action_stop_scan))
+            // The demo needs neither a radio nor a permission, so it sits next to the
+            // scan button rather than behind it.
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                if (scanning) {
+                    OutlinedButton(
+                        onClick = onStopScan,
+                        modifier = Modifier.weight(1f).heightIn(min = 56.dp),
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Text(stringResource(R.string.action_stop_scan))
+                    }
+                } else {
+                    Button(
+                        onClick = ::requestScan,
+                        modifier = Modifier.weight(1f).heightIn(min = 56.dp),
+                    ) {
+                        Icon(AppIcons.Bluetooth, contentDescription = null)
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            text = stringResource(R.string.action_scan),
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                    }
                 }
-            } else {
-                Button(
-                    onClick = ::requestScan,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+                OutlinedButton(
+                    onClick = onDemo,
+                    modifier = Modifier.heightIn(min = 56.dp),
                 ) {
-                    Icon(AppIcons.Bluetooth, contentDescription = null)
-                    Spacer(Modifier.width(12.dp))
-                    Text(
-                        text = stringResource(R.string.action_scan),
-                        style = MaterialTheme.typography.titleMedium,
-                    )
+                    Text(stringResource(R.string.action_demo))
                 }
             }
+            Text(
+                text = stringResource(R.string.connect_demo_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
 
         val sorted = remember(devices) {
@@ -225,16 +244,28 @@ private fun ConnectedCard(state: ConnectionState.Connected, onDisconnect: () -> 
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Text(
-            text = state.device.name ?: state.device.address,
+            text = if (state.demo) {
+                stringResource(R.string.status_demo)
+            } else {
+                state.device.name ?: state.device.address
+            },
             style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.primary,
+            color = if (state.demo) {
+                MaterialTheme.colorScheme.secondary
+            } else {
+                MaterialTheme.colorScheme.primary
+            },
         )
         Text(
-            text = stringResource(
-                R.string.connect_adapter_details,
-                state.adapter.identifier ?: stringResource(R.string.connect_unknown_adapter),
-                state.adapter.protocol.name,
-            ),
+            text = if (state.demo) {
+                stringResource(R.string.connect_demo_details)
+            } else {
+                stringResource(
+                    R.string.connect_adapter_details,
+                    state.adapter.identifier ?: stringResource(R.string.connect_unknown_adapter),
+                    state.adapter.protocol.name,
+                )
+            },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

@@ -33,6 +33,7 @@ data class Diagnostics(
 object DtcDecoder {
 
     private const val SYSTEMS = "PCBU"
+    private const val CODE_LENGTH = 5
 
     /** Returns null for the `00 00` padding pairs, which are not code P0000. */
     fun decode(a: Int, b: Int): String? {
@@ -43,6 +44,18 @@ object DtcDecoder {
         val fourth = (b shr 4) and 0x0F
         val fifth = b and 0x0F
         return "%c%d%X%X%X".format(system, second, third, fourth, fifth)
+    }
+
+    /** Inverse of [decode]; null when [code] is not a well-formed DTC such as `P0420`. */
+    fun encode(code: String): List<Int>? {
+        val upper = code.trim().uppercase()
+        if (upper.length != CODE_LENGTH) return null
+        val system = SYSTEMS.indexOf(upper[0]).takeIf { it >= 0 } ?: return null
+        val digits = upper.drop(1).map { it.digitToIntOrNull(16) ?: return null }
+        return listOf(
+            (system shl 6) or ((digits[0] and 0x03) shl 4) or digits[1],
+            (digits[2] shl 4) or digits[3],
+        )
     }
 
     /**
