@@ -13,6 +13,7 @@ captures/
 # Signing
 *.jks
 *.keystore
+!app/debug.keystore
 keystore.properties
 
 # IDE
