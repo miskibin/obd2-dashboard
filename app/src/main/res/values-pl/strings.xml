@@ -2,15 +2,184 @@
 <resources>
     <string name="app_name">OBD2 Dashboard</string>
 
-    <string name="status_disconnected">Brak połączenia z adapterem</string>
-    <string name="status_connecting">Łączenie…</string>
-    <string name="status_connected">Połączono</string>
+    <!-- Dolna nawigacja -->
+    <string name="nav_dashboard">Pulpit</string>
+    <string name="nav_charts">Wykresy</string>
+    <string name="nav_diagnostics">Błędy</string>
+    <string name="nav_settings">Ustawienia</string>
 
+    <!-- Stan połączenia -->
+    <string name="status_disconnected">Brak połączenia</string>
+    <string name="status_scanning">Szukam adapterów…</string>
+    <string name="status_connecting">Łączenie…</string>
+    <string name="status_connecting_to">Łączenie z %1$s…</string>
+    <string name="status_initializing">Konfiguracja (%1$s)…</string>
+    <string name="status_connected_to">Połączono z %1$s</string>
+    <string name="status_reconnecting">Ponowne łączenie, próba %1$d…</string>
+    <string name="status_error">Problem z połączeniem</string>
+    <string name="status_error_reason">Problem z połączeniem: %1$s</string>
+
+    <!-- Akcje -->
     <string name="action_connect">Połącz</string>
     <string name="action_disconnect">Rozłącz</string>
     <string name="action_scan">Szukaj adapterów</string>
-    <string name="action_settings">Ustawienia</string>
+    <string name="action_stop_scan">Zatrzymaj wyszukiwanie</string>
+    <string name="action_done">Gotowe</string>
+    <string name="action_back">Wstecz</string>
+    <string name="action_cancel">Anuluj</string>
+    <string name="action_delete">Usuń</string>
+    <string name="action_share">Udostępnij</string>
+    <string name="action_add_tile">Dodaj wartość</string>
+    <string name="action_remove_tile">Usuń ten kafelek</string>
+    <string name="action_record">Nagraj przejazd</string>
+    <string name="action_stop_recording">Zatrzymaj · %1$s</string>
+    <string name="action_read_codes">Odczytaj błędy</string>
+    <string name="action_clear_codes">Skasuj błędy</string>
 
-    <string name="permission_bluetooth_rationale">Dostęp do Bluetooth jest potrzebny, aby znaleźć adapter OBD-II i się z nim połączyć.</string>
-    <string name="error_connection_failed">Nie udało się połączyć z adapterem.</string>
+    <!-- Ekran połączenia -->
+    <string name="connect_title">Połącz adapter</string>
+    <string name="connect_subtitle">Włóż adapter do gniazda OBD-II i włącz zapłon, a potem rozpocznij wyszukiwanie.</string>
+    <string name="connect_empty_hint">Nie znaleziono jeszcze żadnego adaptera. Dotknij „Szukaj” i trzymaj telefon blisko gniazda.</string>
+    <string name="connect_saved_hint">Adapter %1$s jest zapamiętany i połączy się automatycznie.</string>
+    <string name="connect_unnamed_device">Urządzenie bez nazwy</string>
+    <string name="connect_likely_adapter">Wygląda na adapter OBD-II</string>
+    <string name="connect_remembered">Twój zapisany adapter</string>
+    <string name="connect_adapter_details">%1$s · protokół %2$s</string>
+    <string name="connect_unknown_adapter">Nieznany adapter</string>
+    <string name="permission_bluetooth_rationale">Dostęp do Bluetooth jest potrzebny, żeby znaleźć adapter OBD-II i się z nim połączyć. Przyznaj go w ustawieniach systemu, aby kontynuować.</string>
+
+    <!-- Pulpit -->
+    <string name="dashboard_empty_title">Nie ma jeszcze czego pokazać</string>
+    <string name="dashboard_empty_message">Połącz się z adapterem OBD-II, a pojawią się tutaj wartości na żywo.</string>
+    <string name="dashboard_edit_hint">Przeciągnij kafelki, aby zmienić kolejność, dotknij ✕, aby usunąć</string>
+
+    <!-- Wybór parametrów -->
+    <string name="picker_title">Dodaj wartość</string>
+    <string name="picker_search_hint">Szukaj wartości</string>
+    <string name="picker_available">Dostępne</string>
+    <string name="picker_unsupported">Nieobsługiwane przez Twoje auto</string>
+    <string name="picker_unsupported_hint">Twoje auto nie zgłosiło tych parametrów podczas łączenia, więc zawsze byłyby puste.</string>
+    <string name="picker_no_results">Nic nie pasuje do wyszukiwania.</string>
+
+    <!-- Wykresy -->
+    <string name="chart_window_30s">30 s</string>
+    <string name="chart_window_2min">2 min</string>
+    <string name="chart_window_10min">10 min</string>
+    <string name="charts_no_tiles_title">Nie ma czego rysować</string>
+    <string name="charts_no_tiles_message">Najpierw dodaj kilka wartości na pulpit — wykres rysuje to, co tam wybierzesz.</string>
+    <string name="charts_waiting_title">Czekam na dane</string>
+    <string name="charts_waiting_message">Linia zacznie się rysować, gdy tylko adapter poda pierwszy odczyt.</string>
+    <string name="charts_recordings">Nagrania (%1$d)</string>
+
+    <!-- Nagrania przejazdów -->
+    <string name="recordings_title">Nagrania</string>
+    <string name="recordings_empty_title">Brak nagrań</string>
+    <string name="recordings_empty_message">Dotknij „Nagraj” podczas jazdy, aby zapisać wszystkie odczyty do pliku CSV, który możesz udostępnić.</string>
+    <string name="recordings_details">%1$s · %2$s</string>
+    <string name="recordings_delete_title">Usunąć to nagranie?</string>
+    <string name="recordings_delete_message">Plik %1$s zniknie z tego telefonu. To, co już udostępniłeś, zostaje tam, gdzie zostało wysłane.</string>
+
+    <!-- Diagnostyka -->
+    <string name="dtc_disconnected_title">Połącz się, aby odczytać błędy</string>
+    <string name="dtc_disconnected_message">Kody błędów są odczytywane z auta, więc najpierw trzeba połączyć adapter.</string>
+    <string name="dtc_idle_title">Nie odczytano jeszcze błędów</string>
+    <string name="dtc_idle_message">Dotknij „Odczytaj błędy”, aby zapytać każdy sterownik, co ma zapisane.</string>
+    <string name="dtc_none_title">Brak błędów</string>
+    <string name="dtc_none_message">Nie ma teraz żadnych błędów zapisanych, oczekujących ani trwałych.</string>
+    <string name="dtc_section_stored">Zapisane</string>
+    <string name="dtc_section_pending">Oczekujące</string>
+    <string name="dtc_section_permanent">Trwałe</string>
+    <string name="dtc_status_unknown">Stan nieznany</string>
+    <string name="dtc_status_mil_on">Kontrolka silnika świeci</string>
+    <string name="dtc_status_mil_off">Kontrolka silnika nie świeci</string>
+    <string name="dtc_reported_by">Zgłoszone przez %1$s</string>
+    <string name="dtc_clear_title">Skasować wszystkie błędy?</string>
+    <string name="dtc_clear_warning">To wymaże zapisane kody razem z zamrożoną ramką danych i wyzeruje wszystkie testy gotowości. Auto nie przejdzie badania emisji, dopóki nie przejedziesz pełnego cyklu jezdnego. Jeśli usterka nadal istnieje, kod wróci.</string>
+
+    <plurals name="dtc_status_count">
+        <item quantity="one">%1$d zapisany kod</item>
+        <item quantity="few">%1$d zapisane kody</item>
+        <item quantity="many">%1$d zapisanych kodów</item>
+        <item quantity="other">%1$d zapisanych kodów</item>
+    </plurals>
+
+    <!-- Ustawienia -->
+    <string name="settings_adapter">Zapisany adapter</string>
+    <string name="settings_adapter_none">Nic jeszcze nie zapisano</string>
+    <string name="settings_forget_adapter">Zapomnij ten adapter</string>
+    <string name="settings_language">Język</string>
+    <string name="settings_language_system">Systemowy</string>
+    <string name="settings_language_english">English</string>
+    <string name="settings_language_polish">Polski</string>
+    <string name="settings_polling">Odpytywanie</string>
+    <string name="settings_polling_description">Ciągle pytaj auto o wartości na żywo. Wyłącz, aby oszczędzać baterię, gdy potrzebujesz tylko kodów błędów.</string>
+    <string name="settings_about">O aplikacji</string>
+    <string name="settings_version">Wersja %1$s</string>
+
+    <!-- Powiadomienie usługi -->
+    <string name="notification_channel_name">Połączenie z adapterem</string>
+    <string name="notification_channel_description">Pokazuje stan połączenia i wartości na żywo, gdy aplikacja działa w tle.</string>
+    <string name="notification_rpm">%1$d obr/min</string>
+    <string name="notification_coolant">Płyn %1$d °C</string>
+    <string name="notification_waiting_for_data">Czekam na dane…</string>
+
+    <!-- Nazwy parametrów -->
+    <string name="metric_unknown">Nieznany parametr</string>
+    <string name="metric_boost">Ciśnienie doładowania</string>
+    <string name="metric_fuel_rate">Zużycie paliwa</string>
+    <string name="metric_fuel_per_100km">Spalanie</string>
+    <string name="metric_battery">Napięcie akumulatora</string>
+
+    <string name="metric_pid_04">Obciążenie silnika</string>
+    <string name="metric_pid_05">Temperatura płynu</string>
+    <string name="metric_pid_06">Korekta krótka, rząd 1</string>
+    <string name="metric_pid_07">Korekta długa, rząd 1</string>
+    <string name="metric_pid_08">Korekta krótka, rząd 2</string>
+    <string name="metric_pid_09">Korekta długa, rząd 2</string>
+    <string name="metric_pid_0a">Ciśnienie paliwa</string>
+    <string name="metric_pid_0b">Ciśnienie w kolektorze</string>
+    <string name="metric_pid_0c">Obroty silnika</string>
+    <string name="metric_pid_0d">Prędkość</string>
+    <string name="metric_pid_0e">Wyprzedzenie zapłonu</string>
+    <string name="metric_pid_0f">Temperatura dolotu</string>
+    <string name="metric_pid_10">Przepływ powietrza (MAF)</string>
+    <string name="metric_pid_11">Położenie przepustnicy</string>
+    <string name="metric_pid_1f">Czas pracy silnika</string>
+    <string name="metric_pid_21">Dystans z kontrolką</string>
+    <string name="metric_pid_22">Ciśnienie listwy paliwowej</string>
+    <string name="metric_pid_23">Ciśnienie względne listwy</string>
+    <string name="metric_pid_2c">Zadane otwarcie EGR</string>
+    <string name="metric_pid_2e">Zadane przepłukanie EVAP</string>
+    <string name="metric_pid_2f">Poziom paliwa</string>
+    <string name="metric_pid_30">Rozgrzewki od kasowania</string>
+    <string name="metric_pid_31">Dystans od kasowania</string>
+    <string name="metric_pid_32">Ciśnienie par EVAP</string>
+    <string name="metric_pid_33">Ciśnienie atmosferyczne</string>
+    <string name="metric_pid_3c">Temperatura katalizatora B1S1</string>
+    <string name="metric_pid_3d">Temperatura katalizatora B2S1</string>
+    <string name="metric_pid_3e">Temperatura katalizatora B1S2</string>
+    <string name="metric_pid_3f">Temperatura katalizatora B2S2</string>
+    <string name="metric_pid_42">Napięcie sterownika</string>
+    <string name="metric_pid_43">Obciążenie bezwzględne</string>
+    <string name="metric_pid_44">Zadana lambda</string>
+    <string name="metric_pid_45">Względne położenie przepustnicy</string>
+    <string name="metric_pid_46">Temperatura zewnętrzna</string>
+    <string name="metric_pid_47">Bezwzględne położenie przepustnicy B</string>
+    <string name="metric_pid_49">Położenie pedału gazu D</string>
+    <string name="metric_pid_4a">Położenie pedału gazu E</string>
+    <string name="metric_pid_4c">Zadane sterowanie przepustnicą</string>
+    <string name="metric_pid_4d">Czas z kontrolką</string>
+    <string name="metric_pid_4e">Czas od kasowania</string>
+    <string name="metric_pid_52">Zawartość etanolu</string>
+    <string name="metric_pid_53">Bezwzględne ciśnienie EVAP</string>
+    <string name="metric_pid_59">Bezwzględne ciśnienie listwy</string>
+    <string name="metric_pid_5a">Względne położenie pedału gazu</string>
+    <string name="metric_pid_5b">Żywotność akumulatora hybrydy</string>
+    <string name="metric_pid_5c">Temperatura oleju</string>
+    <string name="metric_pid_5d">Kąt wtrysku</string>
+    <string name="metric_pid_5e">Chwilowe zużycie paliwa</string>
+    <string name="metric_pid_61">Moment żądany</string>
+    <string name="metric_pid_62">Moment rzeczywisty</string>
+    <string name="metric_pid_63">Moment referencyjny</string>
+    <string name="metric_pid_a6">Przebieg</string>
 </resources>

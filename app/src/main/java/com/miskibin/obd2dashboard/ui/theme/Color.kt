@@ -12,6 +12,9 @@ val DashAmber = Color(0xFFFFB74D)
 val DashAmberDark = Color(0xFF3E2800)
 val DashAmberContainer = Color(0xFF5A3B00)
 
+/** Third chart series colour: distinguishable from cyan and amber for most colour vision. */
+val DashGreen = Color(0xFF7FE3A8)
+
 val DashRed = Color(0xFFFF6B6B)
 val DashRedDark = Color(0xFF410002)
 val DashRedContainer = Color(0xFF93000A)
@@ -22,3 +25,6 @@ val DashSurfaceVariant = Color(0xFF1E252B)
 val DashOnSurface = Color(0xFFE3E6E8)
 val DashOnSurfaceVariant = Color(0xFFB6C0C7)
 val DashOutline = Color(0xFF5A656D)
+
+/** Series palette for the chart screen, in the order lines are added. */
+val SeriesColors = listOf(DashCyan, DashAmber, DashGreen)

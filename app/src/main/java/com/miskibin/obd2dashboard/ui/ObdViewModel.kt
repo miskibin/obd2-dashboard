@@ -11,6 +11,7 @@ import com.miskibin.obd2dashboard.data.Metrics
 import com.miskibin.obd2dashboard.data.SavedAdapter
 import com.miskibin.obd2dashboard.data.Trip
 import com.miskibin.obd2dashboard.obd.DerivedMetrics
+import com.miskibin.obd2dashboard.obd.Pids
 import com.miskibin.obd2dashboard.service.ObdConnectionService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -211,9 +212,13 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
 
     fun shareIntentFor(trip: Trip) = ObdHolder.trips.shareIntent(trip)
 
-    /** Every PID the car answers for, plus the values the app computes on top of them. */
+    /**
+     * Every PID the car answers for *and* the app can decode, plus the values computed on
+     * top of them. Supported-but-undecodable PIDs would only add permanently empty
+     * columns to the CSV.
+     */
     private fun recordableMetrics(): List<MetricId> {
-        val supported = supportedPids.value.map(MetricId::Sensor)
+        val supported = supportedPids.value.filter { Pids[it] != null }.map(MetricId::Sensor)
         val derived = DerivedMetrics.all.map { MetricId.Derived(it.key) }
         val columns = supported + derived + MetricId.Battery
         return if (supported.isEmpty()) _tiles.value else columns

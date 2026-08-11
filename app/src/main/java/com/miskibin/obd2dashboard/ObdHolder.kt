@@ -1,6 +1,7 @@
 package com.miskibin.obd2dashboard
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Application
 import android.content.Context
 import android.content.pm.PackageManager
@@ -25,6 +26,7 @@ import kotlinx.coroutines.launch
  * that only accepts one. A plain singleton is enough here; a DI container would be
  * ceremony around a single object graph that never varies.
  */
+@SuppressLint("StaticFieldLeak") // Everything here is built from the Application context.
 object ObdHolder {
 
     val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)

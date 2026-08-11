@@ -1,7 +1,9 @@
 package com.miskibin.obd2dashboard.data
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.res.Configuration
+import androidx.core.content.edit
 import java.util.Locale
 
 /** Language override offered in Settings. */
@@ -29,10 +31,15 @@ object LocalePreference {
     fun current(context: Context): AppLanguage =
         AppLanguage.fromTag(prefs(context).getString(KEY_LANGUAGE, null))
 
+    /**
+     * Writes synchronously on purpose: the caller recreates the activity immediately
+     * afterwards, and an `apply()` still in flight would come back in the old language.
+     */
+    @SuppressLint("ApplySharedPref")
     fun set(context: Context, language: AppLanguage) {
-        prefs(context).edit().apply {
+        prefs(context).edit(commit = true) {
             if (language.tag == null) remove(KEY_LANGUAGE) else putString(KEY_LANGUAGE, language.tag)
-        }.commit()
+        }
     }
 
     /**

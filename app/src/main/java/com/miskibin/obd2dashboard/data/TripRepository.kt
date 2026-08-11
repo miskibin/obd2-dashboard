@@ -5,6 +5,10 @@ import android.content.Intent
 import androidx.core.content.FileProvider
 import java.io.File
 import java.io.RandomAccessFile
+import java.time.LocalDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 /** A finished trip recording on disk. */
 data class Trip(
@@ -34,7 +38,7 @@ class TripRepository(context: Context) {
             .map { file ->
                 Trip(
                     file = file,
-                    startedAtMillis = file.lastModified(),
+                    startedAtMillis = startedAtOf(file),
                     sizeBytes = file.length(),
                     durationSeconds = durationOf(file),
                 )
@@ -51,6 +55,20 @@ class TripRepository(context: Context) {
             putExtra(Intent.EXTRA_SUBJECT, trip.name)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
+    }
+
+    /**
+     * When the recording started, taken from the name [TripRecorder] gave it — the file's
+     * modification time is when it *stopped*, which is not what the list should say.
+     */
+    private fun startedAtOf(file: File): Long {
+        val stamp = file.name.removePrefix(FILE_PREFIX).removeSuffix(FILE_SUFFIX)
+        return runCatching {
+            LocalDateTime.parse(stamp, NAME_FORMAT)
+                .atZone(ZoneId.systemDefault())
+                .toInstant()
+                .toEpochMilli()
+        }.getOrElse { file.lastModified() }
     }
 
     /** Reads the `elapsed_s` value of the last row without loading the whole file. */
@@ -84,6 +102,10 @@ class TripRepository(context: Context) {
         private const val DIRECTORY_NAME = "trips"
         private const val NEWLINE: Byte = '\n'.code.toByte()
         private const val CARRIAGE_RETURN: Byte = '\r'.code.toByte()
+
+        /** Must stay in step with [TripRecorder]'s file naming. */
+        val NAME_FORMAT: DateTimeFormatter =
+            DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss", Locale.ROOT)
 
         fun directoryOf(context: Context): File =
             File(context.filesDir, DIRECTORY_NAME).apply { mkdirs() }

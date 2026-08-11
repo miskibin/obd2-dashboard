@@ -107,12 +107,13 @@ object Metrics {
 
     fun byStorageKey(key: String): Metric? = MetricId.parse(key)?.let(::get)
 
-    /** Sensible upper bound for gauge-style rendering; null means "auto-scale". */
-    fun fullScaleOf(id: MetricId): Float? = when (id) {
-        Rpm -> 8_000f
-        Speed -> 240f
-        else -> null
-    }
+    /**
+     * Full-scale value for the arc gauge. Only RPM gets one — a grid where every tile
+     * has its own dial is the clutter this dashboard exists to avoid.
+     */
+    fun fullScaleOf(id: MetricId): Float? = if (id == Rpm) RPM_FULL_SCALE else null
+
+    private const val RPM_FULL_SCALE = 8_000f
 
     private fun decimalsFor(unit: String): Int = when (unit) {
         "rpm", "km/h", "km", "s", "min", "count", "N·m", "Pa", "kPa", "°C", "°" -> 0

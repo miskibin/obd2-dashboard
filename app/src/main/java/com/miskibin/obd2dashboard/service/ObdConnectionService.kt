@@ -23,10 +23,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.flow.sample
 
 /**
  * Keeps the BLE link and the polling loop alive while the app is not in front.
@@ -64,13 +65,19 @@ class ObdConnectionService : Service() {
         super.onDestroy()
     }
 
+    /**
+     * Rebuilds the notification at most once a second: the scheduler publishes several
+     * snapshots per second and the shade cannot usefully show that.
+     */
     private fun observeState() {
         combine(
             ObdHolder.connection.state,
-            ObdHolder.connection.snapshot.sample(NOTIFICATION_REFRESH_MILLIS),
+            ObdHolder.connection.snapshot,
         ) { state, snapshot -> state to snapshot }
+            .conflate()
             .onEach { (state, snapshot) ->
                 notificationManager().notify(NOTIFICATION_ID, notification(state, snapshot))
+                delay(NOTIFICATION_REFRESH_MILLIS)
             }
             .launchIn(scope)
     }

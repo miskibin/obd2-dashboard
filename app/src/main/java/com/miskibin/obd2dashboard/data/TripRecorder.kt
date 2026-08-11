@@ -5,6 +5,7 @@ import com.miskibin.obd2dashboard.obd.VehicleSnapshot
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -15,8 +16,6 @@ import java.io.BufferedWriter
 import java.io.File
 import java.time.Instant
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 sealed interface RecordingState {
     data object Idle : RecordingState
@@ -49,6 +48,9 @@ class TripRecorder(
         val columns = metrics.distinct().ifEmpty { Metrics.defaultTiles }
         val startedAt = clock()
         val file = File(TripRepository.directoryOf(appContext), fileNameFor(startedAt))
+        // Published before the writer coroutine gets scheduled so a second tap on the
+        // record button cannot start a second file.
+        _state.value = RecordingState.Active(file, startedAt, rows = 0)
         job = scope.launch(Dispatchers.IO) { record(source, columns, file, startedAt) }
     }
 
@@ -74,7 +76,6 @@ class TripRecorder(
                 it.appendLine(CsvFormat.header(csvColumns))
                 it.flush()
             }
-            _state.value = RecordingState.Active(file, startedAtMillis, rows = 0)
             source.collect { snapshot ->
                 val now = clock()
                 if (now - lastWriteMillis < MIN_ROW_INTERVAL_MILLIS) return@collect
@@ -87,7 +88,9 @@ class TripRecorder(
                 _state.value = RecordingState.Active(file, startedAtMillis, rows)
             }
         } finally {
-            withContext(Dispatchers.IO) {
+            // Stopping cancels this coroutine, so closing the file has to survive
+            // cancellation or the last buffered rows would be lost.
+            withContext(NonCancellable) {
                 runCatching {
                     writer?.flush()
                     writer?.close()
@@ -101,11 +104,8 @@ class TripRecorder(
         const val MIN_ROW_INTERVAL_MILLIS = 250L
         const val FLUSH_EVERY_ROWS = 20
 
-        val FILE_NAME_FORMAT: DateTimeFormatter =
-            DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss", Locale.ROOT)
-
         fun fileNameFor(startedAtMillis: Long): String {
-            val stamp = FILE_NAME_FORMAT.format(
+            val stamp = TripRepository.NAME_FORMAT.format(
                 Instant.ofEpochMilli(startedAtMillis).atZone(ZoneId.systemDefault()),
             )
             return "${TripRepository.FILE_PREFIX}$stamp${TripRepository.FILE_SUFFIX}"

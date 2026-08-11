@@ -29,6 +29,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -67,6 +68,9 @@ fun ConnectScreen(
 ) {
     val context = LocalContext.current
     var permissionDenied by remember { mutableStateOf(false) }
+
+    // A scan that outlives this screen would keep the radio busy for nothing.
+    DisposableEffect(Unit) { onDispose(onStopScan) }
 
     val notificationPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
