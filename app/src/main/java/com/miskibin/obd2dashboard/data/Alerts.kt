@@ -21,7 +21,16 @@ data class AlertRule(
     val enabled: Boolean = true,
     /** Low voltage only means anything once the alternator should be charging. */
     val requiresEngineRunning: Boolean = false,
+    /** What the editor lets the driver choose between, and in what increments. */
+    val range: ClosedFloatingPointRange<Double> = 0.0..200.0,
+    val step: Double = 1.0,
 )
+
+/** Whether [value] is on the wrong side of the rule's line right now. */
+fun AlertRule.isBreached(value: Double): Boolean = when (comparison) {
+    AlertComparison.Above -> value > threshold
+    AlertComparison.Below -> value < threshold
+}
 
 object AlertRules {
 
@@ -32,6 +41,9 @@ object AlertRules {
     /**
      * Shipped on, because the three things worth waking a driver for are a boiling engine,
      * a charging system that has stopped charging, and oil hot enough to stop protecting.
+     * 110 °C is where the oil rule sits: a hard-driven engine touches it on track and
+     * never on a commute, so it warns before the oil film starts thinning rather than
+     * after the damage.
      * The oil rule is silent on cars that do not report PID 5C — an unsupported metric
      * never reaches the snapshot, so it can never trip.
      */
@@ -41,6 +53,7 @@ object AlertRules {
             metric = MetricId.Sensor(Pids.COOLANT_TEMP),
             comparison = AlertComparison.Above,
             threshold = 105.0,
+            range = 90.0..125.0,
         ),
         AlertRule(
             id = VOLTAGE_LOW,
@@ -48,12 +61,15 @@ object AlertRules {
             comparison = AlertComparison.Below,
             threshold = 12.0,
             requiresEngineRunning = true,
+            range = 10.0..14.0,
+            step = 0.1,
         ),
         AlertRule(
             id = OIL_HIGH,
             metric = MetricId.Sensor(Pids.OIL_TEMP),
             comparison = AlertComparison.Above,
-            threshold = 130.0,
+            threshold = 110.0,
+            range = 95.0..130.0,
         ),
     )
 
@@ -121,18 +137,13 @@ class AlertEvaluator(
         val margin = abs(rule.threshold) * HYSTERESIS_FRACTION
 
         if (rule.recovered(value, margin)) disarmed -= rule.id
-        if (!rule.breached(value) || rule.id in disarmed) return null
+        if (!rule.isBreached(value) || rule.id in disarmed) return null
         val last = lastFiredAt[rule.id]
         if (last != null && now - last < minIntervalMillis) return null
 
         disarmed += rule.id
         lastFiredAt[rule.id] = now
         return AlertEvent(rule, value, now)
-    }
-
-    private fun AlertRule.breached(value: Double): Boolean = when (comparison) {
-        AlertComparison.Above -> value > threshold
-        AlertComparison.Below -> value < threshold
     }
 
     private fun AlertRule.recovered(value: Double, margin: Double): Boolean = when (comparison) {

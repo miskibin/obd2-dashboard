@@ -7,7 +7,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -17,16 +16,32 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.miskibin.obd2dashboard.data.Sample
+import com.miskibin.obd2dashboard.ui.theme.BandLabelTextStyle
+import com.miskibin.obd2dashboard.ui.theme.Fog
+import com.miskibin.obd2dashboard.ui.theme.SlateEdge
+import com.miskibin.obd2dashboard.ui.theme.SlateFaint
+import com.miskibin.obd2dashboard.ui.theme.SlateTrack
+import com.miskibin.obd2dashboard.ui.theme.TickTextStyle
 
 /** One line on the chart. */
 data class ChartSeries(
     val key: String,
     val label: String,
     val color: Color,
+    val unit: String,
+    val decimals: Int,
     val samples: List<Sample>,
 )
+
+/**
+ * How several traces share one plot.
+ *
+ * There is no honest single answer: boost in bar and revs in rpm cannot share an axis,
+ * but stacking every trace in its own strip hides how they line up. So the driver picks,
+ * and each mode says in one line what it is doing to the numbers.
+ */
+enum class ChartMode { Bands, Relative, Absolute }
 
 /**
  * Live scrolling line chart drawn straight onto a Canvas.
@@ -40,15 +55,15 @@ fun LineChart(
     series: List<ChartSeries>,
     windowMillis: Long,
     nowMillis: Long,
-    axisColor: Color,
-    labelColor: Color,
+    mode: ChartMode,
+    nowLabel: String,
     modifier: Modifier = Modifier,
 ) {
     val measurer = rememberTextMeasurer()
-    val labelStyle = TextStyle(fontSize = 11.sp, color = labelColor)
+    val tickStyle = TickTextStyle.copy(color = Fog)
 
     Canvas(modifier = modifier) {
-        val leftPadding = LEFT_PADDING.dp.toPx()
+        val leftPadding = if (mode == ChartMode.Bands) 0f else LEFT_PADDING.dp.toPx()
         val bottomPadding = BOTTOM_PADDING.dp.toPx()
         val topPadding = TOP_PADDING.dp.toPx()
         val rightPadding = RIGHT_PADDING.dp.toPx()
@@ -56,49 +71,191 @@ fun LineChart(
         val plotHeight = size.height - topPadding - bottomPadding
         if (plotWidth <= 0f || plotHeight <= 0f) return@Canvas
 
-        val values = series.flatMap { line -> line.samples.map(Sample::value) }
-        val ticks = ChartAxis.ticksOf(values)
-
-        drawGrid(
-            ticks = ticks,
-            measurer = measurer,
-            labelStyle = labelStyle,
-            axisColor = axisColor,
-            leftPadding = leftPadding,
-            topPadding = topPadding,
-            plotWidth = plotWidth,
-            plotHeight = plotHeight,
-        )
         drawTimeAxis(
             windowMillis = windowMillis,
+            nowLabel = nowLabel,
             measurer = measurer,
-            labelStyle = labelStyle,
+            labelStyle = tickStyle,
             leftPadding = leftPadding,
             topPadding = topPadding,
             plotWidth = plotWidth,
             plotHeight = plotHeight,
         )
 
-        val fillAlpha = if (series.size == 1) SOLO_FILL_ALPHA else GROUP_FILL_ALPHA
-        val startMillis = nowMillis - windowMillis
-        series.forEach { line ->
-            val points = line.samples.mapNotNull { sample ->
-                val x = (sample.timeMillis - startMillis).toFloat() / windowMillis * plotWidth
-                if (x < -plotWidth || !sample.value.isFinite()) return@mapNotNull null
-                Offset(
-                    x = leftPadding + x.coerceIn(0f, plotWidth),
-                    y = topPadding + plotHeight * (1f - ticks.fraction(sample.value.toDouble()).toFloat()),
+        when (mode) {
+            ChartMode.Bands -> drawBands(
+                series = series,
+                measurer = measurer,
+                windowMillis = windowMillis,
+                nowMillis = nowMillis,
+                left = leftPadding,
+                top = topPadding,
+                width = plotWidth,
+                height = plotHeight,
+            )
+
+            ChartMode.Relative -> {
+                drawGrid(
+                    labels = RELATIVE_TICKS,
+                    fractions = RELATIVE_TICKS.indices.map { 1f - it / (RELATIVE_TICKS.size - 1f) },
+                    measurer = measurer,
+                    labelStyle = tickStyle,
+                    leftPadding = leftPadding,
+                    topPadding = topPadding,
+                    plotWidth = plotWidth,
+                    plotHeight = plotHeight,
                 )
+                series.forEach { line ->
+                    val values = line.samples.map(Sample::value)
+                    val low = values.minOrNull() ?: 0f
+                    val high = values.maxOrNull() ?: 1f
+                    drawTrace(
+                        line = line,
+                        windowMillis = windowMillis,
+                        nowMillis = nowMillis,
+                        left = leftPadding,
+                        top = topPadding,
+                        width = plotWidth,
+                        height = plotHeight,
+                        low = low,
+                        high = high,
+                        fill = series.size == 1,
+                    )
+                }
             }
-            drawSeries(line.color, points, fillAlpha, topPadding + plotHeight)
+
+            ChartMode.Absolute -> {
+                val ticks = ChartAxis.ticksOf(series.flatMap { line -> line.samples.map(Sample::value) })
+                drawGrid(
+                    labels = ticks.values.map { ChartAxis.formatLabel(it, ticks.step) },
+                    fractions = ticks.values.map { ticks.fraction(it).toFloat() },
+                    measurer = measurer,
+                    labelStyle = tickStyle,
+                    leftPadding = leftPadding,
+                    topPadding = topPadding,
+                    plotWidth = plotWidth,
+                    plotHeight = plotHeight,
+                )
+                series.forEach { line ->
+                    drawTrace(
+                        line = line,
+                        windowMillis = windowMillis,
+                        nowMillis = nowMillis,
+                        left = leftPadding,
+                        top = topPadding,
+                        width = plotWidth,
+                        height = plotHeight,
+                        low = ticks.min.toFloat(),
+                        high = ticks.max.toFloat(),
+                        fill = series.size == 1,
+                    )
+                }
+            }
         }
     }
+}
+
+/**
+ * One strip per series, each scaled to its own range.
+ *
+ * This is the mode that answers "did the mixture go lean at the same moment the load
+ * spiked?", which is the question a shared axis flattens away when one series happens to
+ * be measured in thousands and the other in single digits.
+ */
+private fun DrawScope.drawBands(
+    series: List<ChartSeries>,
+    measurer: TextMeasurer,
+    windowMillis: Long,
+    nowMillis: Long,
+    left: Float,
+    top: Float,
+    width: Float,
+    height: Float,
+) {
+    if (series.isEmpty()) return
+    val gap = BAND_GAP.dp.toPx()
+    val bandHeight = (height - gap * (series.size - 1)) / series.size
+    if (bandHeight <= 0f) return
+    val labelInset = BAND_LABEL_INSET.dp.toPx()
+
+    series.forEachIndexed { index, line ->
+        val bandTop = top + index * (bandHeight + gap)
+        val bandBottom = bandTop + bandHeight
+        val values = line.samples.map(Sample::value)
+        val low = values.minOrNull() ?: 0f
+        val high = values.maxOrNull() ?: 1f
+
+        drawLine(
+            color = if (index == 0) SlateTrack else SlateFaint,
+            start = Offset(left, bandTop),
+            end = Offset(left + width, bandTop),
+            strokeWidth = 1.dp.toPx(),
+        )
+        drawTrace(
+            line = line,
+            windowMillis = windowMillis,
+            nowMillis = nowMillis,
+            left = left,
+            top = bandTop + labelInset,
+            width = width,
+            height = bandBottom - bandTop - labelInset,
+            low = low,
+            high = high,
+            fill = false,
+        )
+
+        val name = measurer.measure(line.label, BandLabelTextStyle.copy(color = line.color))
+        drawText(name, topLeft = Offset(left + 2.dp.toPx(), bandTop + 2.dp.toPx()))
+        if (values.isEmpty()) return@forEachIndexed
+        val range = measurer.measure(
+            text = "${format(low, line.decimals)}–${format(high, line.decimals)} ${line.unit}".trim(),
+            style = BandLabelTextStyle.copy(color = Fog),
+        )
+        drawText(
+            textLayoutResult = range,
+            topLeft = Offset(left + width - range.size.width, bandTop + 2.dp.toPx()),
+        )
+    }
+    drawLine(
+        color = SlateEdge,
+        start = Offset(left, top + height),
+        end = Offset(left + width, top + height),
+        strokeWidth = 1.dp.toPx(),
+    )
+}
+
+private fun DrawScope.drawTrace(
+    line: ChartSeries,
+    windowMillis: Long,
+    nowMillis: Long,
+    left: Float,
+    top: Float,
+    width: Float,
+    height: Float,
+    low: Float,
+    high: Float,
+    fill: Boolean,
+) {
+    val span = (high - low).takeIf { it > EPSILON }
+    val startMillis = nowMillis - windowMillis
+    val points = line.samples.mapNotNull { sample ->
+        if (!sample.value.isFinite()) return@mapNotNull null
+        val x = (sample.timeMillis - startMillis).toFloat() / windowMillis * width
+        if (x < -width) return@mapNotNull null
+        // A series that never moved has nowhere to go, so it sits on its own centre line.
+        val fraction = if (span == null) 0.5f else (sample.value - low) / span
+        Offset(
+            x = left + x.coerceIn(0f, width),
+            y = top + height * (1f - fraction.coerceIn(0f, 1f)),
+        )
+    }
+    drawSeries(line.color, points, fill, top + height)
 }
 
 private fun DrawScope.drawSeries(
     color: Color,
     points: List<Offset>,
-    fillAlpha: Float,
+    fill: Boolean,
     baseline: Float,
 ) {
     when {
@@ -108,23 +265,25 @@ private fun DrawScope.drawSeries(
         points.size == 1 -> drawCircle(color, radius = POINT_RADIUS.dp.toPx(), center = points.first())
 
         else -> {
-            val line = smoothPath(points)
-            val area = Path().apply {
-                addPath(line)
-                lineTo(points.last().x, baseline)
-                lineTo(points.first().x, baseline)
-                close()
+            val path = smoothPath(points)
+            if (fill) {
+                val area = Path().apply {
+                    addPath(path)
+                    lineTo(points.last().x, baseline)
+                    lineTo(points.first().x, baseline)
+                    close()
+                }
+                drawPath(
+                    path = area,
+                    brush = Brush.verticalGradient(
+                        colors = listOf(color.copy(alpha = FILL_ALPHA), Color.Transparent),
+                        startY = points.minOf(Offset::y),
+                        endY = baseline,
+                    ),
+                )
             }
             drawPath(
-                path = area,
-                brush = Brush.verticalGradient(
-                    colors = listOf(color.copy(alpha = fillAlpha), Color.Transparent),
-                    startY = points.minOf(Offset::y),
-                    endY = baseline,
-                ),
-            )
-            drawPath(
-                path = line,
+                path = path,
                 color = color,
                 style = Stroke(
                     width = STROKE_WIDTH.dp.toPx(),
@@ -132,32 +291,36 @@ private fun DrawScope.drawSeries(
                     join = StrokeJoin.Round,
                 ),
             )
+            // The head of the trace, so "now" is findable when six lines overlap.
+            drawCircle(color, radius = HEAD_RADIUS.dp.toPx(), center = points.last())
         }
     }
 }
 
 private fun DrawScope.drawGrid(
-    ticks: AxisTicks,
+    labels: List<String>,
+    fractions: List<Float>,
     measurer: TextMeasurer,
     labelStyle: TextStyle,
-    axisColor: Color,
     leftPadding: Float,
     topPadding: Float,
     plotWidth: Float,
     plotHeight: Float,
 ) {
-    val dashes = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 6.dp.toPx()))
-    ticks.values.forEach { tick ->
-        val y = topPadding + plotHeight * (1f - ticks.fraction(tick).toFloat())
-        if (y < topPadding - 1f || y > topPadding + plotHeight + 1f) return@forEach
+    fractions.forEachIndexed { index, fraction ->
+        val y = topPadding + plotHeight * (1f - fraction)
+        if (y < topPadding - 1f || y > topPadding + plotHeight + 1f) return@forEachIndexed
         drawLine(
-            color = axisColor,
+            color = when {
+                fraction <= 0f -> SlateEdge
+                index % 2 == 0 -> SlateTrack
+                else -> SlateFaint
+            },
             start = Offset(leftPadding, y),
             end = Offset(leftPadding + plotWidth, y),
             strokeWidth = 1.dp.toPx(),
-            pathEffect = dashes,
         )
-        val label = measurer.measure(ChartAxis.formatLabel(tick, ticks.step), labelStyle)
+        val label = measurer.measure(labels.getOrElse(index) { "" }, labelStyle)
         drawText(
             textLayoutResult = label,
             topLeft = Offset(
@@ -170,6 +333,7 @@ private fun DrawScope.drawGrid(
 
 private fun DrawScope.drawTimeAxis(
     windowMillis: Long,
+    nowLabel: String,
     measurer: TextMeasurer,
     labelStyle: TextStyle,
     leftPadding: Float,
@@ -180,7 +344,7 @@ private fun DrawScope.drawTimeAxis(
     val baseline = topPadding + plotHeight
     listOf(0f, 0.5f, 1f).forEach { fraction ->
         val secondsAgo = ((1f - fraction) * windowMillis / 1000f).toInt()
-        val text = if (secondsAgo == 0) "0" else "-${formatSeconds(secondsAgo)}"
+        val text = if (secondsAgo == 0) nowLabel else "−${formatSeconds(secondsAgo)}"
         val label = measurer.measure(text, labelStyle)
         val x = leftPadding + plotWidth * fraction - label.size.width * fraction
         drawText(
@@ -192,6 +356,9 @@ private fun DrawScope.drawTimeAxis(
 
 private fun formatSeconds(seconds: Int): String =
     if (seconds < 60) "${seconds}s" else "${seconds / 60}m"
+
+private fun format(value: Float, decimals: Int): String =
+    "%.${decimals}f".format(java.util.Locale.getDefault(), value)
 
 /**
  * Catmull-Rom through every point, emitted as cubic Béziers.
@@ -220,12 +387,17 @@ private fun smoothPath(points: List<Offset>): Path {
     return path
 }
 
+private val RELATIVE_TICKS = listOf("100%", "75%", "50%", "25%", "0%")
+
 private const val LEFT_PADDING = 44
 private const val RIGHT_PADDING = 8
 private const val TOP_PADDING = 10
-private const val BOTTOM_PADDING = 22
+private const val BOTTOM_PADDING = 20
 private const val LABEL_GAP = 4
-private const val STROKE_WIDTH = 2
+private const val STROKE_WIDTH = 2.4f
 private const val POINT_RADIUS = 3
-private const val SOLO_FILL_ALPHA = 0.20f
-private const val GROUP_FILL_ALPHA = 0.08f
+private const val HEAD_RADIUS = 2.6f
+private const val FILL_ALPHA = 0.18f
+private const val BAND_GAP = 6
+private const val BAND_LABEL_INSET = 11
+private const val EPSILON = 1e-6f

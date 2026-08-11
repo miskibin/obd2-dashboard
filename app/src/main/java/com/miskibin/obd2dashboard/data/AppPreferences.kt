@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -41,6 +42,12 @@ class AppPreferences(context: Context) {
 
     val pollingEnabled: Flow<Boolean> = store.data.map { it[KEY_POLLING_ENABLED] ?: true }
 
+    /** Where the engine-speed bar turns red, in rpm. */
+    val redline: Flow<Int> = store.data.map { prefs ->
+        (prefs[KEY_REDLINE] ?: Metrics.REDLINE_DEFAULT)
+            .coerceIn(Metrics.REDLINE_MIN, Metrics.REDLINE_MAX)
+    }
+
     /** Always the full set of shipped rules; only the driver's edits are stored. */
     val alertRules: Flow<List<AlertRule>> = store.data.map { AlertRules.decode(it[KEY_ALERTS]) }
 
@@ -70,6 +77,10 @@ class AppPreferences(context: Context) {
         store.edit { it[KEY_POLLING_ENABLED] = enabled }
     }
 
+    suspend fun setRedline(rpm: Int) {
+        store.edit { it[KEY_REDLINE] = rpm.coerceIn(Metrics.REDLINE_MIN, Metrics.REDLINE_MAX) }
+    }
+
     suspend fun setAlertRule(rule: AlertRule) {
         store.edit { prefs ->
             val updated = AlertRules.decode(prefs[KEY_ALERTS])
@@ -88,6 +99,7 @@ class AppPreferences(context: Context) {
         val KEY_TILES = stringPreferencesKey("tiles")
         val KEY_CHART_METRICS = stringPreferencesKey("chart_metrics")
         val KEY_POLLING_ENABLED = booleanPreferencesKey("polling_enabled")
+        val KEY_REDLINE = intPreferencesKey("redline_rpm")
         val KEY_ALERTS = stringPreferencesKey("alert_rules")
 
         const val SEPARATOR = "|"

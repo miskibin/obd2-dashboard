@@ -147,6 +147,48 @@ object AppIcons {
         }
     }
 
+    /**
+     * The warning triangle, drawn to the same weight as the rest of the set.
+     *
+     * Material's own triangle is rounder and reads as a notice; this one has the flat
+     * corners of the lamp on the dashboard it stands for.
+     */
+    val Alert: ImageVector by lazy {
+        icon("Alert") {
+            path(fill = SolidColor(Color.White), pathFillType = PathFillType.NonZero) {
+                moveTo(12f, 3.5f)
+                lineTo(22.5f, 21f)
+                horizontalLineToRelative(-21f)
+                close()
+                moveTo(11f, 10f)
+                verticalLineToRelative(5f)
+                horizontalLineToRelative(2f)
+                verticalLineToRelative(-5f)
+                close()
+                moveTo(11f, 16.5f)
+                verticalLineToRelative(2f)
+                horizontalLineToRelative(2f)
+                verticalLineToRelative(-2f)
+                close()
+            }
+        }
+    }
+
+    /** A chevron for rows that lead somewhere. */
+    val ChevronRight: ImageVector by lazy {
+        icon("ChevronRight") {
+            path(fill = SolidColor(Color.White), pathFillType = PathFillType.NonZero) {
+                moveTo(9.3f, 6.3f)
+                lineTo(14.99f, 12f)
+                lineTo(9.3f, 17.7f)
+                lineTo(7.9f, 16.3f)
+                lineTo(12.2f, 12f)
+                lineTo(7.9f, 7.7f)
+                close()
+            }
+        }
+    }
+
     private inline fun icon(name: String, block: ImageVector.Builder.() -> Unit): ImageVector =
         ImageVector.Builder(
             name = name,

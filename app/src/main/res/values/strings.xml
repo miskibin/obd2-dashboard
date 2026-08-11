@@ -33,8 +33,6 @@
     <string name="action_share">Share</string>
     <string name="action_add_tile">Add a value</string>
     <string name="action_remove_tile">Remove this tile</string>
-    <string name="action_record">Record a trip</string>
-    <string name="action_stop_recording">Stop · %1$s</string>
     <string name="action_read_codes">Read codes</string>
     <string name="action_clear_codes">Clear codes</string>
     <string name="action_share_report">Share report</string>
@@ -125,12 +123,9 @@
     </plurals>
 
     <!-- Threshold alerts -->
-    <string name="settings_alerts">Alerts</string>
     <string name="settings_alerts_description">Warn me when a value leaves its safe range. Alerts arrive as a notification and as a banner in the app.</string>
     <string name="alert_limit_above">Above %1$s</string>
     <string name="alert_limit_below">Below %1$s</string>
-    <string name="alert_edit_title">Alert limit</string>
-    <string name="alert_edit_hint">Limit (%1$s)</string>
     <string name="alert_above">%1$s is %2$s, above the %3$s limit</string>
     <string name="alert_below">%1$s is %2$s, below the %3$s limit</string>
     <string name="alert_notification_title">Vehicle alert</string>
@@ -216,4 +211,53 @@
     <string name="metric_pid_62">Actual torque</string>
     <string name="metric_pid_63">Reference torque</string>
     <string name="metric_pid_a6">Odometer</string>
+    <string name="unit_rpm">rpm</string>
+    <string name="dashboard_subtitle">Live values from the car</string>
+    <string name="dashboard_redline">Redline %1$d rpm</string>
+    <string name="chart_window_summary">Last %1$s · live</string>
+    <string name="chart_now">now</string>
+    <string name="chart_add_parameter">+ value</string>
+    <string name="chart_mode_bands">Separate</string>
+    <string name="chart_mode_relative">Shared %%</string>
+    <string name="chart_mode_absolute">Shared abs.</string>
+    <string name="chart_mode_bands_hint">Every parameter keeps its own scale.</string>
+    <string name="chart_mode_relative_hint">One axis, 0–100 %% of each parameter\'s own range.</string>
+    <string name="chart_mode_absolute_hint">One axis, in %1$s.</string>
+    <string name="chart_mode_absolute_mixed">Careful: mixed units (%1$s).</string>
+    <string name="chart_record_start">Record</string>
+    <string name="chart_record_stop">Stop</string>
+    <string name="charts_recording_on">Recording this trip</string>
+    <string name="charts_recording_off">Recording stopped</string>
+    <string name="charts_recording_meta">%1$s · writing to CSV</string>
+    <string name="dtc_never_read">Not read yet</string>
+    <string name="dtc_clear_caveat">Clearing turns the lamp off but repairs nothing — the code comes back if the cause is still there.</string>
+    <string name="dtc_hint_frame">Tap · frozen frame from the ECU</string>
+    <string name="dtc_hint_no_frame">Tap for details</string>
+    <string name="dtc_no_frame_message">The control unit kept no frozen frame for this code.</string>
+    <string name="dtc_frame_parameter">Parameter</string>
+    <string name="dtc_frame_at_fault">At fault</string>
+    <string name="dtc_frame_show_all">Show all (%1$d)</string>
+    <string name="dtc_frame_show_fewer">Show fewer</string>
+    <string name="report_sheet_title">Report for the mechanic</string>
+    <string name="report_sheet_subtitle">Plain text you can send from any app</string>
+    <string name="report_line_codes">Codes with descriptions</string>
+    <string name="report_line_frame">Frozen frame from the ECU</string>
+    <string name="report_line_frame_yes">The parameters the control unit stored at the moment of the fault</string>
+    <string name="report_line_frame_no">The car had no frame stored for this fault</string>
+    <string name="report_line_readiness">Readiness monitors</string>
+    <string name="report_line_readiness_detail">Which self-tests have run since the last clear</string>
+    <string name="report_line_vehicle">Vehicle and adapter</string>
+    <string name="report_line_vehicle_detail">VIN where the car reports it, battery voltage, protocol</string>
+    <string name="report_caveat">The values come from an OBD2 adapter — they can differ from a workshop tester, and some manufacturers report certain PIDs late.</string>
+
+    <plurals name="dtc_clear_subtitle">
+        <item quantity="one">%1$d code will be erased, along with its frozen frame.</item>
+        <item quantity="other">%1$d codes will be erased, along with their frozen frames.</item>
+    </plurals>
+    <string name="settings_thresholds">Warning thresholds</string>
+    <string name="settings_redline">Redline</string>
+    <string name="settings_redline_description">Where the engine-speed bar turns red.</string>
+    <string name="unit_value_rpm">%1$d rpm</string>
+    <string name="alert_edit_above">Warn me when the value goes above this.</string>
+    <string name="alert_edit_below">Warn me when the value drops below this.</string>
 </resources>

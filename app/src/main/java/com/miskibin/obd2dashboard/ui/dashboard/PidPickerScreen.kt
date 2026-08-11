@@ -1,9 +1,11 @@
 package com.miskibin.obd2dashboard.ui.dashboard
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,13 +17,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -32,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -40,7 +42,18 @@ import com.miskibin.obd2dashboard.R
 import com.miskibin.obd2dashboard.data.Metric
 import com.miskibin.obd2dashboard.data.MetricId
 import com.miskibin.obd2dashboard.data.Metrics
+import com.miskibin.obd2dashboard.ui.components.ScreenPadding
 import com.miskibin.obd2dashboard.ui.components.SectionHeader
+import com.miskibin.obd2dashboard.ui.theme.AshDim
+import com.miskibin.obd2dashboard.ui.theme.Chalk
+import com.miskibin.obd2dashboard.ui.theme.Fog
+import com.miskibin.obd2dashboard.ui.theme.Ink
+import com.miskibin.obd2dashboard.ui.theme.PanelCorner
+import com.miskibin.obd2dashboard.ui.theme.Slate
+import com.miskibin.obd2dashboard.ui.theme.SlateBorder
+import com.miskibin.obd2dashboard.ui.theme.SlateEdge
+import com.miskibin.obd2dashboard.ui.theme.Smoke
+import com.miskibin.obd2dashboard.ui.theme.Steel
 import java.util.Locale
 
 /**
@@ -77,7 +90,7 @@ fun PidPickerScreen(
     val available = filtered.filter { (metric, _) -> metric.isSupported(supportedPids, supportKnown) }
     val unavailable = filtered.filterNot { (metric, _) -> metric.isSupported(supportedPids, supportKnown) }
 
-    Column(modifier = modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+    Column(modifier = modifier.fillMaxSize().padding(horizontal = ScreenPadding)) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -91,8 +104,8 @@ fun PidPickerScreen(
             }
             Text(
                 text = stringResource(R.string.picker_title),
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.headlineSmall,
+                color = Chalk,
             )
         }
 
@@ -102,7 +115,21 @@ fun PidPickerScreen(
             singleLine = true,
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
             placeholder = { Text(stringResource(R.string.picker_search_hint)) },
-            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+            shape = PanelCorner,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = Slate,
+                unfocusedContainerColor = Slate,
+                focusedBorderColor = Steel,
+                unfocusedBorderColor = SlateBorder,
+                focusedTextColor = Chalk,
+                unfocusedTextColor = Chalk,
+                cursorColor = Steel,
+                focusedLeadingIconColor = Steel,
+                unfocusedLeadingIconColor = Smoke,
+                focusedPlaceholderColor = Smoke,
+                unfocusedPlaceholderColor = Smoke,
+            ),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
         )
 
         LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -125,7 +152,7 @@ fun PidPickerScreen(
                         Text(
                             text = stringResource(R.string.picker_unsupported_hint),
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = Smoke,
                             modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
                         )
                     }
@@ -145,7 +172,7 @@ fun PidPickerScreen(
                     Text(
                         text = stringResource(R.string.picker_no_results),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = Smoke,
                         modifier = Modifier.fillMaxWidth().padding(32.dp),
                     )
                 }
@@ -165,41 +192,44 @@ private fun MetricRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(MaterialTheme.colorScheme.surface)
+            .clip(PanelCorner)
+            .background(Slate)
+            .border(1.dp, SlateBorder, PanelCorner)
             .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
             .alpha(if (enabled) 1f else DISABLED_ALPHA)
-            .heightIn(min = 60.dp)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .heightIn(min = 58.dp)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = name,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (unit.isNotBlank()) {
+        // A filled box beats a tick alone: it reads as "chosen" from the corner of the
+        // eye, which is how a list of forty parameters gets scanned.
+        Box(
+            modifier = Modifier
+                .size(18.dp)
+                .clip(RoundedCornerShape(5.dp))
+                .background(if (selected) Steel else Color.Transparent)
+                .border(1.5.dp, if (selected) Steel else SlateEdge, RoundedCornerShape(5.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (selected) {
                 Text(
-                    text = unit,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = "✓",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Ink,
                 )
             }
         }
-        if (enabled) {
-            Icon(
-                imageVector = if (selected) Icons.Default.Check else Icons.Default.Add,
-                contentDescription = null,
-                tint = if (selected) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.outline
-                },
-            )
+        Text(
+            text = name,
+            style = MaterialTheme.typography.bodyLarge,
+            color = if (selected) Chalk else AshDim,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        if (unit.isNotBlank()) {
+            Text(text = unit, style = MaterialTheme.typography.labelMedium, color = Fog)
         }
     }
 }

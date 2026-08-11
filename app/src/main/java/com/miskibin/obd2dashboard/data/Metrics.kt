@@ -108,12 +108,17 @@ object Metrics {
     fun byStorageKey(key: String): Metric? = MetricId.parse(key)?.let(::get)
 
     /**
-     * Full-scale value for the arc gauge. Only RPM gets one — a grid where every tile
-     * has its own dial is the clutter this dashboard exists to avoid.
+     * The engine-speed bar reads against a redline the driver sets, because 8 000 is a
+     * hot hatch and 4 500 is a diesel — the same bar drawn to a fixed scale would be
+     * either useless or alarming on half the cars this app runs on.
      */
-    fun fullScaleOf(id: MetricId): Float? = if (id == Rpm) RPM_FULL_SCALE else null
+    const val REDLINE_DEFAULT = 8_000
 
-    private const val RPM_FULL_SCALE = 8_000f
+    const val REDLINE_MIN = 5_000
+
+    const val REDLINE_MAX = 9_000
+
+    const val REDLINE_STEP = 250
 
     private fun decimalsFor(unit: String): Int = when (unit) {
         "rpm", "km/h", "km", "s", "min", "count", "N·m", "Pa", "kPa", "°C", "°" -> 0

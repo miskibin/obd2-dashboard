@@ -2,18 +2,25 @@ package com.miskibin.obd2dashboard.ui
 
 import android.content.Intent
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
@@ -26,12 +33,17 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.intl.Locale
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -46,9 +58,11 @@ import com.miskibin.obd2dashboard.R
 import com.miskibin.obd2dashboard.ble.ConnectionState
 import com.miskibin.obd2dashboard.data.AppLanguage
 import com.miskibin.obd2dashboard.data.LocalePreference
+import com.miskibin.obd2dashboard.data.RecordingState
 import com.miskibin.obd2dashboard.ui.chart.ChartsScreen
 import com.miskibin.obd2dashboard.ui.chart.RecordingsScreen
 import com.miskibin.obd2dashboard.ui.components.ConnectionPill
+import com.miskibin.obd2dashboard.ui.components.ScreenPadding
 import com.miskibin.obd2dashboard.ui.connect.ConnectScreen
 import com.miskibin.obd2dashboard.ui.dashboard.DashboardScreen
 import com.miskibin.obd2dashboard.ui.dashboard.PidPickerScreen
@@ -56,6 +70,13 @@ import com.miskibin.obd2dashboard.service.describe
 import com.miskibin.obd2dashboard.ui.diagnostics.DiagnosticsScreen
 import com.miskibin.obd2dashboard.ui.settings.REPOSITORY_URL
 import com.miskibin.obd2dashboard.ui.settings.SettingsScreen
+import com.miskibin.obd2dashboard.ui.theme.Chalk
+import com.miskibin.obd2dashboard.ui.theme.InkRaised
+import com.miskibin.obd2dashboard.ui.theme.Signal
+import com.miskibin.obd2dashboard.ui.theme.SlateLine
+import com.miskibin.obd2dashboard.ui.theme.SmokeDim
+import com.miskibin.obd2dashboard.ui.theme.ToastSurface
+import com.miskibin.obd2dashboard.ui.theme.ToastText
 
 object Routes {
     const val DASHBOARD = "dashboard"
@@ -116,38 +137,30 @@ private fun Obd2Shell(viewModel: ObdViewModel, hasSavedAdapter: Boolean) {
         }
     }
 
+    val recording by viewModel.recording.collectAsStateWithLifecycle()
+
     val destinations = listOf(
         Destination(Routes.DASHBOARD, AppIcons.Gauge, R.string.nav_dashboard),
         Destination(Routes.CHARTS, AppIcons.Timeline, R.string.nav_charts),
-        Destination(Routes.DIAGNOSTICS, Icons.Default.Warning, R.string.nav_diagnostics),
+        Destination(Routes.DIAGNOSTICS, AppIcons.Alert, R.string.nav_diagnostics),
         Destination(Routes.SETTINGS, Icons.Default.Settings, R.string.nav_settings),
     )
     val showBottomBar = destinations.any { it.route == route }
     val milOn = diagnostics?.monitorStatus?.milOn == true
+    val faultCount = diagnostics?.let { it.monitorStatus?.dtcCount ?: it.all.size } ?: 0
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = { SnackbarHost(snackbarHostState) { data -> AlertToast(data.visuals.message) } },
         bottomBar = {
             if (!showBottomBar) return@Scaffold
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                destinations.forEach { destination ->
-                    val warn = destination.route == Routes.DIAGNOSTICS && milOn
-                    NavigationBarItem(
-                        selected = route == destination.route,
-                        onClick = { navController.switchTo(destination.route) },
-                        icon = { Icon(destination.icon, contentDescription = null) },
-                        label = { Text(stringResource(destination.labelRes)) },
-                        colors = NavigationBarItemDefaults.colors(
-                            unselectedIconColor = if (warn) {
-                                MaterialTheme.colorScheme.secondary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                        ),
-                    )
-                }
-            }
+            BottomNav(
+                destinations = destinations,
+                route = route,
+                faultCount = if (milOn || faultCount > 0) faultCount else 0,
+                recording = recording is RecordingState.Active,
+                onSelect = navController::switchTo,
+            )
         },
     ) { innerPadding ->
         Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
@@ -156,7 +169,11 @@ private fun Obd2Shell(viewModel: ObdViewModel, hasSavedAdapter: Boolean) {
                     state = connectionState,
                     label = connectionState.label(),
                     onClick = { navController.navigate(Routes.CONNECT) },
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    modifier = Modifier.padding(
+                        start = ScreenPadding,
+                        end = ScreenPadding,
+                        top = 10.dp,
+                    ),
                 )
             }
             AppNavHost(
@@ -166,6 +183,105 @@ private fun Obd2Shell(viewModel: ObdViewModel, hasSavedAdapter: Boolean) {
             )
         }
     }
+}
+
+/**
+ * The bottom bar, drawn by hand.
+ *
+ * Material's own bar puts a filled pill behind the selected icon, which on a dark
+ * instrument panel becomes the brightest thing on screen; here selection is carried by
+ * the icon going from grey to white, and the only colour left is the one badge that
+ * means the car has something to say.
+ */
+@Composable
+private fun BottomNav(
+    destinations: List<Destination>,
+    route: String,
+    faultCount: Int,
+    recording: Boolean,
+    onSelect: (String) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(SlateLine)
+            .padding(top = 1.dp)
+            .background(InkRaised)
+            .navigationBarsPadding()
+            .padding(top = 10.dp, bottom = 12.dp),
+    ) {
+        destinations.forEach { destination ->
+            val selected = route == destination.route
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { onSelect(destination.route) }
+                    .padding(vertical = 2.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(5.dp),
+            ) {
+                Box {
+                    Icon(
+                        imageVector = destination.icon,
+                        contentDescription = null,
+                        tint = if (selected) Chalk else SmokeDim,
+                        modifier = Modifier.size(21.dp),
+                    )
+                    when {
+                        destination.route == Routes.DIAGNOSTICS && faultCount > 0 -> Text(
+                            text = faultCount.toString(),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .offset(x = 10.dp, y = (-6).dp)
+                                .clip(CircleShape)
+                                .background(Signal)
+                                .widthIn(min = 16.dp)
+                                .padding(horizontal = 4.dp, vertical = 1.dp),
+                        )
+
+                        destination.route == Routes.CHARTS && recording -> Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .offset(x = 5.dp, y = (-3).dp)
+                                .size(7.dp)
+                                .clip(CircleShape)
+                                .background(Signal),
+                        )
+                    }
+                }
+                Text(
+                    text = stringResource(destination.labelRes),
+                    style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp),
+                    color = if (selected) Chalk else SmokeDim,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * A threshold breach, shown as a card floating over whatever the driver was reading.
+ *
+ * Material's snackbar is a full-bleed bar with an action slot; an alert here has no
+ * action — it is a fact about the car — so it gets the same rounded card language as
+ * everything else instead.
+ */
+@Composable
+private fun AlertToast(message: String) {
+    Text(
+        text = message,
+        style = MaterialTheme.typography.bodyLarge,
+        color = ToastText,
+        modifier = Modifier
+            .padding(horizontal = ScreenPadding, vertical = 8.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(ToastSurface)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+    )
 }
 
 @Composable
@@ -183,12 +299,16 @@ private fun AppNavHost(
     NavHost(navController = navController, startDestination = Routes.DASHBOARD, modifier = modifier) {
         composable(Routes.DASHBOARD) {
             val idle = connectionState is ConnectionState.Idle || connectionState is ConnectionState.Error
+            val redline by viewModel.redline.collectAsStateWithLifecycle()
+            val alertRules by viewModel.alertRules.collectAsStateWithLifecycle()
             DashboardScreen(
                 tiles = tiles,
                 snapshot = snapshot,
                 history = viewModel.history,
                 historyRevision = historyRevision,
                 showEmptyState = idle && snapshot.readings.isEmpty(),
+                redline = redline,
+                alertRules = alertRules,
                 onMove = viewModel::moveTile,
                 onDrop = viewModel::commitTiles,
                 onRemove = viewModel::removeTile,
@@ -221,6 +341,7 @@ private fun AppNavHost(
             val diagnostics by viewModel.diagnostics.collectAsStateWithLifecycle()
             val operation by viewModel.dtcOperation.collectAsStateWithLifecycle()
             val report by viewModel.report.collectAsStateWithLifecycle()
+            val freezeFrame by viewModel.freezeFrame.collectAsStateWithLifecycle()
             val language = Locale.current.language
 
             // The report is built off the main thread; the share sheet opens when it lands.
@@ -232,6 +353,7 @@ private fun AppNavHost(
 
             DiagnosticsScreen(
                 diagnostics = diagnostics,
+                freezeFrame = freezeFrame,
                 operation = operation,
                 connected = connectionState is ConnectionState.Connected,
                 onRead = viewModel::readCodes,
@@ -245,6 +367,7 @@ private fun AppNavHost(
             val savedAdapter by viewModel.savedAdapter.collectAsStateWithLifecycle()
             val pollingEnabled by viewModel.pollingEnabled.collectAsStateWithLifecycle()
             val alertRules by viewModel.alertRules.collectAsStateWithLifecycle()
+            val redline by viewModel.redline.collectAsStateWithLifecycle()
             val language = remember(context) { LocalePreference.current(context) }
             val versionName = remember(context) { versionNameOf(context) }
             SettingsScreen(
@@ -252,10 +375,12 @@ private fun AppNavHost(
                 language = language,
                 pollingEnabled = pollingEnabled,
                 alertRules = alertRules,
+                redline = redline,
                 versionName = versionName,
                 onForgetAdapter = viewModel::forgetAdapter,
                 onLanguageChange = { selected -> applyLanguage(context, selected) },
                 onPollingChange = viewModel::setPollingEnabled,
+                onRedlineChange = viewModel::setRedline,
                 onAlertRuleChange = viewModel::setAlertRule,
                 onRestoreDefaultAlerts = viewModel::restoreDefaultAlerts,
                 onOpenRepository = {

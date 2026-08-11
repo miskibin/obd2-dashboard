@@ -134,7 +134,7 @@ class AlertsTest {
         assertTrue(defaults.all(AlertRule::enabled))
         assertEquals(105.0, defaults.single { it.id == AlertRules.COOLANT_HIGH }.threshold, 0.001)
         assertEquals(12.0, defaults.single { it.id == AlertRules.VOLTAGE_LOW }.threshold, 0.001)
-        assertEquals(130.0, defaults.single { it.id == AlertRules.OIL_HIGH }.threshold, 0.001)
+        assertEquals(110.0, defaults.single { it.id == AlertRules.OIL_HIGH }.threshold, 0.001)
 
         val edited = defaults.map {
             if (it.id == AlertRules.COOLANT_HIGH) it.copy(threshold = 99.5, enabled = false) else it

@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="dash_background">#FF0B0E11</color>
-    <color name="dash_cyan">#FF4DD8E6</color>
+    <color name="dash_background">#FF1A1B1C</color>
 </resources>

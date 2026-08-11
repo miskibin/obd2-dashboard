@@ -6,6 +6,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,11 +23,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -47,6 +46,19 @@ import com.miskibin.obd2dashboard.ble.ConnectionState
 import com.miskibin.obd2dashboard.ble.DiscoveredDevice
 import com.miskibin.obd2dashboard.data.SavedAdapter
 import com.miskibin.obd2dashboard.ui.AppIcons
+import com.miskibin.obd2dashboard.ui.components.AccentButton
+import com.miskibin.obd2dashboard.ui.components.QuietButton
+import com.miskibin.obd2dashboard.ui.components.ScreenPadding
+import com.miskibin.obd2dashboard.ui.theme.Amber
+import com.miskibin.obd2dashboard.ui.theme.AshDim
+import com.miskibin.obd2dashboard.ui.theme.Chalk
+import com.miskibin.obd2dashboard.ui.theme.PanelCorner
+import com.miskibin.obd2dashboard.ui.theme.SignalText
+import com.miskibin.obd2dashboard.ui.theme.Slate
+import com.miskibin.obd2dashboard.ui.theme.SlateBorder
+import com.miskibin.obd2dashboard.ui.theme.SlateEdge
+import com.miskibin.obd2dashboard.ui.theme.Smoke
+import com.miskibin.obd2dashboard.ui.theme.Steel
 
 /**
  * The whole connection flow on one screen with one obvious action.
@@ -110,19 +122,19 @@ fun ConnectScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+            .padding(horizontal = ScreenPadding),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(10.dp))
         Text(
             text = stringResource(R.string.connect_title),
             style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = Chalk,
         )
         Text(
             text = stringResource(R.string.connect_subtitle),
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = Smoke,
         )
 
         when {
@@ -163,42 +175,44 @@ fun ConnectScreen(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 if (scanning) {
-                    OutlinedButton(
+                    QuietButton(
+                        label = stringResource(R.string.action_stop_scan),
                         onClick = onStopScan,
-                        modifier = Modifier.weight(1f).heightIn(min = 56.dp),
-                    ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                        Spacer(Modifier.width(12.dp))
-                        Text(stringResource(R.string.action_stop_scan))
-                    }
+                        modifier = Modifier.weight(1f),
+                        leading = {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = Steel,
+                            )
+                            Spacer(Modifier.width(10.dp))
+                        },
+                    )
                 } else {
-                    Button(
+                    AccentButton(
+                        label = stringResource(R.string.action_scan),
                         onClick = ::requestScan,
-                        modifier = Modifier.weight(1f).heightIn(min = 56.dp),
-                    ) {
-                        Icon(AppIcons.Bluetooth, contentDescription = null)
-                        Spacer(Modifier.width(12.dp))
-                        Text(
-                            text = stringResource(R.string.action_scan),
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                    }
+                        modifier = Modifier.weight(1f),
+                        leading = {
+                            Icon(
+                                imageVector = AppIcons.Bluetooth,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Spacer(Modifier.width(10.dp))
+                        },
+                    )
                 }
-                OutlinedButton(
+                QuietButton(
+                    label = stringResource(R.string.action_demo),
                     onClick = onDemo,
-                    modifier = Modifier.heightIn(min = 56.dp),
-                ) {
-                    Text(stringResource(R.string.action_demo))
-                }
+                    contentColor = Amber,
+                )
             }
             Text(
                 text = stringResource(R.string.connect_demo_hint),
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = Smoke,
             )
         }
 
@@ -215,7 +229,7 @@ fun ConnectScreen(
                     stringResource(R.string.connect_saved_hint, it.name ?: it.address)
                 } ?: stringResource(R.string.connect_empty_hint),
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = Smoke,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
             )
@@ -238,8 +252,9 @@ private fun ConnectedCard(state: ConnectionState.Connected, onDisconnect: () -> 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(MaterialTheme.colorScheme.surface)
+            .clip(PanelCorner)
+            .background(Slate)
+            .border(1.dp, SlateBorder, PanelCorner)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
@@ -250,11 +265,7 @@ private fun ConnectedCard(state: ConnectionState.Connected, onDisconnect: () -> 
                 state.device.name ?: state.device.address
             },
             style = MaterialTheme.typography.titleMedium,
-            color = if (state.demo) {
-                MaterialTheme.colorScheme.secondary
-            } else {
-                MaterialTheme.colorScheme.primary
-            },
+            color = if (state.demo) Amber else Steel,
         )
         Text(
             text = if (state.demo) {
@@ -267,14 +278,14 @@ private fun ConnectedCard(state: ConnectionState.Connected, onDisconnect: () -> 
                 )
             },
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = Smoke,
         )
-        OutlinedButton(
+        QuietButton(
+            label = stringResource(R.string.action_disconnect),
             onClick = onDisconnect,
-            modifier = Modifier.padding(top = 12.dp).heightIn(min = 48.dp),
-        ) {
-            Text(stringResource(R.string.action_disconnect))
-        }
+            contentColor = SignalText,
+            modifier = Modifier.padding(top = 12.dp),
+        )
     }
 }
 
@@ -283,11 +294,12 @@ private fun StatusCard(text: String, error: Boolean) {
     Text(
         text = text,
         style = MaterialTheme.typography.bodyMedium,
-        color = if (error) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary,
+        color = if (error) SignalText else AshDim,
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surface)
+            .clip(PanelCorner)
+            .background(Slate)
+            .border(1.dp, SlateBorder, PanelCorner)
             .padding(16.dp),
     )
 }
@@ -297,8 +309,9 @@ private fun DeviceRow(device: DiscoveredDevice, remembered: Boolean, onClick: ()
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(MaterialTheme.colorScheme.surface)
+            .clip(PanelCorner)
+            .background(Slate)
+            .border(1.dp, SlateBorder, PanelCorner)
             .clickable(onClick = onClick)
             .heightIn(min = 64.dp)
             .padding(horizontal = 16.dp, vertical = 12.dp),
@@ -310,7 +323,7 @@ private fun DeviceRow(device: DiscoveredDevice, remembered: Boolean, onClick: ()
             Text(
                 text = device.name ?: stringResource(R.string.connect_unnamed_device),
                 style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = Chalk,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -321,11 +334,7 @@ private fun DeviceRow(device: DiscoveredDevice, remembered: Boolean, onClick: ()
                     else -> device.address
                 },
                 style = MaterialTheme.typography.bodySmall,
-                color = if (device.looksLikeAdapter || remembered) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
+                color = if (device.looksLikeAdapter || remembered) Steel else Smoke,
             )
         }
     }
@@ -352,13 +361,7 @@ private fun SignalBars(rssi: Int) {
                     .width(3.dp)
                     .height((6 + index * 4).dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(
-                        if (index < level) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
-                        },
-                    ),
+                    .background(if (index < level) Steel else SlateEdge),
             )
         }
     }

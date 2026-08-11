@@ -5,19 +5,24 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Button
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -27,10 +32,314 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.miskibin.obd2dashboard.ble.ConnectionState
+import com.miskibin.obd2dashboard.ui.theme.Amber
+import com.miskibin.obd2dashboard.ui.theme.AshDim
+import com.miskibin.obd2dashboard.ui.theme.CardCorner
+import com.miskibin.obd2dashboard.ui.theme.Chalk
+import com.miskibin.obd2dashboard.ui.theme.ControlCorner
+import com.miskibin.obd2dashboard.ui.theme.Fog
+import com.miskibin.obd2dashboard.ui.theme.Graphite
+import com.miskibin.obd2dashboard.ui.theme.PanelCorner
+import com.miskibin.obd2dashboard.ui.theme.PillCorner
+import com.miskibin.obd2dashboard.ui.theme.Signal
+import com.miskibin.obd2dashboard.ui.theme.SignalBorder
+import com.miskibin.obd2dashboard.ui.theme.SignalSurface
+import com.miskibin.obd2dashboard.ui.theme.SignalText
+import com.miskibin.obd2dashboard.ui.theme.Slate
+import com.miskibin.obd2dashboard.ui.theme.SlateBorder
+import com.miskibin.obd2dashboard.ui.theme.SlateEdge
+import com.miskibin.obd2dashboard.ui.theme.Smoke
+import com.miskibin.obd2dashboard.ui.theme.Steel
+import com.miskibin.obd2dashboard.ui.theme.SteelBorder
+import com.miskibin.obd2dashboard.ui.theme.SteelDeep
+import com.miskibin.obd2dashboard.ui.theme.SteelLight
+
+/** The horizontal margin every screen shares, so cards line up between destinations. */
+val ScreenPadding = 16.dp
+
+/**
+ * The one surface the whole app is built from: a bordered card on the shell.
+ *
+ * The border does the work a shadow would do on a light theme — on a near-black ground
+ * an elevation shadow is invisible, but a one-pixel edge a shade lighter than the card
+ * still says "this is a separate thing".
+ */
+@Composable
+fun DashCard(
+    modifier: Modifier = Modifier,
+    shape: Shape = CardCorner,
+    background: Color = Slate,
+    border: Color = SlateBorder,
+    contentPadding: PaddingValues = PaddingValues(16.dp),
+    onClick: (() -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(
+        modifier = modifier
+            .clip(shape)
+            .background(background)
+            .border(1.dp, border, shape)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(contentPadding),
+        content = content,
+    )
+}
+
+/**
+ * The title block every screen opens with: name on the left, one line of context under
+ * it, and at most one control on the right.
+ */
+@Composable
+fun ScreenHeader(
+    title: String,
+    modifier: Modifier = Modifier,
+    subtitle: String? = null,
+    trailing: (@Composable () -> Unit)? = null,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.headlineMedium,
+                color = Chalk,
+                maxLines = 1,
+            )
+            if (subtitle != null) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Smoke,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 3.dp),
+                )
+            }
+        }
+        trailing?.invoke()
+    }
+}
+
+/** A quiet, uppercase divider between the groups of a list. */
+@Composable
+fun SectionHeader(text: String, modifier: Modifier = Modifier, color: Color = Smoke) {
+    Text(
+        text = text.uppercase(),
+        style = MaterialTheme.typography.labelSmall,
+        color = color,
+        modifier = modifier.padding(horizontal = 4.dp, vertical = 8.dp),
+    )
+}
+
+/**
+ * A grouped list: rows separated by the shell showing through a one-pixel gap.
+ *
+ * Dividers drawn inside the rows would have to be inset by hand for every row that has
+ * an icon; a gap in a bordered container gets the same reading for free.
+ */
+@Composable
+fun GroupedList(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        modifier = modifier
+            .clip(PanelCorner)
+            .background(SlateBorder)
+            .border(1.dp, SlateBorder, PanelCorner),
+        verticalArrangement = Arrangement.spacedBy(1.dp),
+        content = content,
+    )
+}
+
+/** A small coloured tag: fault state, trip highlight, "earlier"/"later". */
+@Composable
+fun Tag(
+    label: String,
+    color: Color,
+    background: Color,
+    modifier: Modifier = Modifier,
+) {
+    Text(
+        text = label,
+        style = MaterialTheme.typography.labelSmall,
+        color = color,
+        modifier = modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(background)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+    )
+}
+
+/** One segment of a [SegmentedControl]. */
+data class Segment(val label: String, val onSelect: () -> Unit)
+
+/**
+ * The app's only tab-like control: two to four short options in a recessed track.
+ *
+ * Chips would say "filter, pick any"; these say "pick exactly one", which is what a
+ * chart window or a chart mode is.
+ */
+@Composable
+fun SegmentedControl(
+    segments: List<Segment>,
+    selectedIndex: Int,
+    modifier: Modifier = Modifier,
+    fill: Boolean = true,
+) {
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(11.dp))
+            .background(Slate)
+            .border(1.dp, SlateBorder, RoundedCornerShape(11.dp))
+            .padding(3.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        segments.forEachIndexed { index, segment ->
+            val selected = index == selectedIndex
+            Text(
+                text = segment.label,
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = if (selected) SteelLight else Smoke,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                modifier = Modifier
+                    .then(if (fill) Modifier.weight(1f) else Modifier)
+                    .clip(PillCorner)
+                    .background(if (selected) SteelDeep else Color.Transparent)
+                    .clickable(onClick = segment.onSelect)
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+            )
+        }
+    }
+}
+
+/** The primary action: steel, filled, unmissable but not loud. */
+@Composable
+fun AccentButton(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    leading: (@Composable RowScope.() -> Unit)? = null,
+) {
+    ActionButton(
+        label = label,
+        onClick = onClick,
+        modifier = modifier,
+        enabled = enabled,
+        background = SteelDeep,
+        border = SteelBorderStroke,
+        contentColor = SteelLight,
+        leading = leading,
+    )
+}
+
+/** The secondary action: outline only, so it never competes with the accent one. */
+@Composable
+fun QuietButton(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    contentColor: Color = AshDim,
+    leading: (@Composable RowScope.() -> Unit)? = null,
+) {
+    ActionButton(
+        label = label,
+        onClick = onClick,
+        modifier = modifier,
+        enabled = enabled,
+        background = Color.Transparent,
+        border = BorderStroke(1.dp, SlateEdge),
+        contentColor = contentColor,
+        leading = leading,
+    )
+}
+
+/** Anything that changes the car or throws data away. */
+@Composable
+fun DangerButton(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    leading: (@Composable RowScope.() -> Unit)? = null,
+) {
+    ActionButton(
+        label = label,
+        onClick = onClick,
+        modifier = modifier,
+        enabled = enabled,
+        background = SignalSurface,
+        border = BorderStroke(1.dp, SignalBorder),
+        contentColor = SignalText,
+        leading = leading,
+    )
+}
+
+/** A confirmed destructive action, filled so it reads as the point of no return. */
+@Composable
+fun SolidDangerButton(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    ActionButton(
+        label = label,
+        onClick = onClick,
+        modifier = modifier,
+        enabled = true,
+        background = Signal,
+        border = BorderStroke(1.dp, Signal),
+        contentColor = Color.White,
+        leading = null,
+    )
+}
+
+private val SteelBorderStroke = BorderStroke(1.dp, SteelBorder)
+
+@Composable
+private fun ActionButton(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier,
+    enabled: Boolean,
+    background: Color,
+    border: BorderStroke,
+    contentColor: Color,
+    leading: (@Composable RowScope.() -> Unit)?,
+) {
+    Row(
+        modifier = modifier
+            .heightIn(min = 52.dp)
+            .clip(ControlCorner)
+            .background(background)
+            .border(border, ControlCorner)
+            .clickable(enabled = enabled, onClick = onClick)
+            .alpha(if (enabled) 1f else DISABLED_ALPHA)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        leading?.invoke(this)
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            color = contentColor,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
 
 /**
  * The persistent connection indicator.
@@ -64,41 +373,37 @@ fun ConnectionPill(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 44.dp)
-            .clip(MaterialTheme.shapes.large)
-            .background(MaterialTheme.colorScheme.surface)
+            .clip(PanelCorner)
+            .background(Slate)
+            .border(1.dp, SlateBorder, PanelCorner)
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Box(
             modifier = Modifier
-                .size(10.dp)
+                .size(9.dp)
                 .alpha(pulse)
                 .clip(CircleShape)
                 .background(accent),
         )
         Text(
             text = label,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
+            style = MaterialTheme.typography.bodySmall,
+            color = AshDim,
             modifier = Modifier.weight(1f),
         )
+        Text(text = "›", style = MaterialTheme.typography.bodyLarge, color = Fog)
     }
 }
 
-@Composable
 private fun ConnectionState.accentColor(): Color = when (this) {
-    // Demo gets its own colour: a green dot must only ever mean a real car.
-    is ConnectionState.Connected -> if (demo) {
-        MaterialTheme.colorScheme.secondary
-    } else {
-        MaterialTheme.colorScheme.primary
-    }
-
-    is ConnectionState.Error -> MaterialTheme.colorScheme.error
-    ConnectionState.Idle -> MaterialTheme.colorScheme.outline
-    else -> MaterialTheme.colorScheme.secondary
+    // Demo gets its own colour: a steel dot must only ever mean a real car.
+    is ConnectionState.Connected -> if (demo) Amber else Steel
+    is ConnectionState.Error -> Signal
+    ConnectionState.Idle -> Graphite
+    else -> Amber
 }
 
 private fun ConnectionState.isBusy(): Boolean = when (this) {
@@ -127,49 +432,37 @@ fun EmptyState(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 32.dp, vertical = 48.dp),
+            .padding(horizontal = 32.dp, vertical = 40.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.outline,
-            modifier = Modifier.size(40.dp),
+            tint = Graphite,
+            modifier = Modifier.size(36.dp),
         )
         Text(
             text = title,
             style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = Chalk,
             textAlign = TextAlign.Center,
         )
         Text(
             text = message,
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = Smoke,
             textAlign = TextAlign.Center,
             modifier = Modifier.widthIn(max = 340.dp),
         )
         if (actionLabel != null && onAction != null) {
-            Button(
+            AccentButton(
+                label = actionLabel,
                 onClick = onAction,
-                modifier = Modifier
-                    .padding(top = 8.dp)
-                    .heightIn(min = 52.dp),
-            ) {
-                Text(actionLabel, style = MaterialTheme.typography.titleSmall)
-            }
+                modifier = Modifier.padding(top = 10.dp),
+            )
         }
     }
 }
 
-/** A quiet, uppercase divider between the groups of a list. */
-@Composable
-fun SectionHeader(text: String, modifier: Modifier = Modifier) {
-    Text(
-        text = text.uppercase(),
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = modifier.padding(horizontal = 4.dp, vertical = 8.dp),
-    )
-}
+private const val DISABLED_ALPHA = 0.45f

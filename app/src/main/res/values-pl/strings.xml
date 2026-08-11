@@ -33,8 +33,6 @@
     <string name="action_share">Udostępnij</string>
     <string name="action_add_tile">Dodaj wartość</string>
     <string name="action_remove_tile">Usuń ten kafelek</string>
-    <string name="action_record">Nagraj przejazd</string>
-    <string name="action_stop_recording">Zatrzymaj · %1$s</string>
     <string name="action_read_codes">Odczytaj błędy</string>
     <string name="action_clear_codes">Skasuj błędy</string>
     <string name="action_share_report">Wyślij raport</string>
@@ -129,12 +127,9 @@
     </plurals>
 
     <!-- Alerty progowe -->
-    <string name="settings_alerts">Alerty</string>
     <string name="settings_alerts_description">Ostrzegaj, gdy wartość wyjdzie poza bezpieczny zakres. Alert pojawi się jako powiadomienie i jako pasek w aplikacji.</string>
     <string name="alert_limit_above">Powyżej %1$s</string>
     <string name="alert_limit_below">Poniżej %1$s</string>
-    <string name="alert_edit_title">Próg alertu</string>
-    <string name="alert_edit_hint">Próg (%1$s)</string>
     <string name="alert_above">%1$s wynosi %2$s, powyżej progu %3$s</string>
     <string name="alert_below">%1$s wynosi %2$s, poniżej progu %3$s</string>
     <string name="alert_notification_title">Alert z pojazdu</string>
@@ -220,4 +215,55 @@
     <string name="metric_pid_62">Moment rzeczywisty</string>
     <string name="metric_pid_63">Moment referencyjny</string>
     <string name="metric_pid_a6">Przebieg</string>
+    <string name="unit_rpm">rpm</string>
+    <string name="dashboard_subtitle">Wartości na żywo z auta</string>
+    <string name="dashboard_redline">Odcięcie %1$d rpm</string>
+    <string name="chart_window_summary">Ostatnie %1$s · na żywo</string>
+    <string name="chart_now">teraz</string>
+    <string name="chart_add_parameter">+ parametr</string>
+    <string name="chart_mode_bands">Osobno</string>
+    <string name="chart_mode_relative">Wspólna %%</string>
+    <string name="chart_mode_absolute">Wspólna abs.</string>
+    <string name="chart_mode_bands_hint">Każdy parametr ma własną skalę.</string>
+    <string name="chart_mode_relative_hint">Jedna oś 0–100 %% własnego zakresu.</string>
+    <string name="chart_mode_absolute_hint">Jedna oś w jednostkach (%1$s).</string>
+    <string name="chart_mode_absolute_mixed">Uwaga: różne jednostki (%1$s).</string>
+    <string name="chart_record_start">Nagrywaj</string>
+    <string name="chart_record_stop">Zatrzymaj</string>
+    <string name="charts_recording_on">Nagrywanie przejazdu</string>
+    <string name="charts_recording_off">Nagrywanie zatrzymane</string>
+    <string name="charts_recording_meta">%1$s · zapis do CSV</string>
+    <string name="dtc_never_read">Jeszcze nieodczytane</string>
+    <string name="dtc_clear_caveat">Kasowanie gasi kontrolkę, ale nie naprawia usterki — kod wróci, jeśli przyczyna nie zniknie.</string>
+    <string name="dtc_hint_frame">Dotknij · zamrożona ramka ECU</string>
+    <string name="dtc_hint_no_frame">Dotknij, aby zobaczyć szczegóły</string>
+    <string name="dtc_no_frame_message">Sterownik nie zapisał zamrożonej ramki dla tego kodu.</string>
+    <string name="dtc_frame_parameter">Parametr</string>
+    <string name="dtc_frame_at_fault">W błędzie</string>
+    <string name="dtc_frame_show_all">Pokaż wszystkie (%1$d)</string>
+    <string name="dtc_frame_show_fewer">Pokaż mniej</string>
+    <string name="report_sheet_title">Raport dla mechanika</string>
+    <string name="report_sheet_subtitle">Zwykły tekst do wysłania z dowolnej aplikacji</string>
+    <string name="report_line_codes">Kody z opisami</string>
+    <string name="report_line_frame">Zamrożona ramka z ECU</string>
+    <string name="report_line_frame_yes">Parametry zapisane przez sterownik w chwili błędu</string>
+    <string name="report_line_frame_no">Auto nie miało zapisanej ramki dla tego błędu</string>
+    <string name="report_line_readiness">Monitory gotowości</string>
+    <string name="report_line_readiness_detail">Które testy własne wykonały się od ostatniego kasowania</string>
+    <string name="report_line_vehicle">Pojazd i adapter</string>
+    <string name="report_line_vehicle_detail">VIN, jeśli auto go podaje, napięcie akumulatora, protokół</string>
+    <string name="report_caveat">Wartości pochodzą z adaptera OBD2 — mogą różnić się od odczytu testerem warsztatowym, a część PID-ów producent raportuje z opóźnieniem.</string>
+
+    <plurals name="dtc_clear_subtitle">
+        <item quantity="one">Skasujesz %1$d kod razem z jego zamrożoną ramką.</item>
+        <item quantity="few">Skasujesz %1$d kody razem z ich zamrożonymi ramkami.</item>
+        <item quantity="many">Skasujesz %1$d kodów razem z ich zamrożonymi ramkami.</item>
+        <item quantity="other">Skasujesz %1$d kodów razem z ich zamrożonymi ramkami.</item>
+    </plurals>
+    <string name="settings_thresholds">Progi ostrzeżeń</string>
+    <string name="settings_redline">Odcięcie</string>
+    <string name="settings_redline_description">Miejsce, w którym pasek obrotów robi się czerwony.</string>
+    <string name="unit_value_rpm">%1$d obr/min</string>
+    <string name="alert_edit_above">Ostrzegaj, gdy wartość przekroczy ten próg.</string>
+    <string name="alert_edit_below">Ostrzegaj, gdy wartość spadnie poniżej tego progu.</string>
 </resources>

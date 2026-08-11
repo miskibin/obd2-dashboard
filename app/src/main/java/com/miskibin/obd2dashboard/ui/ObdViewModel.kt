@@ -72,6 +72,12 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
     val pollingEnabled: StateFlow<Boolean> =
         preferences.pollingEnabled.stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
+    val redline: StateFlow<Int> = preferences.redline
+        .stateIn(viewModelScope, SharingStarted.Eagerly, Metrics.REDLINE_DEFAULT)
+
+    /** The ECU snapshot behind an expanded fault code, when the car had one stored. */
+    val freezeFrame = connection.freezeFrame
+
     /**
      * Tile order lives in memory while the driver drags, and is written back once the
      * gesture ends — a DataStore round trip per frame would make the drag stutter.
@@ -150,6 +156,10 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { preferences.setPollingEnabled(enabled) }
     }
 
+    fun setRedline(rpm: Int) {
+        viewModelScope.launch { preferences.setRedline(rpm) }
+    }
+
     // ---- tiles ------------------------------------------------------------------
 
     fun moveTile(from: Int, to: Int) {
@@ -196,7 +206,12 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
         if (_dtcOperation.value != null) return
         _dtcOperation.value = DtcOperation.Reading
         viewModelScope.launch {
-            runCatching { connection.refreshDiagnostics() }
+            // The frame belongs to a code the driver is about to look at, so it is read
+            // in the same trip to the car rather than on the first tap of a row.
+            runCatching {
+                connection.refreshDiagnostics()
+                connection.readFreezeFrame()
+            }
             _dtcOperation.value = null
         }
     }
@@ -295,6 +310,6 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     companion object {
-        const val MAX_CHART_SERIES = 3
+        const val MAX_CHART_SERIES = 6
     }
 }

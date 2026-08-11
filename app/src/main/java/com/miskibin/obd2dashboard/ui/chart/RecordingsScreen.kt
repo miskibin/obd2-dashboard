@@ -1,6 +1,7 @@
 package com.miskibin.obd2dashboard.ui.chart
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -12,7 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
@@ -22,7 +22,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -39,6 +38,16 @@ import com.miskibin.obd2dashboard.R
 import com.miskibin.obd2dashboard.data.Trip
 import com.miskibin.obd2dashboard.ui.AppIcons
 import com.miskibin.obd2dashboard.ui.components.EmptyState
+import com.miskibin.obd2dashboard.ui.components.QuietButton
+import com.miskibin.obd2dashboard.ui.components.ScreenPadding
+import com.miskibin.obd2dashboard.ui.components.SolidDangerButton
+import com.miskibin.obd2dashboard.ui.theme.Chalk
+import com.miskibin.obd2dashboard.ui.theme.PanelCorner
+import com.miskibin.obd2dashboard.ui.theme.Slate
+import com.miskibin.obd2dashboard.ui.theme.SlateBorder
+import com.miskibin.obd2dashboard.ui.theme.Smoke
+import com.miskibin.obd2dashboard.ui.theme.Steel
+import com.miskibin.obd2dashboard.ui.theme.Graphite
 import java.text.DateFormat
 import java.util.Date
 import java.util.Locale
@@ -59,7 +68,7 @@ fun RecordingsScreen(
     var pendingDelete by remember { mutableStateOf<Trip?>(null) }
     LaunchedEffect(Unit) { onRefresh() }
 
-    Column(modifier = modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+    Column(modifier = modifier.fillMaxSize().padding(horizontal = ScreenPadding)) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -73,8 +82,8 @@ fun RecordingsScreen(
             }
             Text(
                 text = stringResource(R.string.recordings_title),
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.headlineSmall,
+                color = Chalk,
             )
         }
 
@@ -104,23 +113,24 @@ fun RecordingsScreen(
             onDismissRequest = { pendingDelete = null },
             title = { Text(stringResource(R.string.recordings_delete_title)) },
             text = { Text(stringResource(R.string.recordings_delete_message, trip.name)) },
+            containerColor = Slate,
+            titleContentColor = Chalk,
+            textContentColor = Smoke,
+            shape = PanelCorner,
             confirmButton = {
-                TextButton(
+                SolidDangerButton(
+                    label = stringResource(R.string.action_delete),
                     onClick = {
                         onDelete(trip)
                         pendingDelete = null
                     },
-                ) {
-                    Text(
-                        text = stringResource(R.string.action_delete),
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
+                )
             },
             dismissButton = {
-                TextButton(onClick = { pendingDelete = null }) {
-                    Text(stringResource(R.string.action_cancel))
-                }
+                QuietButton(
+                    label = stringResource(R.string.action_cancel),
+                    onClick = { pendingDelete = null },
+                )
             },
         )
     }
@@ -131,8 +141,9 @@ private fun TripRow(trip: Trip, onShare: () -> Unit, onDelete: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(MaterialTheme.colorScheme.surface)
+            .clip(PanelCorner)
+            .background(Slate)
+            .border(1.dp, SlateBorder, PanelCorner)
             .clickable(onClick = onShare)
             .heightIn(min = 64.dp)
             .padding(start = 16.dp, top = 8.dp, bottom = 8.dp),
@@ -143,7 +154,7 @@ private fun TripRow(trip: Trip, onShare: () -> Unit, onDelete: () -> Unit) {
                 text = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
                     .format(Date(trip.startedAtMillis)),
                 style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = Chalk,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -153,22 +164,22 @@ private fun TripRow(trip: Trip, onShare: () -> Unit, onDelete: () -> Unit) {
                     formatDuration((trip.durationSeconds).toLong()),
                     formatSize(trip.sizeBytes),
                 ),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.labelMedium,
+                color = Smoke,
             )
         }
         IconButton(onClick = onShare, modifier = Modifier.size(48.dp)) {
             Icon(
                 imageVector = Icons.Default.Share,
                 contentDescription = stringResource(R.string.action_share),
-                tint = MaterialTheme.colorScheme.primary,
+                tint = Steel,
             )
         }
         IconButton(onClick = onDelete, modifier = Modifier.size(48.dp)) {
             Icon(
                 imageVector = Icons.Default.Delete,
                 contentDescription = stringResource(R.string.action_delete),
-                tint = MaterialTheme.colorScheme.outline,
+                tint = Graphite,
             )
         }
     }

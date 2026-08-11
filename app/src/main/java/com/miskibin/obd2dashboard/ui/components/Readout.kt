@@ -2,8 +2,6 @@ package com.miskibin.obd2dashboard.ui.components
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -106,52 +104,4 @@ private fun DrawScope.drawSparkline(samples: List<Sample>, color: Color, strokeW
     )
 }
 
-/**
- * The quiet arc behind the RPM tile.
- *
- * A full round dial would dominate a grid of otherwise flat tiles, so this is a thin
- * 240° sweep that reads as a progress hint rather than an instrument in its own right.
- */
-@Composable
-fun ArcGauge(
-    fraction: Float,
-    color: Color,
-    trackColor: Color,
-    modifier: Modifier = Modifier,
-    warningFraction: Float = 0.75f,
-    warningColor: Color = color,
-    strokeWidth: Dp = 6.dp,
-) {
-    Canvas(modifier = modifier) {
-        val stroke = Stroke(width = strokeWidth.toPx(), cap = StrokeCap.Round)
-        val inset = stroke.width / 2f
-        val diameter = minOf(size.width, size.height) - stroke.width
-        if (diameter <= 0f) return@Canvas
-        val topLeft = Offset(x = (size.width - diameter) / 2f, y = inset)
-        val arcSize = Size(diameter, diameter)
-        drawArc(
-            color = trackColor,
-            startAngle = START_ANGLE,
-            sweepAngle = SWEEP_ANGLE,
-            useCenter = false,
-            topLeft = topLeft,
-            size = arcSize,
-            style = stroke,
-        )
-        val clamped = fraction.coerceIn(0f, 1f)
-        if (clamped <= 0f) return@Canvas
-        drawArc(
-            color = if (clamped >= warningFraction) warningColor else color,
-            startAngle = START_ANGLE,
-            sweepAngle = SWEEP_ANGLE * clamped,
-            useCenter = false,
-            topLeft = topLeft,
-            size = arcSize,
-            style = stroke,
-        )
-    }
-}
-
-private const val START_ANGLE = 150f
-private const val SWEEP_ANGLE = 240f
 private const val EPSILON = 1e-6f
