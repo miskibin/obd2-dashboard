@@ -39,9 +39,8 @@ enum class ObdProtocol(
         fun parseDpn(text: String): Pair<ObdProtocol, Boolean>? {
             val compact = text.trim().uppercase().filterNot { it.isWhitespace() }
             if (compact.isEmpty()) return null
-            val auto = compact.startsWith("A")
-            val digit = compact.removePrefix("A").firstOrNull() ?: return null
-            val number = digit.digitToIntOrNull(16) ?: return null
+            val auto = compact.length > 1 && compact.startsWith("A")
+            val number = compact[if (auto) 1 else 0].digitToIntOrNull(16) ?: return null
             return fromNumber(number)?.let { it to auto }
         }
     }
