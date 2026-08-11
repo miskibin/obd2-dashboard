@@ -32,6 +32,7 @@ import com.miskibin.obd2dashboard.ui.components.ScreenHeader
 import com.miskibin.obd2dashboard.ui.components.ScreenPadding
 import com.miskibin.obd2dashboard.ui.components.SectionHeader
 import com.miskibin.obd2dashboard.ui.theme.CardCorner
+import com.miskibin.obd2dashboard.ui.theme.Dimens
 import com.miskibin.obd2dashboard.ui.theme.Graphite
 import com.miskibin.obd2dashboard.ui.theme.LocalSkin
 
@@ -71,7 +72,7 @@ fun TripsScreen(
                 icon = AppIcons.RecordDot,
                 title = stringResource(R.string.recordings_empty_title),
                 message = stringResource(R.string.recordings_empty_message),
-                modifier = Modifier.fillMaxSize().padding(top = 24.dp),
+                modifier = Modifier.fillMaxSize().padding(top = 12.dp),
             )
             return@Column
         }
@@ -83,9 +84,9 @@ fun TripsScreen(
                 start = ScreenPadding,
                 end = ScreenPadding,
                 top = 2.dp,
-                bottom = 16.dp,
+                bottom = Dimens.listBottom,
             ),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(Dimens.cardGap),
         ) {
             months.forEach { (month, trips) ->
                 item(key = "month-$month") {
@@ -110,9 +111,14 @@ private fun TripCard(entry: TripEntry, onClick: () -> Unit) {
             .background(skin.card)
             .border(1.dp, skin.cardBorder, CardCorner)
             .clickable(onClick = onClick)
-            .padding(start = 16.dp, end = 14.dp, top = 15.dp, bottom = 15.dp),
+            .padding(
+                start = Dimens.cardPaddingH,
+                end = 12.dp,
+                top = Dimens.cardPaddingV,
+                bottom = Dimens.cardPaddingV,
+            ),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
@@ -128,14 +134,14 @@ private fun TripCard(entry: TripEntry, onClick: () -> Unit) {
                 color = skin.subtitle,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 3.dp),
+                modifier = Modifier.padding(top = 2.dp),
             )
             val events = analysis?.events.orEmpty()
             if (events.isNotEmpty()) {
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.padding(top = 9.dp),
+                    modifier = Modifier.padding(top = 7.dp),
                 ) {
                     events.forEach { event -> EventTag(event) }
                 }

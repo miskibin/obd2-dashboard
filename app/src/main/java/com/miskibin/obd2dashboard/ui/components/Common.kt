@@ -53,6 +53,7 @@ import com.miskibin.obd2dashboard.ui.theme.AshDim
 import com.miskibin.obd2dashboard.ui.theme.CardCorner
 import com.miskibin.obd2dashboard.ui.theme.Chalk
 import com.miskibin.obd2dashboard.ui.theme.ControlCorner
+import com.miskibin.obd2dashboard.ui.theme.Dimens
 import com.miskibin.obd2dashboard.ui.theme.Fog
 import com.miskibin.obd2dashboard.ui.theme.Graphite
 import com.miskibin.obd2dashboard.ui.theme.LocalSkin
@@ -71,8 +72,13 @@ import com.miskibin.obd2dashboard.ui.theme.SteelBorder
 import com.miskibin.obd2dashboard.ui.theme.SteelDeep
 import com.miskibin.obd2dashboard.ui.theme.SteelLight
 
-/** The horizontal margin every screen shares, so cards line up between destinations. */
-val ScreenPadding = 16.dp
+/**
+ * The horizontal margin every screen shares, so cards line up between destinations.
+ *
+ * The number itself lives in [Dimens] with the rest of the spacing scale; this alias is
+ * what the screens already import.
+ */
+val ScreenPadding = Dimens.screenEdge
 
 /**
  * The one surface the whole app is built from: a bordered card on the shell.
@@ -87,7 +93,10 @@ fun DashCard(
     shape: Shape = CardCorner,
     background: Color = LocalSkin.current.card,
     border: Color = LocalSkin.current.cardBorder,
-    contentPadding: PaddingValues = PaddingValues(16.dp),
+    contentPadding: PaddingValues = PaddingValues(
+        horizontal = Dimens.cardPaddingH,
+        vertical = Dimens.cardPaddingV,
+    ),
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -123,9 +132,14 @@ fun ScreenHeader(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 12.dp),
+            .padding(
+                start = Dimens.screenEdge + 2.dp,
+                end = Dimens.screenEdge + 2.dp,
+                top = Dimens.headerTop,
+                bottom = Dimens.headerBottom,
+            ),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         leading?.invoke()
         if (onBack != null) {
@@ -155,7 +169,7 @@ fun ScreenHeader(
                     color = skin.subtitle,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 3.dp),
+                    modifier = Modifier.padding(top = 2.dp),
                 )
             }
         }
@@ -174,7 +188,7 @@ fun SectionHeader(
         text = text.uppercase(),
         style = MaterialTheme.typography.labelSmall,
         color = color,
-        modifier = modifier.padding(horizontal = 4.dp, vertical = 8.dp),
+        modifier = modifier.padding(horizontal = 3.dp, vertical = 5.dp),
     )
 }
 
@@ -253,7 +267,7 @@ fun SegmentedControl(
                     .clip(PillCorner)
                     .background(if (selected) SteelDeep else Color.Transparent)
                     .clickable(onClick = segment.onSelect)
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                    .padding(horizontal = 10.dp, vertical = 7.dp),
             )
         }
     }
@@ -266,6 +280,7 @@ fun AccentButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    compact: Boolean = false,
     leading: (@Composable RowScope.() -> Unit)? = null,
 ) {
     ActionButton(
@@ -273,6 +288,7 @@ fun AccentButton(
         onClick = onClick,
         modifier = modifier,
         enabled = enabled,
+        compact = compact,
         background = SteelDeep,
         border = SteelBorderStroke,
         contentColor = SteelLight,
@@ -287,6 +303,7 @@ fun QuietButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    compact: Boolean = false,
     contentColor: Color = AshDim,
     leading: (@Composable RowScope.() -> Unit)? = null,
 ) {
@@ -295,6 +312,7 @@ fun QuietButton(
         onClick = onClick,
         modifier = modifier,
         enabled = enabled,
+        compact = compact,
         background = Color.Transparent,
         border = BorderStroke(1.dp, SlateEdge),
         contentColor = contentColor,
@@ -309,6 +327,7 @@ fun DangerButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    compact: Boolean = false,
     leading: (@Composable RowScope.() -> Unit)? = null,
 ) {
     ActionButton(
@@ -316,6 +335,7 @@ fun DangerButton(
         onClick = onClick,
         modifier = modifier,
         enabled = enabled,
+        compact = compact,
         background = SignalSurface,
         border = BorderStroke(1.dp, SignalBorder),
         contentColor = SignalText,
@@ -335,6 +355,7 @@ fun SolidDangerButton(
         onClick = onClick,
         modifier = modifier,
         enabled = true,
+        compact = false,
         background = Signal,
         border = BorderStroke(1.dp, Signal),
         contentColor = Color.White,
@@ -344,12 +365,20 @@ fun SolidDangerButton(
 
 private val SteelBorderStroke = BorderStroke(1.dp, SteelBorder)
 
+/**
+ * All four buttons, one body.
+ *
+ * The height floor rather than the padding is what guarantees the thumb target, so
+ * [compact] — three actions sharing one row — is free to give the label almost the whole
+ * width back without the button becoming a thing you miss at a set of lights.
+ */
 @Composable
 private fun ActionButton(
     label: String,
     onClick: () -> Unit,
     modifier: Modifier,
     enabled: Boolean,
+    compact: Boolean,
     background: Color,
     border: BorderStroke,
     contentColor: Color,
@@ -357,13 +386,13 @@ private fun ActionButton(
 ) {
     Row(
         modifier = modifier
-            .heightIn(min = 52.dp)
+            .heightIn(min = Dimens.touchTarget)
             .clip(ControlCorner)
             .background(background)
             .border(border, ControlCorner)
             .clickable(enabled = enabled, onClick = onClick)
             .alpha(if (enabled) 1f else DISABLED_ALPHA)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .padding(horizontal = if (compact) 8.dp else 14.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
     ) {
@@ -373,6 +402,8 @@ private fun ActionButton(
             style = MaterialTheme.typography.labelLarge,
             color = contentColor,
             textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -413,7 +444,7 @@ fun ConnectionPill(
             .background(Slate)
             .border(1.dp, SlateBorder, PanelCorner)
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .padding(horizontal = Dimens.rowPaddingH, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
@@ -469,15 +500,15 @@ fun EmptyState(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 32.dp, vertical = 40.dp),
+            .padding(horizontal = 24.dp, vertical = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
             tint = skin.quiet,
-            modifier = Modifier.size(36.dp),
+            modifier = Modifier.size(32.dp),
         )
         Text(
             text = title,
@@ -496,7 +527,7 @@ fun EmptyState(
             AccentButton(
                 label = actionLabel,
                 onClick = onAction,
-                modifier = Modifier.padding(top = 10.dp),
+                modifier = Modifier.padding(top = 6.dp),
             )
         }
     }
@@ -525,7 +556,7 @@ fun DesignSheet(
         dragHandle = {
             Box(
                 modifier = Modifier
-                    .padding(top = 12.dp, bottom = 4.dp)
+                    .padding(top = 8.dp, bottom = 2.dp)
                     .width(38.dp)
                     .height(4.dp)
                     .clip(RoundedCornerShape(2.dp))
@@ -533,13 +564,13 @@ fun DesignSheet(
             )
         },
     ) {
-        Column(modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 30.dp)) {
+        Column(modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 20.dp)) {
             Text(text = title, style = MaterialTheme.typography.titleMedium, color = Chalk)
             Text(
                 text = subtitle,
                 style = MaterialTheme.typography.bodySmall,
                 color = Smoke,
-                modifier = Modifier.padding(top = 4.dp),
+                modifier = Modifier.padding(top = 3.dp),
             )
             content()
         }

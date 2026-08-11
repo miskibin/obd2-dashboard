@@ -52,6 +52,7 @@ import com.miskibin.obd2dashboard.ui.components.ScreenPadding
 import com.miskibin.obd2dashboard.ui.theme.Amber
 import com.miskibin.obd2dashboard.ui.theme.AshDim
 import com.miskibin.obd2dashboard.ui.theme.Chalk
+import com.miskibin.obd2dashboard.ui.theme.Dimens
 import com.miskibin.obd2dashboard.ui.theme.PanelCorner
 import com.miskibin.obd2dashboard.ui.theme.SignalText
 import com.miskibin.obd2dashboard.ui.theme.Slate
@@ -123,9 +124,9 @@ fun ConnectScreen(
         modifier = modifier
             .fillMaxSize()
             .padding(horizontal = ScreenPadding),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+        verticalArrangement = Arrangement.spacedBy(Dimens.sectionGap),
     ) {
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(6.dp))
         Text(
             text = stringResource(R.string.connect_title),
             style = MaterialTheme.typography.headlineMedium,
@@ -172,7 +173,7 @@ fun ConnectScreen(
             // scan button rather than behind it.
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 if (scanning) {
                     QuietButton(
@@ -231,11 +232,11 @@ fun ConnectScreen(
                 style = MaterialTheme.typography.bodyMedium,
                 color = Smoke,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
             )
         }
 
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(7.dp)) {
             items(sorted, key = { it.address }) { device ->
                 DeviceRow(
                     device = device,
@@ -255,8 +256,8 @@ private fun ConnectedCard(state: ConnectionState.Connected, onDisconnect: () -> 
             .clip(PanelCorner)
             .background(Slate)
             .border(1.dp, SlateBorder, PanelCorner)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+            .padding(horizontal = Dimens.cardPaddingH, vertical = Dimens.cardPaddingV),
+        verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
         Text(
             text = if (state.demo) {
@@ -284,7 +285,7 @@ private fun ConnectedCard(state: ConnectionState.Connected, onDisconnect: () -> 
             label = stringResource(R.string.action_disconnect),
             onClick = onDisconnect,
             contentColor = SignalText,
-            modifier = Modifier.padding(top = 12.dp),
+            modifier = Modifier.padding(top = 10.dp),
         )
     }
 }
@@ -300,7 +301,7 @@ private fun StatusCard(text: String, error: Boolean) {
             .clip(PanelCorner)
             .background(Slate)
             .border(1.dp, SlateBorder, PanelCorner)
-            .padding(16.dp),
+            .padding(horizontal = Dimens.cardPaddingH, vertical = Dimens.cardPaddingV),
     )
 }
 
@@ -313,8 +314,8 @@ private fun DeviceRow(device: DiscoveredDevice, remembered: Boolean, onClick: ()
             .background(Slate)
             .border(1.dp, SlateBorder, PanelCorner)
             .clickable(onClick = onClick)
-            .heightIn(min = 64.dp)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .heightIn(min = 54.dp)
+            .padding(horizontal = Dimens.rowPaddingH, vertical = Dimens.rowPaddingV),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {

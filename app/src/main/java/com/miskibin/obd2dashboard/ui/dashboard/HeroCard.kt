@@ -94,7 +94,7 @@ fun HeroCard(state: HeroState, modifier: Modifier = Modifier) {
             .clip(CardCorner)
             .background(Slate)
             .border(1.dp, SlateBorder, CardCorner)
-            .padding(start = 18.dp, end = 18.dp, top = 16.dp, bottom = 14.dp)
+            .padding(start = 15.dp, end = 15.dp, top = 13.dp, bottom = 11.dp)
             .alpha(dim),
     ) {
         Row(
@@ -127,7 +127,7 @@ fun HeroCard(state: HeroState, modifier: Modifier = Modifier) {
                     style = MaterialTheme.typography.labelMedium,
                     color = SmokeDim,
                     maxLines = 1,
-                    modifier = Modifier.padding(top = 5.dp),
+                    modifier = Modifier.padding(top = 4.dp),
                 )
             }
 
@@ -149,18 +149,18 @@ fun HeroCard(state: HeroState, modifier: Modifier = Modifier) {
                         modifier = Modifier.padding(bottom = 4.dp),
                     )
                 }
-                GearBadge(gear = state.gear, modifier = Modifier.padding(top = 8.dp))
+                GearBadge(gear = state.gear, modifier = Modifier.padding(top = 6.dp))
             }
         }
 
         RedlineBar(
             fraction = fraction,
             color = barColor,
-            modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = 11.dp),
         )
 
         Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = 5.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text("0", style = MaterialTheme.typography.labelMedium, color = Fog)
@@ -178,7 +178,7 @@ fun HeroCard(state: HeroState, modifier: Modifier = Modifier) {
 
         GearStrip(
             gear = state.gear,
-            modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = 11.dp),
         )
     }
 }
@@ -232,7 +232,7 @@ private fun GearStrip(gear: GearReading, modifier: Modifier = Modifier) {
                     .weight(1f)
                     .clip(RoundedCornerShape(8.dp))
                     .background(if (on) SteelDeep else InkRaised)
-                    .padding(vertical = 7.dp),
+                    .padding(vertical = 6.dp),
             )
         }
     }
@@ -242,7 +242,7 @@ private fun GearStrip(gear: GearReading, modifier: Modifier = Modifier) {
 private fun RedlineBar(fraction: Float, color: Color, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
-            .height(9.dp)
+            .height(8.dp)
             .clip(RoundedCornerShape(5.dp))
             .background(SlateBorder),
     ) {

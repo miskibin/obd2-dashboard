@@ -80,10 +80,10 @@ fun ParameterSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 14.dp)
+                .padding(top = 12.dp)
                 .heightIn(max = PICKER_MAX_HEIGHT.dp)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             groups.forEach { (group, items) ->
                 Column {
@@ -91,7 +91,7 @@ fun ParameterSheet(
                         text = stringResource(group.titleRes()).uppercase(),
                         style = MaterialTheme.typography.labelSmall,
                         color = Fog,
-                        modifier = Modifier.padding(bottom = 8.dp),
+                        modifier = Modifier.padding(bottom = 6.dp),
                     )
                     Column(
                         modifier = Modifier
@@ -120,7 +120,7 @@ fun ParameterSheet(
                 selected.size,
             ),
             onClick = onDismiss,
-            modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
         )
     }
 }
@@ -132,7 +132,7 @@ private fun ParameterRow(metric: Metric, selected: Boolean, onToggle: () -> Unit
             .fillMaxWidth()
             .background(InkRaised)
             .clickable(onClick = onToggle)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .padding(horizontal = 13.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(11.dp),
     ) {

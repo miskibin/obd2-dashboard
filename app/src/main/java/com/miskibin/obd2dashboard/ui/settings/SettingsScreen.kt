@@ -57,6 +57,7 @@ import com.miskibin.obd2dashboard.ui.components.Segment
 import com.miskibin.obd2dashboard.ui.components.SegmentedControl
 import com.miskibin.obd2dashboard.ui.theme.AshDim
 import com.miskibin.obd2dashboard.ui.theme.Chalk
+import com.miskibin.obd2dashboard.ui.theme.Dimens
 import com.miskibin.obd2dashboard.ui.theme.Fog
 import com.miskibin.obd2dashboard.ui.theme.Graphite
 import com.miskibin.obd2dashboard.ui.theme.InkRaised
@@ -114,15 +115,15 @@ fun SettingsScreen(
             modifier = Modifier
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = ScreenPadding)
-                .padding(bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+                .padding(bottom = Dimens.listBottom),
+            verticalArrangement = Arrangement.spacedBy(Dimens.sectionGap),
         ) {
             Group(title = stringResource(R.string.settings_adapter)) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(Slate)
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                        .padding(horizontal = Dimens.rowPaddingH, vertical = 11.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
@@ -151,7 +152,7 @@ fun SettingsScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(Slate)
-                        .padding(12.dp),
+                        .padding(10.dp),
                 ) {
                     SegmentedControl(
                         segments = AppLanguage.entries.map { option ->
@@ -177,7 +178,7 @@ fun SettingsScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(Slate)
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                        .padding(horizontal = Dimens.rowPaddingH, vertical = 11.dp),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
@@ -204,7 +205,7 @@ fun SettingsScreen(
                         range = Metrics.REDLINE_MIN.toFloat()..Metrics.REDLINE_MAX.toFloat(),
                         step = Metrics.REDLINE_STEP.toFloat(),
                         onValueChange = { onRedlineChange(it.roundToInt()) },
-                        modifier = Modifier.padding(top = 4.dp),
+                        modifier = Modifier.padding(top = 2.dp),
                     )
                 }
 
@@ -215,8 +216,8 @@ fun SettingsScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(Slate)
-                        .padding(horizontal = 16.dp)
-                        .padding(bottom = 14.dp),
+                        .padding(horizontal = Dimens.rowPaddingH)
+                        .padding(bottom = 11.dp),
                 )
 
                 alertRules.forEach { rule ->
@@ -236,7 +237,7 @@ fun SettingsScreen(
                         .fillMaxWidth()
                         .background(InkRaised)
                         .clickable(onClick = onRestoreDefaultAlerts)
-                        .padding(vertical = 13.dp),
+                        .padding(vertical = 11.dp),
                 )
             }
 
@@ -246,7 +247,7 @@ fun SettingsScreen(
                         .fillMaxWidth()
                         .background(Slate)
                         .clickable(onClick = onOpenRepository)
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                        .padding(horizontal = Dimens.rowPaddingH, vertical = 11.dp),
                 ) {
                     Text(
                         text = stringResource(R.string.app_name),
@@ -257,7 +258,7 @@ fun SettingsScreen(
                         text = REPOSITORY_URL,
                         style = MaterialTheme.typography.bodySmall,
                         color = SteelLight,
-                        modifier = Modifier.padding(top = 3.dp),
+                        modifier = Modifier.padding(top = 2.dp),
                     )
                 }
             }
@@ -295,7 +296,7 @@ private fun SwitchRow(
         modifier = Modifier
             .fillMaxWidth()
             .background(Slate)
-            .padding(start = 16.dp, end = 12.dp, top = 12.dp, bottom = 12.dp),
+            .padding(start = Dimens.rowPaddingH, end = 10.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -332,8 +333,8 @@ private fun AlertRuleRow(rule: AlertRule, onToggle: (Boolean) -> Unit, onEdit: (
             .fillMaxWidth()
             .background(Slate)
             .clickable(onClick = onEdit)
-            .heightIn(min = 56.dp)
-            .padding(start = 16.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
+            .heightIn(min = 50.dp)
+            .padding(start = Dimens.rowPaddingH, end = 10.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -394,7 +395,7 @@ private fun ThresholdSheet(rule: AlertRule, onDismiss: () -> Unit, onConfirm: (D
         dragHandle = {
             Box(
                 modifier = Modifier
-                    .padding(top = 12.dp, bottom = 4.dp)
+                    .padding(top = 8.dp, bottom = 2.dp)
                     .width(38.dp)
                     .height(4.dp)
                     .clip(RoundedCornerShape(2.dp))
@@ -402,7 +403,7 @@ private fun ThresholdSheet(rule: AlertRule, onDismiss: () -> Unit, onConfirm: (D
             )
         },
     ) {
-        Column(modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 30.dp)) {
+        Column(modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 20.dp)) {
             Text(
                 text = stringResource(metric?.nameRes ?: R.string.metric_unknown),
                 style = MaterialTheme.typography.titleMedium,
@@ -417,11 +418,11 @@ private fun ThresholdSheet(rule: AlertRule, onDismiss: () -> Unit, onConfirm: (D
                 ),
                 style = MaterialTheme.typography.bodySmall,
                 color = Smoke,
-                modifier = Modifier.padding(top = 4.dp),
+                modifier = Modifier.padding(top = 3.dp),
             )
 
             Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 18.dp),
+                modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
@@ -445,11 +446,11 @@ private fun ThresholdSheet(rule: AlertRule, onDismiss: () -> Unit, onConfirm: (D
                 range = range,
                 step = rule.step.toFloat(),
                 onValueChange = { value = it },
-                modifier = Modifier.padding(top = 8.dp),
+                modifier = Modifier.padding(top = 6.dp),
             )
 
             Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 QuietButton(

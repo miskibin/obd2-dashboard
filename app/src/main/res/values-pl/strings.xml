@@ -33,8 +33,9 @@
     <string name="action_share">Udostępnij</string>
     <string name="action_add_tile">Dodaj wartość</string>
     <string name="action_remove_tile">Usuń ten kafelek</string>
-    <string name="action_read_codes">Odczytaj błędy</string>
     <string name="action_clear_codes">Skasuj błędy</string>
+    <string name="action_read">Odczytaj</string>
+    <string name="action_clear">Skasuj</string>
     <string name="action_share_report">Wyślij raport</string>
     <string name="action_save">Zapisz</string>
     <string name="action_restore_defaults">Przywróć domyślne</string>

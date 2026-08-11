@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -41,7 +42,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -204,7 +204,7 @@ private fun Obd2Shell(viewModel: ObdViewModel, hasSavedAdapter: Boolean) {
                     modifier = Modifier.padding(
                         start = ScreenPadding,
                         end = ScreenPadding,
-                        top = 10.dp,
+                        top = 6.dp,
                     ),
                 )
             }
@@ -224,6 +224,11 @@ private fun Obd2Shell(viewModel: ObdViewModel, hasSavedAdapter: Boolean) {
  * instrument panel becomes the brightest thing on screen; here selection is carried by
  * the icon going from grey to white, and the only colour left is the one badge that
  * means the car has something to say.
+ *
+ * The labels are gone: four destinations whose icons are a gauge, a trace, a road and a
+ * warning triangle are not ones anybody reads the caption of twice, and the line of text
+ * cost a third of the bar's height on a screen that is mostly numbers. The name survives
+ * as each icon's content description, so a screen reader still announces it.
  */
 @Composable
 private fun BottomNav(
@@ -240,8 +245,7 @@ private fun BottomNav(
             .background(skin.navBorder)
             .padding(top = 1.dp)
             .background(skin.navBackground)
-            .navigationBarsPadding()
-            .padding(top = 10.dp, bottom = 12.dp),
+            .navigationBarsPadding(),
     ) {
         destinations.forEach { destination ->
             // A detail screen keeps its parent tab lit: the driver is still "in" trips
@@ -254,17 +258,17 @@ private fun BottomNav(
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .clickable { onSelect(destination.route) }
-                    .padding(vertical = 2.dp),
+                    .height(NAV_BAR_HEIGHT)
+                    .clickable { onSelect(destination.route) },
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(5.dp),
+                verticalArrangement = Arrangement.Center,
             ) {
                 Box {
                     Icon(
                         imageVector = destination.icon,
-                        contentDescription = null,
+                        contentDescription = stringResource(destination.labelRes),
                         tint = if (selected) skin.navSelected else skin.navIdle,
-                        modifier = Modifier.size(21.dp),
+                        modifier = Modifier.size(23.dp),
                     )
                     when {
                         destination.route == Routes.DIAGNOSTICS && faultCount > 0 -> Text(
@@ -291,11 +295,6 @@ private fun BottomNav(
                         )
                     }
                 }
-                Text(
-                    text = stringResource(destination.labelRes),
-                    style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp),
-                    color = if (selected) skin.navSelected else skin.navIdle,
-                )
             }
         }
     }
@@ -315,11 +314,11 @@ private fun AlertToast(message: String) {
         style = MaterialTheme.typography.bodyLarge,
         color = ToastText,
         modifier = Modifier
-            .padding(horizontal = ScreenPadding, vertical = 8.dp)
+            .padding(horizontal = ScreenPadding, vertical = 6.dp)
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(ToastSurface)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .padding(horizontal = 14.dp, vertical = 12.dp),
     )
 }
 
@@ -588,3 +587,6 @@ private fun versionNameOf(context: android.content.Context): String =
 
 /** Where the connection pill is worth its line of screen. */
 private val PILL_ROUTES = setOf(Routes.CHARTS, Routes.DIAGNOSTICS, Routes.PICKER)
+
+/** An icon-only bar: tall enough for a thumb, and not a pixel taller. */
+private val NAV_BAR_HEIGHT = 56.dp

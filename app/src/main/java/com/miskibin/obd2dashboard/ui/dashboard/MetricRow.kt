@@ -53,6 +53,7 @@ import com.miskibin.obd2dashboard.ui.theme.AmberSurface
 import com.miskibin.obd2dashboard.ui.theme.AmberText
 import com.miskibin.obd2dashboard.ui.theme.Chalk
 import com.miskibin.obd2dashboard.ui.theme.ChalkDim
+import com.miskibin.obd2dashboard.ui.theme.Dimens
 import com.miskibin.obd2dashboard.ui.theme.InkRaised
 import com.miskibin.obd2dashboard.ui.theme.Moss
 import com.miskibin.obd2dashboard.ui.theme.PanelCorner
@@ -108,7 +109,7 @@ fun MetricRow(
             .fillMaxWidth()
             .background(if (warn) AmberSurface else Color.Transparent)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .padding(horizontal = Dimens.cardPaddingH, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -228,11 +229,11 @@ fun MetricSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 16.dp)
+                .padding(top = 12.dp)
                 .clip(PanelCorner)
                 .background(InkRaised)
                 .border(1.dp, SlateBorder, PanelCorner)
-                .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 8.dp),
+                .padding(start = 11.dp, end = 11.dp, top = 10.dp, bottom = 8.dp),
         ) {
             LineChart(
                 series = listOf(
@@ -283,8 +284,8 @@ fun MetricSheet(
         }
 
         Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             StatCard(
                 label = stringResource(R.string.metric_sheet_now),
@@ -324,7 +325,7 @@ private fun StatCard(
             .clip(RoundedCornerShape(12.dp))
             .background(InkRaised)
             .border(1.dp, SlateBorder, RoundedCornerShape(12.dp))
-            .padding(horizontal = 13.dp, vertical = 11.dp),
+            .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
         Text(text = label, style = MaterialTheme.typography.labelMedium, color = Smoke)
         Text(
@@ -332,7 +333,7 @@ private fun StatCard(
             style = MaterialTheme.typography.titleLarge,
             color = accent,
             maxLines = 1,
-            modifier = Modifier.padding(top = 3.dp),
+            modifier = Modifier.padding(top = 2.dp),
         )
     }
 }
@@ -354,7 +355,7 @@ fun NormalBand?.describe(unit: String, decimals: Int): String? {
 
 private const val BAND_SWATCH_ALPHA = 0.35f
 private const val DISABLED_ALPHA = 0.35f
-private const val SHEET_PLOT_HEIGHT = 150
+private const val SHEET_PLOT_HEIGHT = 140
 private const val VALUE_ANIMATION_MILLIS = 320
 private const val DIM_ANIMATION_MILLIS = 400
 private const val STALE_ALPHA = 0.38f

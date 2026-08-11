@@ -70,6 +70,7 @@ import com.miskibin.obd2dashboard.ui.theme.AshDim
 import com.miskibin.obd2dashboard.ui.theme.AmberBorder
 import com.miskibin.obd2dashboard.ui.theme.Chalk
 import com.miskibin.obd2dashboard.ui.theme.ChalkDim
+import com.miskibin.obd2dashboard.ui.theme.Dimens
 import com.miskibin.obd2dashboard.ui.theme.Fog
 import com.miskibin.obd2dashboard.ui.theme.InkRaised
 import com.miskibin.obd2dashboard.ui.theme.Moss
@@ -123,7 +124,7 @@ fun DiagnosticsScreen(
             message = stringResource(R.string.dtc_disconnected_message),
             actionLabel = stringResource(R.string.action_connect),
             onAction = onConnect,
-            modifier = modifier.fillMaxSize().padding(top = 40.dp),
+            modifier = modifier.fillMaxSize().padding(top = 24.dp),
         )
         return
     }
@@ -142,7 +143,7 @@ fun DiagnosticsScreen(
         LazyColumn(
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(horizontal = ScreenPadding, vertical = 2.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(Dimens.cardGap),
         ) {
             item(key = "lamp") { LampCard(diagnostics) }
 
@@ -152,7 +153,7 @@ fun DiagnosticsScreen(
                         icon = AppIcons.Gauge,
                         title = stringResource(R.string.dtc_idle_title),
                         message = stringResource(R.string.dtc_idle_message),
-                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                        modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
                     )
                 }
 
@@ -161,7 +162,7 @@ fun DiagnosticsScreen(
                         icon = AppIcons.Gauge,
                         title = stringResource(R.string.dtc_none_title),
                         message = stringResource(R.string.dtc_none_message),
-                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                        modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
                     )
                 }
 
@@ -188,46 +189,51 @@ fun DiagnosticsScreen(
             }
         }
 
-        Column(
+        // One row, not a stack: three actions the width of the screen apart spent a fifth
+        // of it saying "Read codes / Share report / Clear codes" when the screen above them
+        // is the thing worth reading. Clear keeps its signal colouring and its sheet — the
+        // row is shorter, not less careful.
+        Row(
             modifier = Modifier.padding(
                 start = ScreenPadding,
                 end = ScreenPadding,
-                top = 8.dp,
-                bottom = 12.dp,
+                top = 6.dp,
+                bottom = 10.dp,
             ),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             AccentButton(
-                label = stringResource(R.string.action_read_codes),
+                label = stringResource(R.string.action_read),
                 onClick = onRead,
                 enabled = operation == null,
-                modifier = Modifier.fillMaxWidth(),
+                compact = true,
+                modifier = Modifier.weight(1f),
                 leading = if (operation != DtcOperation.Reading) null else {
                     {
                         CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
+                            modifier = Modifier.size(14.dp),
                             strokeWidth = 2.dp,
                             color = SteelLight,
                         )
-                        Spacer(Modifier.width(10.dp))
+                        Spacer(Modifier.width(6.dp))
                     }
                 },
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                QuietButton(
-                    label = stringResource(R.string.action_share_report),
-                    onClick = { previewReport = true },
+            QuietButton(
+                label = stringResource(R.string.action_share),
+                onClick = { previewReport = true },
+                enabled = operation == null,
+                compact = true,
+                modifier = Modifier.weight(1f),
+            )
+            if (diagnostics != null && diagnostics.all.isNotEmpty()) {
+                DangerButton(
+                    label = stringResource(R.string.action_clear),
+                    onClick = { confirmClear = true },
                     enabled = operation == null,
+                    compact = true,
                     modifier = Modifier.weight(1f),
                 )
-                if (diagnostics != null && diagnostics.all.isNotEmpty()) {
-                    DangerButton(
-                        label = stringResource(R.string.action_clear_codes),
-                        onClick = { confirmClear = true },
-                        enabled = operation == null,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
             }
         }
     }
@@ -282,7 +288,7 @@ private fun LampCard(diagnostics: Diagnostics?) {
             .clip(PanelCorner)
             .background(background)
             .border(1.dp, border, PanelCorner)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .padding(horizontal = Dimens.cardPaddingH, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -350,7 +356,12 @@ private fun DtcCard(dtc: Dtc, language: String, recorded: Boolean, onClick: () -
             .background(Slate)
             .border(1.dp, SlateBorder, PanelCorner)
             .clickable(onClick = onClick)
-            .padding(start = 16.dp, end = 16.dp, top = 15.dp, bottom = 13.dp),
+            .padding(
+                start = Dimens.cardPaddingH,
+                end = Dimens.cardPaddingH,
+                top = 12.dp,
+                bottom = 11.dp,
+            ),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -372,10 +383,10 @@ private fun DtcCard(dtc: Dtc, language: String, recorded: Boolean, onClick: () -
             text = description,
             style = MaterialTheme.typography.bodyMedium,
             color = Ash,
-            modifier = Modifier.padding(top = 8.dp),
+            modifier = Modifier.padding(top = 6.dp),
         )
         Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -416,13 +427,13 @@ private fun ReadinessCard(readiness: Readiness, language: String) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 4.dp)
+            .padding(top = 2.dp)
             .clip(PanelCorner)
             .background(Slate)
             .border(1.dp, SlateBorder, PanelCorner)
             .clickable { expanded = !expanded }
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+            .padding(horizontal = Dimens.cardPaddingH, vertical = Dimens.cardPaddingV),
+        verticalArrangement = Arrangement.spacedBy(7.dp),
     ) {
         Text(
             text = stringResource(R.string.readiness_section).uppercase(),
@@ -513,14 +524,14 @@ private fun ClearCodesSheet(count: Int, onDismiss: () -> Unit, onConfirm: () -> 
             color = AmberProse,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 14.dp)
+                .padding(top = 12.dp)
                 .clip(RoundedCornerShape(11.dp))
                 .background(AmberSurface)
                 .border(1.dp, AmberBorder, RoundedCornerShape(11.dp))
-                .padding(horizontal = 14.dp, vertical = 11.dp),
+                .padding(horizontal = 13.dp, vertical = 10.dp),
         )
         Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             QuietButton(
@@ -573,12 +584,12 @@ private fun ReportSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 14.dp)
+                .padding(top = 12.dp)
                 .clip(PanelCorner)
                 .background(InkRaised)
                 .border(1.dp, SlateBorder, PanelCorner)
-                .padding(15.dp),
-            verticalArrangement = Arrangement.spacedBy(9.dp),
+                .padding(horizontal = Dimens.cardPaddingH, vertical = Dimens.cardPaddingV),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             lines.forEach { (title, detail) ->
                 Row(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
@@ -618,16 +629,16 @@ private fun ReportSheet(
             color = AmberProse,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 12.dp)
+                .padding(top = 10.dp)
                 .clip(RoundedCornerShape(11.dp))
                 .background(AmberSurface)
                 .border(1.dp, AmberBorder, RoundedCornerShape(11.dp))
-                .padding(horizontal = 14.dp, vertical = 11.dp),
+                .padding(horizontal = 13.dp, vertical = 10.dp),
         )
         AccentButton(
             label = stringResource(R.string.action_share_report),
             onClick = onShare,
-            modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
         )
     }
 }

@@ -46,6 +46,7 @@ import com.miskibin.obd2dashboard.ui.components.ScreenPadding
 import com.miskibin.obd2dashboard.ui.components.SectionHeader
 import com.miskibin.obd2dashboard.ui.theme.AshDim
 import com.miskibin.obd2dashboard.ui.theme.Chalk
+import com.miskibin.obd2dashboard.ui.theme.Dimens
 import com.miskibin.obd2dashboard.ui.theme.Fog
 import com.miskibin.obd2dashboard.ui.theme.Ink
 import com.miskibin.obd2dashboard.ui.theme.PanelCorner
@@ -94,7 +95,7 @@ fun PidPickerScreen(
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp),
-            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            modifier = Modifier.fillMaxWidth(),
         ) {
             IconButton(onClick = onBack, modifier = Modifier.size(48.dp)) {
                 Icon(
@@ -129,10 +130,10 @@ fun PidPickerScreen(
                 focusedPlaceholderColor = Smoke,
                 unfocusedPlaceholderColor = Smoke,
             ),
-            modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
         )
 
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(5.dp)) {
             if (available.isNotEmpty()) {
                 item { SectionHeader(stringResource(R.string.picker_available)) }
                 items(available, key = { it.first.id.storageKey }) { (metric, name) ->
@@ -153,7 +154,7 @@ fun PidPickerScreen(
                             text = stringResource(R.string.picker_unsupported_hint),
                             style = MaterialTheme.typography.bodySmall,
                             color = Smoke,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
+                            modifier = Modifier.padding(horizontal = 3.dp, vertical = 2.dp),
                         )
                     }
                 }
@@ -173,7 +174,7 @@ fun PidPickerScreen(
                         text = stringResource(R.string.picker_no_results),
                         style = MaterialTheme.typography.bodyMedium,
                         color = Smoke,
-                        modifier = Modifier.fillMaxWidth().padding(32.dp),
+                        modifier = Modifier.fillMaxWidth().padding(24.dp),
                     )
                 }
             }
@@ -197,8 +198,8 @@ private fun PickerRow(
             .border(1.dp, SlateBorder, PanelCorner)
             .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
             .alpha(if (enabled) 1f else DISABLED_ALPHA)
-            .heightIn(min = 58.dp)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .heightIn(min = 50.dp)
+            .padding(horizontal = 13.dp, vertical = Dimens.rowPaddingV),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {

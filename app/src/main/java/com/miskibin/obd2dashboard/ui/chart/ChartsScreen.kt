@@ -59,6 +59,7 @@ import com.miskibin.obd2dashboard.ui.components.SegmentedControl
 import com.miskibin.obd2dashboard.ui.components.formatReading
 import com.miskibin.obd2dashboard.ui.theme.AshDim
 import com.miskibin.obd2dashboard.ui.theme.CardCorner
+import com.miskibin.obd2dashboard.ui.theme.Dimens
 import com.miskibin.obd2dashboard.ui.theme.Fog
 import com.miskibin.obd2dashboard.ui.theme.Graphite
 import com.miskibin.obd2dashboard.ui.theme.PillCorner
@@ -170,7 +171,7 @@ fun ChartsScreen(
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = ScreenPadding),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(9.dp),
         ) {
             SegmentedControl(
                 segments = ChartMode.entries.map { option ->
@@ -188,7 +189,6 @@ fun ChartsScreen(
                 color = Fog,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 1.dp),
             )
 
             SeriesChips(
@@ -204,7 +204,7 @@ fun ChartsScreen(
                     .clip(CardCorner)
                     .background(Slate)
                     .border(1.dp, SlateBorder, CardCorner)
-                    .padding(start = 12.dp, end = 12.dp, top = 14.dp, bottom = 10.dp),
+                    .padding(start = 11.dp, end = 11.dp, top = 11.dp, bottom = 8.dp),
             ) {
                 if (hasData) {
                     LineChart(
@@ -230,7 +230,7 @@ fun ChartsScreen(
             // particular.
             SeriesStats(series = series, metrics = plotted, snapshot = snapshot)
 
-            Box(modifier = Modifier.height(4.dp))
+            Box(modifier = Modifier.height(2.dp))
         }
     }
 
@@ -259,8 +259,8 @@ private fun SeriesChips(
     onAdd: () -> Unit,
 ) {
     FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(7.dp),
-        verticalArrangement = Arrangement.spacedBy(7.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
         series.forEachIndexed { index, line ->
@@ -273,7 +273,7 @@ private fun SeriesChips(
                     .background(Slate)
                     .border(1.dp, SlateBorder, PillCorner)
                     .clickable { onToggle(id) }
-                    .padding(horizontal = 11.dp, vertical = 7.dp),
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
             ) {
                 Box(modifier = Modifier.size(width = 9.dp, height = 2.dp).background(line.color))
                 Text(
@@ -293,7 +293,7 @@ private fun SeriesChips(
                 .clip(PillCorner)
                 .border(1.dp, SlateEdge, PillCorner)
                 .clickable(onClick = onAdd)
-                .padding(horizontal = 11.dp, vertical = 7.dp),
+                .padding(horizontal = 10.dp, vertical = 6.dp),
         )
     }
 }
@@ -314,7 +314,7 @@ private fun SeriesStats(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(Slate)
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                    .padding(horizontal = 13.dp, vertical = Dimens.rowPaddingV),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
@@ -448,4 +448,4 @@ fun formatDuration(totalSeconds: Long): String {
 }
 
 private const val REFRESH_MILLIS = 200L
-private const val PLOT_HEIGHT = 250
+private const val PLOT_HEIGHT = 220

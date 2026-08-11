@@ -33,8 +33,9 @@
     <string name="action_share">Share</string>
     <string name="action_add_tile">Add a value</string>
     <string name="action_remove_tile">Remove this tile</string>
-    <string name="action_read_codes">Read codes</string>
     <string name="action_clear_codes">Clear codes</string>
+    <string name="action_read">Read</string>
+    <string name="action_clear">Clear</string>
     <string name="action_share_report">Share report</string>
     <string name="action_save">Save</string>
     <string name="action_restore_defaults">Restore defaults</string>

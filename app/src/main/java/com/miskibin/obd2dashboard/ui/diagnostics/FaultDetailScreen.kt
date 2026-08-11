@@ -58,6 +58,7 @@ import com.miskibin.obd2dashboard.ui.theme.AmberText
 import com.miskibin.obd2dashboard.ui.theme.AshDim
 import com.miskibin.obd2dashboard.ui.theme.Chalk
 import com.miskibin.obd2dashboard.ui.theme.ChalkDim
+import com.miskibin.obd2dashboard.ui.theme.Dimens
 import com.miskibin.obd2dashboard.ui.theme.Fog
 import com.miskibin.obd2dashboard.ui.theme.InkRaised
 import com.miskibin.obd2dashboard.ui.theme.PanelCorner
@@ -122,9 +123,9 @@ fun FaultDetailScreen(
                 start = ScreenPadding,
                 end = ScreenPadding,
                 top = 2.dp,
-                bottom = 16.dp,
+                bottom = Dimens.listBottom,
             ),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(Dimens.cardGap),
             modifier = Modifier.weight(1f),
         ) {
             item(key = "when") { WhenCard(dtc = dtc, observation = observation) }
@@ -135,7 +136,7 @@ fun FaultDetailScreen(
 
             item(key = "context-header") {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                    modifier = Modifier.fillMaxWidth().padding(top = 1.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.Bottom,
                 ) {
@@ -176,8 +177,8 @@ fun FaultDetailScreen(
             modifier = Modifier.padding(
                 start = ScreenPadding,
                 end = ScreenPadding,
-                top = 8.dp,
-                bottom = 12.dp,
+                top = 6.dp,
+                bottom = 10.dp,
             ),
         ) {
             QuietButton(
@@ -217,8 +218,8 @@ private fun WhenCard(dtc: Dtc, observation: DtcObservation?) {
             .clip(PanelCorner)
             .background(Slate)
             .border(1.dp, SlateBorder, PanelCorner)
-            .padding(horizontal = 15.dp, vertical = 13.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+            .padding(horizontal = Dimens.cardPaddingH, vertical = 11.dp),
+        verticalArrangement = Arrangement.spacedBy(5.dp),
     ) {
         rows.forEach { (key, value) ->
             Row(
@@ -259,7 +260,7 @@ private fun RelatedCard(related: List<RelatedCode>, descriptions: Map<String, St
             .clip(PanelCorner)
             .background(if (lonely) Slate else AmberSurface)
             .border(1.dp, if (lonely) SlateBorder else AmberBorder, PanelCorner)
-            .padding(horizontal = 15.dp, vertical = 13.dp),
+            .padding(horizontal = Dimens.cardPaddingH, vertical = 11.dp),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -285,21 +286,21 @@ private fun RelatedCard(related: List<RelatedCode>, descriptions: Map<String, St
                 text = stringResource(R.string.fault_related_none),
                 style = MaterialTheme.typography.bodyMedium,
                 color = Smoke,
-                modifier = Modifier.padding(top = 8.dp),
+                modifier = Modifier.padding(top = 6.dp),
             )
             return@Column
         }
 
         related.forEach { entry ->
             Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 11.dp),
+                modifier = Modifier.fillMaxWidth().padding(top = 9.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Box(
                     modifier = Modifier
                         .width(2.dp)
-                        .height(34.dp)
+                        .height(30.dp)
                         .background(if (entry.earlier) AmberLight else SteelLight),
                 )
                 Column(modifier = Modifier.weight(1f)) {
@@ -327,7 +328,7 @@ private fun RelatedCard(related: List<RelatedCode>, descriptions: Map<String, St
                         color = Smoke,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = 3.dp),
+                        modifier = Modifier.padding(top = 2.dp),
                     )
                 }
                 Text(
@@ -358,7 +359,7 @@ private fun TimelineCard(context: FaultContext) {
             .clip(PanelCorner)
             .background(Slate)
             .border(1.dp, SlateBorder, PanelCorner)
-            .padding(start = 12.dp, end = 12.dp, top = 13.dp, bottom = 9.dp),
+            .padding(start = 11.dp, end = 11.dp, top = 11.dp, bottom = 8.dp),
     ) {
         LineChart(
             series = traces.map { trace ->
@@ -436,7 +437,7 @@ private fun FaultTable(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(InkRaised)
-                .padding(horizontal = 14.dp, vertical = 9.dp),
+                .padding(horizontal = Dimens.rowPaddingH, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(
@@ -467,7 +468,7 @@ private fun FaultTable(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(if (row.notable) AmberSurface else Slate)
-                    .padding(horizontal = 14.dp, vertical = 11.dp),
+                    .padding(horizontal = Dimens.rowPaddingH, vertical = 9.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
@@ -510,7 +511,7 @@ private fun FaultTable(
                     .fillMaxWidth()
                     .background(InkRaised)
                     .clickable(onClick = onToggle)
-                    .padding(vertical = 11.dp),
+                    .padding(vertical = 10.dp),
             )
         }
     }
@@ -557,5 +558,5 @@ private val TIMESTAMP_FORMAT: DateTimeFormatter =
 
 private const val COLLAPSED_ROWS = 6
 private const val COLUMN_WIDTH = 62
-private const val TIMELINE_HEIGHT = 150
+private const val TIMELINE_HEIGHT = 140
 private const val MARKER_CENTRE = 0.5f

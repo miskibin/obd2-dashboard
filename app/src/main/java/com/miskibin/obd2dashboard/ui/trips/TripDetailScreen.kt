@@ -58,6 +58,7 @@ import com.miskibin.obd2dashboard.ui.theme.Amber
 import com.miskibin.obd2dashboard.ui.theme.AmberBorder
 import com.miskibin.obd2dashboard.ui.theme.CardCorner
 import com.miskibin.obd2dashboard.ui.theme.Chalk
+import com.miskibin.obd2dashboard.ui.theme.Dimens
 import com.miskibin.obd2dashboard.ui.theme.Fog
 import com.miskibin.obd2dashboard.ui.theme.PanelCorner
 import com.miskibin.obd2dashboard.ui.theme.Slate
@@ -98,9 +99,9 @@ fun TripDetailScreen(
                 start = ScreenPadding,
                 end = ScreenPadding,
                 top = 2.dp,
-                bottom = 16.dp,
+                bottom = Dimens.listBottom,
             ),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(Dimens.cardGap),
             modifier = Modifier.fillMaxSize(),
         ) {
             if (analysis == null) {
@@ -109,7 +110,7 @@ fun TripDetailScreen(
                         text = stringResource(R.string.trip_loading),
                         style = MaterialTheme.typography.bodyMedium,
                         color = Smoke,
-                        modifier = Modifier.padding(vertical = 24.dp),
+                        modifier = Modifier.padding(vertical = 18.dp),
                     )
                 }
             }
@@ -123,7 +124,7 @@ fun TripDetailScreen(
                             .clip(CardCorner)
                             .background(Slate)
                             .border(1.dp, SlateBorder, CardCorner)
-                            .padding(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 10.dp),
+                            .padding(start = 12.dp, end = 12.dp, top = 11.dp, bottom = 8.dp),
                     ) {
                         TripChart(
                             traces = traces,
@@ -132,7 +133,7 @@ fun TripDetailScreen(
                             modifier = Modifier.fillMaxWidth().height(PLOT_HEIGHT.dp),
                         )
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                            modifier = Modifier.fillMaxWidth().padding(top = 3.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                         ) {
                             Text(
@@ -149,7 +150,7 @@ fun TripDetailScreen(
                                 color = Fog,
                             )
                         }
-                        TraceLegend(traces = traces, modifier = Modifier.padding(top = 10.dp))
+                        TraceLegend(traces = traces, modifier = Modifier.padding(top = 8.dp))
                     }
                 }
             }
@@ -172,8 +173,8 @@ fun TripDetailScreen(
 
             item(key = "actions") {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     AccentButton(
                         label = stringResource(R.string.trip_export),
@@ -196,7 +197,7 @@ fun TripDetailScreen(
             onDismiss = { confirmDelete = false },
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 18.dp),
+                modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 QuietButton(
@@ -237,7 +238,7 @@ private fun TripStats(analysis: TripAnalysis) {
 
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         cards.forEach { (label, value) ->
             Column(
@@ -246,7 +247,7 @@ private fun TripStats(analysis: TripAnalysis) {
                     .clip(PanelCorner)
                     .background(Slate)
                     .border(1.dp, SlateBorder, PanelCorner)
-                    .padding(horizontal = 13.dp, vertical = 12.dp),
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
             ) {
                 Text(
                     text = label,
@@ -260,7 +261,7 @@ private fun TripStats(analysis: TripAnalysis) {
                     style = MaterialTheme.typography.titleLarge,
                     color = Chalk,
                     maxLines = 1,
-                    modifier = Modifier.padding(top = 4.dp),
+                    modifier = Modifier.padding(top = 3.dp),
                 )
             }
         }
@@ -276,7 +277,7 @@ private fun EventCard(event: TripEvent, startedAtMillis: Long) {
             .clip(PanelCorner)
             .background(Slate)
             .border(1.dp, if (amber) AmberBorder else SlateBorder, PanelCorner)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .padding(horizontal = 13.dp, vertical = Dimens.rowPaddingV),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -434,7 +435,7 @@ private fun MetricId.traceColor(): Color = when (this) {
 /** Hairline traces: thicker lines blur together wherever four of them cross. */
 private fun MetricId.traceWidth(): Float = if (this == Metrics.Rpm) 1.5f else 1.2f
 
-private const val PLOT_HEIGHT = 210
+private const val PLOT_HEIGHT = 190
 private const val PLOT_INSET = 0.86f
 private const val PLOT_MARGIN = 0.07f
 private const val EVENT_ALPHA = 0.14f

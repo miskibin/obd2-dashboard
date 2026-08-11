@@ -53,6 +53,7 @@ import com.miskibin.obd2dashboard.ui.components.EmptyState
 import com.miskibin.obd2dashboard.ui.components.ScreenHeader
 import com.miskibin.obd2dashboard.ui.components.ScreenPadding
 import com.miskibin.obd2dashboard.ui.theme.CardCorner
+import com.miskibin.obd2dashboard.ui.theme.Dimens
 import com.miskibin.obd2dashboard.ui.theme.Fog
 import com.miskibin.obd2dashboard.ui.theme.Graphite
 import com.miskibin.obd2dashboard.ui.theme.PanelCorner
@@ -143,7 +144,7 @@ fun DashboardScreen(
                                 .background(Slate)
                                 .border(1.dp, SlateBorder, PillCorner)
                                 .clickable { editing = false }
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                                .padding(horizontal = 11.dp, vertical = 7.dp),
                         )
                     }
                     Text(
@@ -158,7 +159,7 @@ fun DashboardScreen(
                             .background(Slate)
                             .border(1.dp, SlateBorder, PillCorner)
                             .clickable(onClick = onToggleUnits)
-                            .padding(horizontal = 11.dp, vertical = 7.dp),
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
                     )
                     Icon(
                         imageVector = Icons.Default.Settings,
@@ -181,7 +182,7 @@ fun DashboardScreen(
                 message = stringResource(R.string.dashboard_empty_message),
                 actionLabel = stringResource(R.string.action_connect),
                 onAction = onConnect,
-                modifier = Modifier.fillMaxSize().padding(top = 24.dp),
+                modifier = Modifier.fillMaxSize().padding(top = 12.dp),
             )
             return@Column
         }
@@ -190,10 +191,10 @@ fun DashboardScreen(
             contentPadding = PaddingValues(
                 start = ScreenPadding,
                 end = ScreenPadding,
-                top = 4.dp,
-                bottom = 16.dp,
+                top = 2.dp,
+                bottom = Dimens.listBottom,
             ),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(Dimens.cardGap),
             modifier = Modifier.fillMaxSize(),
         ) {
             item(key = HERO_KEY) {
@@ -319,7 +320,7 @@ private fun DashedRow(
             .clip(PanelCorner)
             .border(1.dp, SlateEdge, PanelCorner)
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .padding(horizontal = Dimens.cardPaddingH, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
