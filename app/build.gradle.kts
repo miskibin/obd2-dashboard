@@ -23,9 +23,22 @@ android {
         localeFilters += setOf("en", "pl")
     }
 
+    signingConfigs {
+        // Shared debug keystore checked into the repo (standard debug credentials,
+        // nothing secret) so every CI build carries the same signature and the APK
+        // can be updated in place on the phone.
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         debug {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("debug")
         }
         release {
             isMinifyEnabled = true
@@ -34,6 +47,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            // Until a real release keystore exists, release builds also use the
+            // shared debug key so they remain installable and upgradeable.
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 
