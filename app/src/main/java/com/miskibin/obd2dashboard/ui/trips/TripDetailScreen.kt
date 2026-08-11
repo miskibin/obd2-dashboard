@@ -218,7 +218,12 @@ fun TripDetailScreen(
     }
 }
 
-/** How far, how long, how thirsty — and the two maxima worth remembering. */
+/**
+ * The maxima worth remembering.
+ *
+ * How far, how long and how thirsty are already in the line under the title, so a card
+ * repeating the average consumption was the same number twice on one screen.
+ */
 @Composable
 private fun TripStats(analysis: TripAnalysis) {
     val cards = buildList {
@@ -229,9 +234,6 @@ private fun TripStats(analysis: TripAnalysis) {
         val oilMetric = if (analysis.maxima[Metrics.OilTemp] != null) Metrics.OilTemp else Metrics.CoolantTemp
         if (oil != null) {
             add(maximumLabel(oilMetric) to "${formatReading(oil, 0)} ${Metrics[oilMetric]?.unit.orEmpty()}")
-        }
-        analysis.averageFuelPer100Km?.let {
-            add(stringResource(R.string.trip_stat_fuel) to formatReading(it, 1))
         }
     }
     if (cards.isEmpty()) return

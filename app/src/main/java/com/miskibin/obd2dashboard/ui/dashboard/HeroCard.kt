@@ -37,7 +37,6 @@ import com.miskibin.obd2dashboard.ui.theme.Chalk
 import com.miskibin.obd2dashboard.ui.theme.Fog
 import com.miskibin.obd2dashboard.ui.theme.Graphite
 import com.miskibin.obd2dashboard.ui.theme.InkRaised
-import com.miskibin.obd2dashboard.ui.theme.PillCorner
 import com.miskibin.obd2dashboard.ui.theme.Signal
 import com.miskibin.obd2dashboard.ui.theme.Slate
 import com.miskibin.obd2dashboard.ui.theme.SlateBorder
@@ -46,7 +45,6 @@ import com.miskibin.obd2dashboard.ui.theme.SmokeDim
 import com.miskibin.obd2dashboard.ui.theme.Steel
 import com.miskibin.obd2dashboard.ui.theme.SteelDeep
 import com.miskibin.obd2dashboard.ui.theme.SteelLight
-import com.miskibin.obd2dashboard.ui.theme.SteelSurface
 
 /** What the hero card is told about the car, already converted into display units. */
 data class HeroState(
@@ -149,7 +147,6 @@ fun HeroCard(state: HeroState, modifier: Modifier = Modifier) {
                         modifier = Modifier.padding(bottom = 4.dp),
                     )
                 }
-                GearBadge(gear = state.gear, modifier = Modifier.padding(top = 6.dp))
             }
         }
 
@@ -184,40 +181,14 @@ fun HeroCard(state: HeroState, modifier: Modifier = Modifier) {
 }
 
 /**
- * The gear, stated as loosely as the data deserves.
+ * One cell per gear, the estimated one lit — the strip a cluster would draw.
  *
- * There is no selector-position PID on generic OBD2, so the badge never shows P, R or N —
- * it shows "D" and a number while the car is moving fast enough for speed ÷ revs to mean
- * something, and a dash when it is not. Claiming "P" because the car happens to be
- * stationary would be inventing a reading off a bus that does not carry it.
+ * This is the only place the gear is stated. A "D 3" badge next to the speed said the same
+ * thing in words a foot above it, and of the two this is the one that can be read without
+ * looking away from the road: there is no selector-position PID on generic OBD2, so
+ * nothing is lit until speed ÷ revs means something, which is exactly what an unlit strip
+ * should say.
  */
-@Composable
-private fun GearBadge(gear: GearReading, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .clip(PillCorner)
-            .background(SteelSurface)
-            .border(1.dp, SteelDeep, PillCorner)
-            .padding(start = 8.dp, end = 10.dp, top = 5.dp, bottom = 5.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Text(
-            text = stringResource(
-                if (gear.moving) R.string.dashboard_gear_drive else R.string.dashboard_gear_unknown,
-            ),
-            style = MaterialTheme.typography.labelMedium,
-            color = Steel,
-        )
-        Text(
-            text = gear.gear?.toString() ?: NO_VALUE,
-            style = MaterialTheme.typography.titleSmall,
-            color = SteelLight,
-        )
-    }
-}
-
-/** One cell per gear, the estimated one lit — the strip a cluster would draw. */
 @Composable
 private fun GearStrip(gear: GearReading, modifier: Modifier = Modifier) {
     Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(5.dp)) {

@@ -16,10 +16,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -42,6 +40,7 @@ import com.miskibin.obd2dashboard.R
 import com.miskibin.obd2dashboard.data.Metric
 import com.miskibin.obd2dashboard.data.MetricId
 import com.miskibin.obd2dashboard.data.Metrics
+import com.miskibin.obd2dashboard.ui.components.ScreenHeader
 import com.miskibin.obd2dashboard.ui.components.ScreenPadding
 import com.miskibin.obd2dashboard.ui.components.SectionHeader
 import com.miskibin.obd2dashboard.ui.theme.AshDim
@@ -91,91 +90,83 @@ fun PidPickerScreen(
     val available = filtered.filter { (metric, _) -> metric.isSupported(supportedPids, supportKnown) }
     val unavailable = filtered.filterNot { (metric, _) -> metric.isSupported(supportedPids, supportKnown) }
 
-    Column(modifier = modifier.fillMaxSize().padding(horizontal = ScreenPadding)) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            IconButton(onClick = onBack, modifier = Modifier.size(48.dp)) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = stringResource(R.string.action_back),
-                )
-            }
-            Text(
-                text = stringResource(R.string.picker_title),
-                style = MaterialTheme.typography.headlineSmall,
-                color = Chalk,
+    Column(modifier = modifier.fillMaxSize()) {
+        // The same title block as every other screen, rather than a bespoke row: a back
+        // arrow and a title are exactly what ScreenHeader is.
+        ScreenHeader(title = stringResource(R.string.picker_title), onBack = onBack)
+
+        Column(modifier = Modifier.fillMaxSize().padding(horizontal = ScreenPadding)) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                singleLine = true,
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                placeholder = { Text(stringResource(R.string.picker_search_hint)) },
+                shape = PanelCorner,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = Slate,
+                    unfocusedContainerColor = Slate,
+                    focusedBorderColor = Steel,
+                    unfocusedBorderColor = SlateBorder,
+                    focusedTextColor = Chalk,
+                    unfocusedTextColor = Chalk,
+                    cursorColor = Steel,
+                    focusedLeadingIconColor = Steel,
+                    unfocusedLeadingIconColor = Smoke,
+                    focusedPlaceholderColor = Smoke,
+                    unfocusedPlaceholderColor = Smoke,
+                ),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
             )
-        }
 
-        OutlinedTextField(
-            value = query,
-            onValueChange = { query = it },
-            singleLine = true,
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-            placeholder = { Text(stringResource(R.string.picker_search_hint)) },
-            shape = PanelCorner,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = Slate,
-                unfocusedContainerColor = Slate,
-                focusedBorderColor = Steel,
-                unfocusedBorderColor = SlateBorder,
-                focusedTextColor = Chalk,
-                unfocusedTextColor = Chalk,
-                cursorColor = Steel,
-                focusedLeadingIconColor = Steel,
-                unfocusedLeadingIconColor = Smoke,
-                focusedPlaceholderColor = Smoke,
-                unfocusedPlaceholderColor = Smoke,
-            ),
-            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-        )
-
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            if (available.isNotEmpty()) {
-                item { SectionHeader(stringResource(R.string.picker_available)) }
-                items(available, key = { it.first.id.storageKey }) { (metric, name) ->
-                    PickerRow(
-                        name = name,
-                        unit = metric.unit,
-                        selected = metric.id in selected,
-                        enabled = true,
-                        onClick = { onToggle(metric.id) },
-                    )
-                }
-            }
-            if (unavailable.isNotEmpty()) {
-                item {
-                    Column {
-                        SectionHeader(stringResource(R.string.picker_unsupported))
-                        Text(
-                            text = stringResource(R.string.picker_unsupported_hint),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Smoke,
-                            modifier = Modifier.padding(horizontal = 3.dp, vertical = 2.dp),
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                if (available.isNotEmpty()) {
+                    // A header saying "Available" over the only list on the screen labels
+                    // nothing; it earns its line once there is an unsupported group under it.
+                    if (unavailable.isNotEmpty()) {
+                        item { SectionHeader(stringResource(R.string.picker_available)) }
+                    }
+                    items(available, key = { it.first.id.storageKey }) { (metric, name) ->
+                        PickerRow(
+                            name = name,
+                            unit = metric.unit,
+                            selected = metric.id in selected,
+                            enabled = true,
+                            onClick = { onToggle(metric.id) },
                         )
                     }
                 }
-                items(unavailable, key = { it.first.id.storageKey }) { (metric, name) ->
-                    PickerRow(
-                        name = name,
-                        unit = metric.unit,
-                        selected = metric.id in selected,
-                        enabled = false,
-                        onClick = {},
-                    )
+                if (unavailable.isNotEmpty()) {
+                    item {
+                        Column {
+                            SectionHeader(stringResource(R.string.picker_unsupported))
+                            Text(
+                                text = stringResource(R.string.picker_unsupported_hint),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Smoke,
+                                modifier = Modifier.padding(horizontal = 3.dp, vertical = 2.dp),
+                            )
+                        }
+                    }
+                    items(unavailable, key = { it.first.id.storageKey }) { (metric, name) ->
+                        PickerRow(
+                            name = name,
+                            unit = metric.unit,
+                            selected = metric.id in selected,
+                            enabled = false,
+                            onClick = {},
+                        )
+                    }
                 }
-            }
-            if (filtered.isEmpty()) {
-                item {
-                    Text(
-                        text = stringResource(R.string.picker_no_results),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Smoke,
-                        modifier = Modifier.fillMaxWidth().padding(24.dp),
-                    )
+                if (filtered.isEmpty()) {
+                    item {
+                        Text(
+                            text = stringResource(R.string.picker_no_results),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Smoke,
+                            modifier = Modifier.fillMaxWidth().padding(24.dp),
+                        )
+                    }
                 }
             }
         }

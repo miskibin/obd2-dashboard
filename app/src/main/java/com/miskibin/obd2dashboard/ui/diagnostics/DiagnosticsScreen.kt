@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -33,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -177,16 +180,9 @@ fun DiagnosticsScreen(
                 item(key = "readiness") { ReadinessCard(readiness = readiness, language = language) }
             }
 
-            if (diagnostics != null && diagnostics.all.isNotEmpty()) {
-                item(key = "clear-caveat") {
-                    Text(
-                        text = stringResource(R.string.dtc_clear_caveat),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Smoke,
-                        modifier = Modifier.padding(top = 4.dp, bottom = 2.dp),
-                    )
-                }
-            }
+            // No standing caveat about clearing: the sentence that used to sit here is
+            // said, at greater length, by the sheet that asks whether to clear — which is
+            // the only moment it can change anybody's mind.
         }
 
         // One row, not a stack: three actions the width of the screen apart spent a fifth
@@ -413,11 +409,13 @@ private fun DtcCard(dtc: Dtc, language: String, recorded: Boolean, onClick: () -
 }
 
 /**
- * The answer to "will it pass the inspection?", with the detail behind it one tap away.
+ * The answer to "will it pass the inspection?", as one line that opens.
  *
- * The verdict is the only line that matters to most owners, so the per-monitor table —
- * which needs the reader to know what an evap monitor is — stays collapsed until asked
- * for.
+ * "Ready for inspection" is the whole answer for most owners, and it used to arrive as a
+ * card with a section label above it, a verdict, and a "Show details" link under it —
+ * three lines and a frame to say a good thing. It is a row now: a dot, the verdict, and a
+ * chevron. The per-monitor table, which needs the reader to know what an evap monitor is,
+ * is behind that chevron where it was already.
  */
 @Composable
 private fun ReadinessCard(readiness: Readiness, language: String) {
@@ -432,21 +430,17 @@ private fun ReadinessCard(readiness: Readiness, language: String) {
             .background(Slate)
             .border(1.dp, SlateBorder, PanelCorner)
             .clickable { expanded = !expanded }
-            .padding(horizontal = Dimens.cardPaddingH, vertical = Dimens.cardPaddingV),
+            .padding(horizontal = Dimens.cardPaddingH),
         verticalArrangement = Arrangement.spacedBy(7.dp),
     ) {
-        Text(
-            text = stringResource(R.string.readiness_section).uppercase(),
-            style = MaterialTheme.typography.labelSmall,
-            color = Smoke,
-        )
         Row(
+            modifier = Modifier.fillMaxWidth().heightIn(min = Dimens.touchTarget),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Box(
                 modifier = Modifier
-                    .size(10.dp)
+                    .size(9.dp)
                     .clip(CircleShape)
                     .background(if (readiness.ready) Moss else AmberLight),
             )
@@ -456,16 +450,19 @@ private fun ReadinessCard(readiness: Readiness, language: String) {
                 } else {
                     pluralStringResource(R.plurals.readiness_not_ready, incomplete, incomplete)
                 },
-                style = MaterialTheme.typography.titleMedium,
-                color = Chalk,
+                style = MaterialTheme.typography.bodyLarge,
+                color = if (readiness.ready) AshDim else Chalk,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
+            Icon(
+                imageVector = AppIcons.ChevronRight,
+                contentDescription = null,
+                tint = Fog,
+                modifier = Modifier.size(16.dp).rotate(if (expanded) EXPANDED_ROTATION else 0f),
+            )
         }
-        Text(
-            text = stringResource(if (expanded) R.string.readiness_hide else R.string.readiness_show),
-            style = MaterialTheme.typography.labelMedium,
-            color = SteelLight,
-        )
 
         if (!expanded) return@Column
 
@@ -507,6 +504,7 @@ private fun ReadinessCard(readiness: Readiness, language: String) {
                 )
             }
         }
+        Spacer(Modifier.height(Dimens.cardPaddingV))
     }
 }
 
@@ -661,4 +659,5 @@ internal fun DtcKind.toneBackground(): Color = when (this) {
     DtcKind.Pending -> AmberSurfaceStrong
 }
 
-private const val COLLAPSED_ROWS = 6
+/** A chevron pointing right becomes one pointing down when its row is open. */
+private const val EXPANDED_ROTATION = 90f

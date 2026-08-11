@@ -42,15 +42,13 @@
 
     <!-- Ekran połączenia -->
     <string name="connect_title">Połącz adapter</string>
-    <string name="connect_subtitle">Włóż adapter do gniazda OBD-II i włącz zapłon, a potem rozpocznij wyszukiwanie.</string>
-    <string name="connect_empty_hint">Nie znaleziono jeszcze żadnego adaptera. Dotknij „Szukaj” i trzymaj telefon blisko gniazda.</string>
+    <string name="connect_empty_hint">Włóż adapter do gniazda OBD-II, włącz zapłon i rozpocznij wyszukiwanie.</string>
     <string name="connect_saved_hint">Adapter %1$s jest zapamiętany i połączy się automatycznie.</string>
     <string name="connect_unnamed_device">Urządzenie bez nazwy</string>
     <string name="connect_likely_adapter">Wygląda na adapter OBD-II</string>
     <string name="connect_remembered">Twój zapisany adapter</string>
     <string name="connect_adapter_details">%1$s · protokół %2$s</string>
     <string name="connect_unknown_adapter">Nieznany adapter</string>
-    <string name="connect_demo_hint">Nie masz adaptera pod ręką? Demo uruchamia aplikację na symulowanym samochodzie.</string>
     <string name="connect_demo_details">Dane symulowane · żaden samochód nie jest podłączony</string>
     <string name="permission_bluetooth_rationale">Dostęp do Bluetooth jest potrzebny, żeby znaleźć adapter OBD-II i się z nim połączyć. Przyznaj go w ustawieniach systemu, aby kontynuować.</string>
 
@@ -101,12 +99,9 @@
     </plurals>
 
     <!-- Testy gotowości -->
-    <string name="readiness_section">Testy gotowości</string>
     <string name="readiness_ready">Gotowy do badania technicznego</string>
     <string name="readiness_complete">Ukończony</string>
     <string name="readiness_incomplete">Nieukończony</string>
-    <string name="readiness_show">Pokaż szczegóły</string>
-    <string name="readiness_hide">Ukryj szczegóły</string>
     <string name="readiness_ignition_spark">Zapłon iskrowy (benzyna)</string>
     <string name="readiness_ignition_compression">Zapłon samoczynny (diesel)</string>
     <string name="report_subject">Raport z pojazdu</string>
@@ -119,7 +114,7 @@
     </plurals>
 
     <!-- Alerty progowe -->
-    <string name="settings_alerts_description">Ostrzegaj, gdy wartość wyjdzie poza bezpieczny zakres. Alert pojawi się jako powiadomienie i jako pasek w aplikacji.</string>
+    <string name="settings_alerts_description">Ostrzeżenia przychodzą jako powiadomienie i baner w aplikacji.</string>
     <string name="alert_limit_above">Powyżej %1$s</string>
     <string name="alert_limit_below">Poniżej %1$s</string>
     <string name="alert_above">%1$s wynosi %2$s, powyżej progu %3$s</string>
@@ -138,7 +133,6 @@
     <string name="settings_language_polish">Polski</string>
     <string name="settings_polling">Odpytywanie</string>
     <string name="settings_polling_description">Ciągle pytaj auto o wartości na żywo. Wyłącz, aby oszczędzać baterię, gdy potrzebujesz tylko kodów błędów.</string>
-    <string name="settings_about">O aplikacji</string>
     <string name="settings_version">Wersja %1$s</string>
 
     <!-- Powiadomienie usługi -->
@@ -210,7 +204,7 @@
     <string name="unit_rpm">rpm</string>
     <string name="dashboard_redline">Odcięcie %1$d rpm</string>
     <string name="chart_now">teraz</string>
-    <string name="chart_add_parameter">+ parametr</string>
+    <string name="chart_add_parameter">+ Dodaj parametr</string>
     <string name="chart_mode_bands">Osobno</string>
     <string name="chart_mode_relative">Wspólna %%</string>
     <string name="chart_mode_absolute">Wspólna abs.</string>
@@ -218,7 +212,6 @@
     <string name="chart_record_start">Nagrywaj</string>
     <string name="chart_record_stop">Zatrzymaj</string>
     <string name="dtc_never_read">Jeszcze nieodczytane</string>
-    <string name="dtc_clear_caveat">Kasowanie gasi kontrolkę, ale nie naprawia usterki — kod wróci, jeśli przyczyna nie zniknie.</string>
     <string name="dtc_no_frame_message">Sterownik nie zapisał zamrożonej ramki dla tego kodu.</string>
     <string name="dtc_frame_parameter">Parametr</string>
     <string name="dtc_frame_at_fault">W błędzie</string>
@@ -253,13 +246,10 @@
     <string name="dashboard_vehicle_unknown">Pojazd</string>
     <string name="vehicle_demo">Auto demo</string>
     <string name="dashboard_session_max">maks. w tej sesji %1$s</string>
-    <string name="dashboard_gear_drive">D</string>
-    <string name="dashboard_gear_unknown">bieg</string>
     <string name="dashboard_units_metric">km/h · °C</string>
     <string name="dashboard_units_imperial">mph · °C</string>
     <string name="dashboard_metric_high">%1$s · wysoka</string>
     <string name="dashboard_recording_active">Nagrywa · %1$s</string>
-    <string name="dashboard_recording_idle">Nagrywanie wyłączone</string>
     <string name="unit_kmh">km/h</string>
     <string name="unit_mph">mph</string>
     <string name="action_move_up">Przesuń w górę</string>
@@ -304,7 +294,6 @@
     <string name="trip_export">Eksportuj CSV</string>
     <string name="trip_loading">Wczytuję nagranie…</string>
     <string name="trip_stat_max">Maks. %1$s</string>
-    <string name="trip_stat_fuel">Śr. spalanie</string>
     <string name="trip_event_breach">%1$s %2$s %3$s</string>
     <string name="trip_event_at">o %1$s</string>
     <string name="trip_event_at_repeated">o %1$s · %2$d×</string>
@@ -317,8 +306,8 @@
     </plurals>
 
     <!-- Szczegóły błędu -->
-    <string name="dtc_hint_recorded">Dotknij · ±30 s z nagrania aplikacji</string>
-    <string name="dtc_hint_frame_only">Dotknij · tylko zamrożona ramka ECU</string>
+    <string name="dtc_hint_recorded">±30 s z nagrania aplikacji</string>
+    <string name="dtc_hint_frame_only">tylko zamrożona ramka ECU</string>
     <string name="fault_when_last">Wystąpił</string>
     <string name="fault_when_first">Pierwszy raz</string>
     <string name="fault_when_count">Liczba wystąpień</string>
@@ -329,10 +318,7 @@
     <string name="fault_related_none">Żaden inny kod nie pojawił się w tym oknie</string>
     <string name="fault_related_earlier">wcześniej</string>
     <string name="fault_related_later">później</string>
-    <string name="fault_context_timeline">±30 s wokół błędu</string>
-    <string name="fault_context_frame">Zamrożona ramka ECU</string>
-    <string name="fault_source_recording">z nagrania aplikacji</string>
-    <string name="fault_source_none">brak nagrania z tej chwili</string>
+    <string name="fault_source_none">Brak nagrania z tamtej chwili — poniżej tylko zamrożona ramka.</string>
     <string name="fault_column_before">przed</string>
     <string name="fault_timeline_before">−60 s</string>
     <string name="fault_timeline_before_centred">−30 s</string>
@@ -340,4 +326,10 @@
     <string name="fault_timeline_after">+30 s</string>
     <string name="fault_timeline_pending">teraz</string>
     <string name="fault_report">Raport diagnostyczny</string>
+    <string name="chart_menu_window">Zakres</string>
+    <string name="chart_menu_axis">Oś</string>
+    <string name="chart_settings">Ustawienia wykresu</string>
+    <string name="chart_remove_parameter">Usuń %1$s z wykresu</string>
+    <string name="action_more">Więcej opcji</string>
+    <string name="dashboard_units">Jednostki</string>
 </resources>

@@ -48,6 +48,7 @@ import com.miskibin.obd2dashboard.data.SavedAdapter
 import com.miskibin.obd2dashboard.ui.AppIcons
 import com.miskibin.obd2dashboard.ui.components.AccentButton
 import com.miskibin.obd2dashboard.ui.components.QuietButton
+import com.miskibin.obd2dashboard.ui.components.ScreenHeader
 import com.miskibin.obd2dashboard.ui.components.ScreenPadding
 import com.miskibin.obd2dashboard.ui.theme.Amber
 import com.miskibin.obd2dashboard.ui.theme.AshDim
@@ -78,6 +79,7 @@ fun ConnectScreen(
     onConnect: (DiscoveredDevice) -> Unit,
     onDemo: () -> Unit,
     onDisconnect: () -> Unit,
+    onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -120,129 +122,125 @@ fun ConnectScreen(
     val scanning = state == ConnectionState.Scanning
     val connected = state as? ConnectionState.Connected
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = ScreenPadding),
-        verticalArrangement = Arrangement.spacedBy(Dimens.sectionGap),
-    ) {
-        Spacer(Modifier.height(6.dp))
-        Text(
-            text = stringResource(R.string.connect_title),
-            style = MaterialTheme.typography.headlineMedium,
-            color = Chalk,
-        )
-        Text(
-            text = stringResource(R.string.connect_subtitle),
-            style = MaterialTheme.typography.bodyMedium,
-            color = Smoke,
-        )
+    Column(modifier = modifier.fillMaxSize()) {
+        // The same title block every other screen uses, which is also the only way back
+        // from here that does not depend on the system gesture: this screen hides the
+        // navigation bar, so it has to carry its own arrow.
+        ScreenHeader(title = stringResource(R.string.connect_title), onBack = onBack)
 
-        when {
-            connected != null -> ConnectedCard(connected, onDisconnect)
-            state is ConnectionState.Error -> StatusCard(
-                text = stringResource(R.string.status_error_reason, state.reason),
-                error = true,
-            )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = ScreenPadding),
+            verticalArrangement = Arrangement.spacedBy(Dimens.sectionGap),
+        ) {
+            when {
+                connected != null -> ConnectedCard(connected, onDisconnect)
+                state is ConnectionState.Error -> StatusLine(
+                    text = stringResource(R.string.status_error_reason, state.reason),
+                    error = true,
+                )
 
-            state is ConnectionState.Reconnecting -> StatusCard(
-                text = stringResource(R.string.status_reconnecting, state.attempt),
-                error = false,
-            )
+                state is ConnectionState.Reconnecting -> StatusLine(
+                    text = stringResource(R.string.status_reconnecting, state.attempt),
+                    error = false,
+                )
 
-            state is ConnectionState.Initializing -> StatusCard(
-                text = stringResource(R.string.status_initializing, state.step),
-                error = false,
-            )
+                state is ConnectionState.Initializing -> StatusLine(
+                    text = stringResource(R.string.status_initializing, state.step),
+                    error = false,
+                )
 
-            state is ConnectionState.Connecting -> StatusCard(
-                text = stringResource(
-                    R.string.status_connecting_to,
-                    state.device.name ?: state.device.address,
-                ),
-                error = false,
-            )
-        }
-
-        if (permissionDenied) {
-            StatusCard(text = stringResource(R.string.permission_bluetooth_rationale), error = true)
-        }
-
-        if (connected == null) {
-            // The demo needs neither a radio nor a permission, so it sits next to the
-            // scan button rather than behind it.
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                if (scanning) {
-                    QuietButton(
-                        label = stringResource(R.string.action_stop_scan),
-                        onClick = onStopScan,
-                        modifier = Modifier.weight(1f),
-                        leading = {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                strokeWidth = 2.dp,
-                                color = Steel,
-                            )
-                            Spacer(Modifier.width(10.dp))
-                        },
-                    )
-                } else {
-                    AccentButton(
-                        label = stringResource(R.string.action_scan),
-                        onClick = ::requestScan,
-                        modifier = Modifier.weight(1f),
-                        leading = {
-                            Icon(
-                                imageVector = AppIcons.Bluetooth,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                            )
-                            Spacer(Modifier.width(10.dp))
-                        },
-                    )
-                }
-                QuietButton(
-                    label = stringResource(R.string.action_demo),
-                    onClick = onDemo,
-                    contentColor = Amber,
+                state is ConnectionState.Connecting -> StatusLine(
+                    text = stringResource(
+                        R.string.status_connecting_to,
+                        state.device.name ?: state.device.address,
+                    ),
+                    error = false,
                 )
             }
-            Text(
-                text = stringResource(R.string.connect_demo_hint),
-                style = MaterialTheme.typography.bodySmall,
-                color = Smoke,
-            )
-        }
 
-        val sorted = remember(devices) {
-            devices.sortedWith(
-                compareByDescending<DiscoveredDevice> { it.looksLikeAdapter }
-                    .thenByDescending { it.rssi },
-            )
-        }
-
-        AnimatedVisibility(visible = sorted.isEmpty() && !scanning && connected == null) {
-            Text(
-                text = savedAdapter?.let {
-                    stringResource(R.string.connect_saved_hint, it.name ?: it.address)
-                } ?: stringResource(R.string.connect_empty_hint),
-                style = MaterialTheme.typography.bodyMedium,
-                color = Smoke,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
-            )
-        }
-
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            items(sorted, key = { it.address }) { device ->
-                DeviceRow(
-                    device = device,
-                    remembered = device.address == savedAdapter?.address,
-                    onClick = { connect(device) },
+            if (permissionDenied) {
+                StatusLine(
+                    text = stringResource(R.string.permission_bluetooth_rationale),
+                    error = true,
                 )
+            }
+
+            if (connected == null) {
+                // The demo needs neither a radio nor a permission, so it sits next to the
+                // scan button rather than behind it — and needs no line of text under it
+                // explaining what a button marked "Demo" does.
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    if (scanning) {
+                        QuietButton(
+                            label = stringResource(R.string.action_stop_scan),
+                            onClick = onStopScan,
+                            modifier = Modifier.weight(1f),
+                            leading = {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp,
+                                    color = Steel,
+                                )
+                                Spacer(Modifier.width(10.dp))
+                            },
+                        )
+                    } else {
+                        AccentButton(
+                            label = stringResource(R.string.action_scan),
+                            onClick = ::requestScan,
+                            modifier = Modifier.weight(1f),
+                            leading = {
+                                Icon(
+                                    imageVector = AppIcons.Bluetooth,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                                Spacer(Modifier.width(10.dp))
+                            },
+                        )
+                    }
+                    QuietButton(
+                        label = stringResource(R.string.action_demo),
+                        onClick = onDemo,
+                        contentColor = Amber,
+                    )
+                }
+            }
+
+            val sorted = remember(devices) {
+                devices.sortedWith(
+                    compareByDescending<DiscoveredDevice> { it.looksLikeAdapter }
+                        .thenByDescending { it.rssi },
+                )
+            }
+
+            // The one piece of first-run instruction the screen keeps: it says what to do
+            // and it says it only while there is nothing else to look at.
+            AnimatedVisibility(visible = sorted.isEmpty() && !scanning && connected == null) {
+                Text(
+                    text = savedAdapter?.let {
+                        stringResource(R.string.connect_saved_hint, it.name ?: it.address)
+                    } ?: stringResource(R.string.connect_empty_hint),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Smoke,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                )
+            }
+
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                items(sorted, key = { it.address }) { device ->
+                    DeviceRow(
+                        device = device,
+                        remembered = device.address == savedAdapter?.address,
+                        onClick = { connect(device) },
+                    )
+                }
             }
         }
     }
@@ -290,18 +288,20 @@ private fun ConnectedCard(state: ConnectionState.Connected, onDisconnect: () -> 
     }
 }
 
+/**
+ * What the connection is doing, as a line of text.
+ *
+ * It used to be a bordered card, which is a lot of frame for "Connecting to OBDII…" — a
+ * sentence that is replaced by the next one a second later. Colour already carries whether
+ * it is progress or a problem.
+ */
 @Composable
-private fun StatusCard(text: String, error: Boolean) {
+private fun StatusLine(text: String, error: Boolean) {
     Text(
         text = text,
         style = MaterialTheme.typography.bodyMedium,
         color = if (error) SignalText else AshDim,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(PanelCorner)
-            .background(Slate)
-            .border(1.dp, SlateBorder, PanelCorner)
-            .padding(horizontal = Dimens.cardPaddingH, vertical = Dimens.cardPaddingV),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
     )
 }
 

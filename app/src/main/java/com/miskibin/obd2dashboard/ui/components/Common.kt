@@ -179,6 +179,67 @@ fun ScreenHeader(
     }
 }
 
+/**
+ * A heading inside a dropdown menu: which group of choices the rows under it belong to.
+ *
+ * Menus are how a setting that is changed twice a year stays off the screen the rest of
+ * the time, and two short groups in one menu need two words to stay apart.
+ */
+@Composable
+fun MenuLabel(text: String) {
+    Text(
+        text = text.uppercase(),
+        style = MaterialTheme.typography.labelSmall,
+        color = LocalSkin.current.quiet,
+        modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 4.dp),
+    )
+}
+
+/**
+ * One row of a dropdown menu.
+ *
+ * [selected] draws the tick that makes a menu of choices readable without opening each one
+ * — a menu that states the current setting is the reason the control outside it can be a
+ * single chip.
+ */
+@Composable
+fun MenuChoice(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    selected: Boolean = false,
+    detail: String? = null,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = MENU_ROW_HEIGHT)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (selected) Chalk else AshDim,
+            maxLines = 1,
+            modifier = Modifier.weight(1f),
+        )
+        if (detail != null) {
+            Text(
+                text = detail,
+                style = MaterialTheme.typography.labelMedium,
+                color = Smoke,
+                maxLines = 1,
+            )
+        }
+        if (selected) {
+            Text(text = "✓", style = MaterialTheme.typography.labelMedium, color = SteelLight)
+        }
+    }
+}
+
 /** A quiet, uppercase divider between the groups of a list. */
 @Composable
 fun SectionHeader(
@@ -590,3 +651,6 @@ fun DesignSheet(
 }
 
 private const val DISABLED_ALPHA = 0.45f
+
+/** A menu row is shorter than a button but still a thumb target in a stationary car. */
+private val MENU_ROW_HEIGHT = 42.dp

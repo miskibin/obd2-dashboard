@@ -42,15 +42,13 @@
 
     <!-- Connection screen -->
     <string name="connect_title">Connect your adapter</string>
-    <string name="connect_subtitle">Plug the adapter into the OBD-II socket and turn the ignition on, then scan.</string>
-    <string name="connect_empty_hint">No adapters found yet. Tap Scan and keep the phone near the socket.</string>
+    <string name="connect_empty_hint">Plug the adapter into the OBD-II socket, turn the ignition on, then scan.</string>
     <string name="connect_saved_hint">%1$s is remembered and will be reconnected automatically.</string>
     <string name="connect_unnamed_device">Unnamed device</string>
     <string name="connect_likely_adapter">Looks like an OBD-II adapter</string>
     <string name="connect_remembered">Your saved adapter</string>
     <string name="connect_adapter_details">%1$s · protocol %2$s</string>
     <string name="connect_unknown_adapter">Unknown adapter</string>
-    <string name="connect_demo_hint">No adapter to hand? Demo runs the app on a simulated car.</string>
     <string name="connect_demo_details">Simulated data · no car is connected</string>
     <string name="permission_bluetooth_rationale">Bluetooth access is needed to find and talk to your OBD-II adapter. Grant it in system settings to continue.</string>
 
@@ -99,12 +97,9 @@
     </plurals>
 
     <!-- Readiness monitors -->
-    <string name="readiness_section">Readiness monitors</string>
     <string name="readiness_ready">Ready for inspection</string>
     <string name="readiness_complete">Complete</string>
     <string name="readiness_incomplete">Not complete</string>
-    <string name="readiness_show">Show details</string>
-    <string name="readiness_hide">Hide details</string>
     <string name="readiness_ignition_spark">Spark ignition (petrol)</string>
     <string name="readiness_ignition_compression">Compression ignition (diesel)</string>
     <string name="report_subject">Vehicle report</string>
@@ -115,7 +110,7 @@
     </plurals>
 
     <!-- Threshold alerts -->
-    <string name="settings_alerts_description">Warn me when a value leaves its safe range. Alerts arrive as a notification and as a banner in the app.</string>
+    <string name="settings_alerts_description">Alerts arrive as a notification and as a banner in the app.</string>
     <string name="alert_limit_above">Above %1$s</string>
     <string name="alert_limit_below">Below %1$s</string>
     <string name="alert_above">%1$s is %2$s, above the %3$s limit</string>
@@ -134,7 +129,6 @@
     <string name="settings_language_polish">Polski</string>
     <string name="settings_polling">Polling</string>
     <string name="settings_polling_description">Keep asking the car for live values. Turn it off to save battery when you only need trouble codes.</string>
-    <string name="settings_about">About</string>
     <string name="settings_version">Version %1$s</string>
 
     <!-- Foreground service notification -->
@@ -206,7 +200,7 @@
     <string name="unit_rpm">rpm</string>
     <string name="dashboard_redline">Redline %1$d rpm</string>
     <string name="chart_now">now</string>
-    <string name="chart_add_parameter">+ value</string>
+    <string name="chart_add_parameter">+ Add parameter</string>
     <string name="chart_mode_bands">Separate</string>
     <string name="chart_mode_relative">Shared %%</string>
     <string name="chart_mode_absolute">Shared abs.</string>
@@ -214,7 +208,6 @@
     <string name="chart_record_start">Record</string>
     <string name="chart_record_stop">Stop</string>
     <string name="dtc_never_read">Not read yet</string>
-    <string name="dtc_clear_caveat">Clearing turns the lamp off but repairs nothing — the code comes back if the cause is still there.</string>
     <string name="dtc_no_frame_message">The control unit kept no frozen frame for this code.</string>
     <string name="dtc_frame_parameter">Parameter</string>
     <string name="dtc_frame_at_fault">At fault</string>
@@ -247,13 +240,10 @@
     <string name="dashboard_vehicle_unknown">Vehicle</string>
     <string name="vehicle_demo">Demo car</string>
     <string name="dashboard_session_max">max this session %1$s</string>
-    <string name="dashboard_gear_drive">D</string>
-    <string name="dashboard_gear_unknown">gear</string>
     <string name="dashboard_units_metric">km/h · °C</string>
     <string name="dashboard_units_imperial">mph · °C</string>
     <string name="dashboard_metric_high">%1$s · high</string>
     <string name="dashboard_recording_active">Recording · %1$s</string>
-    <string name="dashboard_recording_idle">Recording off</string>
     <string name="unit_kmh">km/h</string>
     <string name="unit_mph">mph</string>
     <string name="action_move_up">Move up</string>
@@ -296,7 +286,6 @@
     <string name="trip_export">Export CSV</string>
     <string name="trip_loading">Reading the recording…</string>
     <string name="trip_stat_max">Max %1$s</string>
-    <string name="trip_stat_fuel">Avg consumption</string>
     <string name="trip_event_breach">%1$s %2$s %3$s</string>
     <string name="trip_event_at">at %1$s</string>
     <string name="trip_event_at_repeated">at %1$s · %2$d×</string>
@@ -307,8 +296,8 @@
     </plurals>
 
     <!-- Fault detail -->
-    <string name="dtc_hint_recorded">Tap · ±30 s from the app\'s recording</string>
-    <string name="dtc_hint_frame_only">Tap · ECU freeze frame only</string>
+    <string name="dtc_hint_recorded">±30 s from the app\'s recording</string>
+    <string name="dtc_hint_frame_only">ECU freeze frame only</string>
     <string name="fault_when_last">Seen</string>
     <string name="fault_when_first">First seen</string>
     <string name="fault_when_count">Times seen</string>
@@ -319,10 +308,7 @@
     <string name="fault_related_none">No other code appeared in this window</string>
     <string name="fault_related_earlier">earlier</string>
     <string name="fault_related_later">later</string>
-    <string name="fault_context_timeline">±30 s around the fault</string>
-    <string name="fault_context_frame">ECU freeze frame</string>
-    <string name="fault_source_recording">from the app\'s recording</string>
-    <string name="fault_source_none">no recording from that moment</string>
+    <string name="fault_source_none">No recording from that moment — only the frozen frame below.</string>
     <string name="fault_column_before">before</string>
     <string name="fault_timeline_before">−60 s</string>
     <string name="fault_timeline_before_centred">−30 s</string>
@@ -330,4 +316,10 @@
     <string name="fault_timeline_after">+30 s</string>
     <string name="fault_timeline_pending">now</string>
     <string name="fault_report">Diagnostic report</string>
+    <string name="chart_menu_window">Window</string>
+    <string name="chart_menu_axis">Axis</string>
+    <string name="chart_settings">Chart settings</string>
+    <string name="chart_remove_parameter">Remove %1$s from the chart</string>
+    <string name="action_more">More options</string>
+    <string name="dashboard_units">Units</string>
 </resources>

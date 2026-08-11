@@ -17,7 +17,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -50,12 +51,12 @@ import com.miskibin.obd2dashboard.obd.VehicleSnapshot
 import com.miskibin.obd2dashboard.ui.AppIcons
 import com.miskibin.obd2dashboard.ui.chart.formatDuration
 import com.miskibin.obd2dashboard.ui.components.EmptyState
+import com.miskibin.obd2dashboard.ui.components.MenuChoice
 import com.miskibin.obd2dashboard.ui.components.ScreenHeader
 import com.miskibin.obd2dashboard.ui.components.ScreenPadding
 import com.miskibin.obd2dashboard.ui.theme.CardCorner
 import com.miskibin.obd2dashboard.ui.theme.Dimens
 import com.miskibin.obd2dashboard.ui.theme.Fog
-import com.miskibin.obd2dashboard.ui.theme.Graphite
 import com.miskibin.obd2dashboard.ui.theme.PanelCorner
 import com.miskibin.obd2dashboard.ui.theme.PillCorner
 import com.miskibin.obd2dashboard.ui.theme.Signal
@@ -134,6 +135,8 @@ fun DashboardScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
+                    // Only while the list is being pruned: the way out of a mode belongs
+                    // to the mode, not to the screen.
                     AnimatedVisibility(visible = editing) {
                         Text(
                             text = stringResource(R.string.action_done),
@@ -147,29 +150,11 @@ fun DashboardScreen(
                                 .padding(horizontal = 11.dp, vertical = 7.dp),
                         )
                     }
-                    Text(
-                        text = stringResource(
-                            if (imperial) R.string.dashboard_units_imperial
-                            else R.string.dashboard_units_metric,
-                        ),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = Smoke,
-                        modifier = Modifier
-                            .clip(PillCorner)
-                            .background(Slate)
-                            .border(1.dp, SlateBorder, PillCorner)
-                            .clickable(onClick = onToggleUnits)
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                    )
-                    Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = stringResource(R.string.nav_settings),
-                        tint = Smoke,
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .clickable(onClick = onOpenSettings)
-                            .padding(8.dp),
+                    DashboardMenu(
+                        imperial = imperial,
+                        onAddTile = onAddTile,
+                        onToggleUnits = onToggleUnits,
+                        onOpenSettings = onOpenSettings,
                     )
                 }
             },
@@ -260,29 +245,35 @@ fun DashboardScreen(
                 }
             }
 
-            item(key = ADD_KEY) {
-                DashedRow(
-                    label = stringResource(R.string.action_add_tile),
-                    trailing = "+",
-                    onClick = onAddTile,
-                )
+            // Adding a value is configuration, so it shows up where the list is already
+            // being changed; the rest of the time it lives in the header menu and the
+            // dashboard is nothing but readings.
+            if (editing) {
+                item(key = ADD_KEY) {
+                    DashedRow(
+                        label = stringResource(R.string.action_add_tile),
+                        trailing = "+",
+                        onClick = onAddTile,
+                    )
+                }
             }
 
-            item(key = RECORDING_KEY) {
-                val active = recording as? RecordingState.Active
-                DashedRow(
-                    label = if (active != null) {
-                        stringResource(
+            // A row that said "Recording off" was a row that said nothing: the nav bar
+            // carries the same dot. Running, it is worth its line — a recording the driver
+            // forgot about announces itself, with the way to stop it one tap away.
+            val active = recording as? RecordingState.Active
+            if (active != null) {
+                item(key = RECORDING_KEY) {
+                    DashedRow(
+                        label = stringResource(
                             R.string.dashboard_recording_active,
                             formatDuration((now - active.startedAtMillis) / 1000),
-                        )
-                    } else {
-                        stringResource(R.string.dashboard_recording_idle)
-                    },
-                    trailing = "›",
-                    dotColor = if (active != null) Signal else Graphite,
-                    onClick = onOpenCharts,
-                )
+                        ),
+                        trailing = "›",
+                        dotColor = Signal,
+                        onClick = onOpenCharts,
+                    )
+                }
             }
         }
     }
@@ -305,7 +296,69 @@ fun DashboardScreen(
     }
 }
 
-/** The dashed rows at the foot of the list: add a value, and what recording is doing. */
+/**
+ * Everything about the dashboard that is not a reading, behind one icon.
+ *
+ * The unit switch and the way into settings were two permanent controls in the header of a
+ * screen whose whole job is numbers — and the units are picked once, when the app is
+ * installed, and then never again. In a menu they cost nothing until they are wanted, and
+ * the menu row can say which system is on instead of the header having to.
+ */
+@Composable
+private fun DashboardMenu(
+    imperial: Boolean,
+    onAddTile: () -> Unit,
+    onToggleUnits: () -> Unit,
+    onOpenSettings: () -> Unit,
+) {
+    var open by remember { mutableStateOf(false) }
+
+    Box {
+        Icon(
+            imageVector = Icons.Default.MoreVert,
+            contentDescription = stringResource(R.string.action_more),
+            tint = Smoke,
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .clickable { open = true }
+                .padding(8.dp),
+        )
+        DropdownMenu(
+            expanded = open,
+            onDismissRequest = { open = false },
+            modifier = Modifier.background(Slate),
+        ) {
+            MenuChoice(
+                label = stringResource(R.string.action_add_tile),
+                onClick = {
+                    open = false
+                    onAddTile()
+                },
+            )
+            MenuChoice(
+                label = stringResource(R.string.dashboard_units),
+                detail = stringResource(
+                    if (imperial) R.string.dashboard_units_imperial
+                    else R.string.dashboard_units_metric,
+                ),
+                onClick = {
+                    open = false
+                    onToggleUnits()
+                },
+            )
+            MenuChoice(
+                label = stringResource(R.string.nav_settings),
+                onClick = {
+                    open = false
+                    onOpenSettings()
+                },
+            )
+        }
+    }
+}
+
+/** The dashed row at the foot of the list: what a running recording is doing. */
 @Composable
 private fun DashedRow(
     label: String,

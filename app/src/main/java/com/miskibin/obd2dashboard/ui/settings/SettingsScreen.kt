@@ -161,7 +161,8 @@ fun SettingsScreen(
                 )
             }
 
-            Group(title = stringResource(R.string.settings_polling)) {
+            // No header: the row's own title is the word the header used to repeat.
+            GroupedList(modifier = Modifier.fillMaxWidth()) {
                 SwitchRow(
                     title = stringResource(R.string.settings_polling),
                     subtitle = stringResource(R.string.settings_polling_description),
@@ -238,7 +239,9 @@ fun SettingsScreen(
                 )
             }
 
-            Group(title = stringResource(R.string.settings_about)) {
+            // Nor here: a row carrying the app's own name and the address of its source is
+            // not made clearer by the word "About" above it.
+            GroupedList(modifier = Modifier.fillMaxWidth()) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()

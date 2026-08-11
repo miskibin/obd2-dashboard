@@ -527,6 +527,7 @@ private fun AppNavHost(
                     navController.popBackStack()
                 },
                 onDisconnect = viewModel::disconnect,
+                onBack = { navController.popBackStack() },
             )
         }
 
@@ -582,8 +583,14 @@ private fun versionNameOf(context: android.content.Context): String =
         context.packageManager.getPackageInfo(context.packageName, 0).versionName
     }.getOrNull().orEmpty()
 
-/** Where the connection pill is worth its line of screen. */
-private val PILL_ROUTES = setOf(Routes.CHARTS, Routes.DIAGNOSTICS, Routes.PICKER)
+/**
+ * Where the connection strip is worth its line of screen.
+ *
+ * Only where a live reading is what the screen is for: the picker is a list of names that
+ * does not change with the connection, and the dashboard it is opened from states the
+ * connection in its own header.
+ */
+private val PILL_ROUTES = setOf(Routes.CHARTS, Routes.DIAGNOSTICS)
 
 /** An icon-only bar: tall enough for a thumb, and not a pixel taller. */
 private val NAV_BAR_HEIGHT = 56.dp

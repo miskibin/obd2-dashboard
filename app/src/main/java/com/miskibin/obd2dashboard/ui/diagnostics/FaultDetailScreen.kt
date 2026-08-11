@@ -134,33 +134,22 @@ fun FaultDetailScreen(
                 RelatedCard(related = related, descriptions = relatedDescriptions)
             }
 
-            item(key = "context-header") {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 1.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Bottom,
-                ) {
+            if (context?.hasTimeline == true) {
+                // No header over the trace: it is labelled −30 s / fault / +30 s along its
+                // own bottom edge, which is the same sentence in the place it applies to.
+                item(key = "timeline") { TimelineCard(context = context) }
+            } else {
+                // Where the app has nothing it says so, once: a mechanic who cannot tell
+                // "nothing happened" from "nothing was recorded" has been given a worse
+                // tool than no tool.
+                item(key = "context-source") {
                     Text(
-                        text = stringResource(
-                            if (context?.hasTimeline == true) R.string.fault_context_timeline
-                            else R.string.fault_context_frame,
-                        ).uppercase(),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Smoke,
-                    )
-                    Text(
-                        text = stringResource(
-                            if (context?.hasTimeline == true) R.string.fault_source_recording
-                            else R.string.fault_source_none,
-                        ),
+                        text = stringResource(R.string.fault_source_none),
                         style = MaterialTheme.typography.labelMedium,
                         color = Fog,
+                        modifier = Modifier.padding(top = 1.dp),
                     )
                 }
-            }
-
-            if (context?.hasTimeline == true) {
-                item(key = "timeline") { TimelineCard(context = context) }
             }
 
             item(key = "table") {
