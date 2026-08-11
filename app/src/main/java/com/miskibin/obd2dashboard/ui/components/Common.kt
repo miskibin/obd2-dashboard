@@ -57,8 +57,6 @@ import com.miskibin.obd2dashboard.ui.theme.Fog
 import com.miskibin.obd2dashboard.ui.theme.Graphite
 import com.miskibin.obd2dashboard.ui.theme.LocalSkin
 import com.miskibin.obd2dashboard.ui.theme.PanelCorner
-import com.miskibin.obd2dashboard.ui.theme.PaperCard
-import com.miskibin.obd2dashboard.ui.theme.PaperInk
 import com.miskibin.obd2dashboard.ui.theme.PillCorner
 import com.miskibin.obd2dashboard.ui.theme.Signal
 import com.miskibin.obd2dashboard.ui.theme.SignalBorder
@@ -106,10 +104,11 @@ fun DashCard(
 
 /**
  * The title block every screen opens with: name on the left, one line of context under
- * it, and at most one control on the right.
+ * it, and at most one control on either side.
  *
  * [onBack] turns it into a detail header — the arrow takes the place of nothing, since
- * the title block is already inset far enough for it.
+ * the title block is already inset far enough for it. [leading] is the same slot for a
+ * screen that has a control rather than a way back to put there.
  */
 @Composable
 fun ScreenHeader(
@@ -117,6 +116,7 @@ fun ScreenHeader(
     modifier: Modifier = Modifier,
     subtitle: String? = null,
     onBack: (() -> Unit)? = null,
+    leading: (@Composable () -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
 ) {
     val skin = LocalSkin.current
@@ -127,6 +127,7 @@ fun ScreenHeader(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        leading?.invoke()
         if (onBack != null) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -502,32 +503,10 @@ fun EmptyState(
 }
 
 /**
- * The primary action on paper.
- *
- * On the light ground the steel fill of [AccentButton] loses its authority — next to a
- * white card it reads as another card. Ink-filled, it reads as the button.
- */
-@Composable
-fun InkButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    ActionButton(
-        label = label,
-        onClick = onClick,
-        modifier = modifier,
-        enabled = true,
-        background = PaperInk,
-        border = BorderStroke(1.dp, PaperInk),
-        contentColor = PaperCard,
-        leading = null,
-    )
-}
-
-/**
  * The app's bottom sheet: a handle, a title, one line of context, then the content.
  *
  * Dialogs float in the middle of the screen and land where the driver's thumb is not; a
- * sheet comes up from the bottom edge, which is where the hand already is. Sheets are
- * always dark, even over a paper screen — they are a layer above the page, and the
- * inversion is what says so.
+ * sheet comes up from the bottom edge, which is where the hand already is.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

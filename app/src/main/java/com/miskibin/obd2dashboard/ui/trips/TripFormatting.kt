@@ -18,12 +18,12 @@ import com.miskibin.obd2dashboard.data.TripEntry
 import com.miskibin.obd2dashboard.data.TripEvent
 import com.miskibin.obd2dashboard.data.TripEventKind
 import com.miskibin.obd2dashboard.ui.components.formatReading
-import com.miskibin.obd2dashboard.ui.theme.PaperAmberSurface
-import com.miskibin.obd2dashboard.ui.theme.PaperAmberText
-import com.miskibin.obd2dashboard.ui.theme.PaperNeutralSurface
-import com.miskibin.obd2dashboard.ui.theme.PaperNeutralText
-import com.miskibin.obd2dashboard.ui.theme.PaperSignalSurface
-import com.miskibin.obd2dashboard.ui.theme.PaperSignalText
+import com.miskibin.obd2dashboard.ui.theme.AmberLight
+import com.miskibin.obd2dashboard.ui.theme.AmberSurfaceStrong
+import com.miskibin.obd2dashboard.ui.theme.Ash
+import com.miskibin.obd2dashboard.ui.theme.SignalLight
+import com.miskibin.obd2dashboard.ui.theme.SignalSurfaceStrong
+import com.miskibin.obd2dashboard.ui.theme.SlateBorder
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -40,9 +40,9 @@ import java.util.Locale
 @Composable
 fun EventTag(event: TripEvent, modifier: Modifier = Modifier) {
     val (background, foreground) = when {
-        event.kind == TripEventKind.Redline -> PaperNeutralSurface to PaperNeutralText
-        event.metric == Metrics.Battery -> PaperSignalSurface to PaperSignalText
-        else -> PaperAmberSurface to PaperAmberText
+        event.kind == TripEventKind.Redline -> SlateBorder to Ash
+        event.metric == Metrics.Battery -> SignalSurfaceStrong to SignalLight
+        else -> AmberSurfaceStrong to AmberLight
     }
     Text(
         text = eventLabel(event),

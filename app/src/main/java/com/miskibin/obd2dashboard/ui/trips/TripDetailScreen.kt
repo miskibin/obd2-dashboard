@@ -46,26 +46,25 @@ import com.miskibin.obd2dashboard.data.TripEvent
 import com.miskibin.obd2dashboard.data.TripEventKind
 import com.miskibin.obd2dashboard.data.TripPoint
 import com.miskibin.obd2dashboard.data.TripTrace
+import com.miskibin.obd2dashboard.ui.components.AccentButton
 import com.miskibin.obd2dashboard.ui.components.DesignSheet
-import com.miskibin.obd2dashboard.ui.components.InkButton
 import com.miskibin.obd2dashboard.ui.components.QuietButton
 import com.miskibin.obd2dashboard.ui.components.ScreenHeader
 import com.miskibin.obd2dashboard.ui.components.ScreenPadding
 import com.miskibin.obd2dashboard.ui.components.SectionHeader
 import com.miskibin.obd2dashboard.ui.components.SolidDangerButton
 import com.miskibin.obd2dashboard.ui.components.formatReading
+import com.miskibin.obd2dashboard.ui.theme.Amber
+import com.miskibin.obd2dashboard.ui.theme.AmberBorder
 import com.miskibin.obd2dashboard.ui.theme.CardCorner
+import com.miskibin.obd2dashboard.ui.theme.Chalk
+import com.miskibin.obd2dashboard.ui.theme.Fog
 import com.miskibin.obd2dashboard.ui.theme.PanelCorner
-import com.miskibin.obd2dashboard.ui.theme.PaperAmber
-import com.miskibin.obd2dashboard.ui.theme.PaperAmberBorder
-import com.miskibin.obd2dashboard.ui.theme.PaperBorder
-import com.miskibin.obd2dashboard.ui.theme.PaperCard
-import com.miskibin.obd2dashboard.ui.theme.PaperGrey
-import com.miskibin.obd2dashboard.ui.theme.PaperInk
-import com.miskibin.obd2dashboard.ui.theme.PaperInkDim
-import com.miskibin.obd2dashboard.ui.theme.PaperInkFaint
-import com.miskibin.obd2dashboard.ui.theme.PaperLine
-import com.miskibin.obd2dashboard.ui.theme.PaperSteel
+import com.miskibin.obd2dashboard.ui.theme.Slate
+import com.miskibin.obd2dashboard.ui.theme.SlateBorder
+import com.miskibin.obd2dashboard.ui.theme.SlateTrack
+import com.miskibin.obd2dashboard.ui.theme.Smoke
+import com.miskibin.obd2dashboard.ui.theme.Steel
 
 /**
  * One drive, opened.
@@ -109,7 +108,7 @@ fun TripDetailScreen(
                     Text(
                         text = stringResource(R.string.trip_loading),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = PaperInkDim,
+                        color = Smoke,
                         modifier = Modifier.padding(vertical = 24.dp),
                     )
                 }
@@ -122,8 +121,8 @@ fun TripDetailScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(CardCorner)
-                            .background(PaperCard)
-                            .border(1.dp, PaperBorder, CardCorner)
+                            .background(Slate)
+                            .border(1.dp, SlateBorder, CardCorner)
                             .padding(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 10.dp),
                     ) {
                         TripChart(
@@ -139,7 +138,7 @@ fun TripDetailScreen(
                             Text(
                                 text = formatClock(trip.startedAtMillis, 0.0),
                                 style = MaterialTheme.typography.labelMedium,
-                                color = PaperInkFaint,
+                                color = Fog,
                             )
                             Text(
                                 text = formatClock(
@@ -147,7 +146,7 @@ fun TripDetailScreen(
                                     analysis?.durationSeconds ?: 0.0,
                                 ),
                                 style = MaterialTheme.typography.labelMedium,
-                                color = PaperInkFaint,
+                                color = Fog,
                             )
                         }
                         TraceLegend(traces = traces, modifier = Modifier.padding(top = 10.dp))
@@ -176,7 +175,7 @@ fun TripDetailScreen(
                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    InkButton(
+                    AccentButton(
                         label = stringResource(R.string.trip_export),
                         onClick = onExport,
                         modifier = Modifier.weight(1f),
@@ -184,7 +183,6 @@ fun TripDetailScreen(
                     QuietButton(
                         label = stringResource(R.string.action_delete),
                         onClick = { confirmDelete = true },
-                        contentColor = PaperInkDim,
                     )
                 }
             }
@@ -246,21 +244,21 @@ private fun TripStats(analysis: TripAnalysis) {
                 modifier = Modifier
                     .weight(1f)
                     .clip(PanelCorner)
-                    .background(PaperCard)
-                    .border(1.dp, PaperBorder, PanelCorner)
+                    .background(Slate)
+                    .border(1.dp, SlateBorder, PanelCorner)
                     .padding(horizontal = 13.dp, vertical = 12.dp),
             ) {
                 Text(
                     text = label,
                     style = MaterialTheme.typography.labelMedium,
-                    color = PaperInkDim,
+                    color = Smoke,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
                     text = value,
                     style = MaterialTheme.typography.titleLarge,
-                    color = PaperInk,
+                    color = Chalk,
                     maxLines = 1,
                     modifier = Modifier.padding(top = 4.dp),
                 )
@@ -276,8 +274,8 @@ private fun EventCard(event: TripEvent, startedAtMillis: Long) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(PanelCorner)
-            .background(PaperCard)
-            .border(1.dp, if (amber) PaperAmberBorder else PaperBorder, PanelCorner)
+            .background(Slate)
+            .border(1.dp, if (amber) AmberBorder else SlateBorder, PanelCorner)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -286,18 +284,18 @@ private fun EventCard(event: TripEvent, startedAtMillis: Long) {
             modifier = Modifier
                 .size(8.dp)
                 .clip(CircleShape)
-                .background(if (amber) PaperAmber else PaperGrey),
+                .background(if (amber) Amber else Smoke),
         )
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = eventLabel(event),
                 style = MaterialTheme.typography.titleSmall,
-                color = PaperInk,
+                color = Chalk,
             )
             Text(
                 text = eventTiming(event, startedAtMillis),
                 style = MaterialTheme.typography.bodySmall,
-                color = PaperInkDim,
+                color = Smoke,
                 modifier = Modifier.padding(top = 2.dp),
             )
         }
@@ -344,7 +342,7 @@ private fun TraceLegend(traces: List<TripTrace>, modifier: Modifier = Modifier) 
                 Text(
                     text = Metrics[trace.metric]?.let { stringResource(it.nameRes) }.orEmpty(),
                     style = MaterialTheme.typography.labelMedium,
-                    color = PaperInkDim,
+                    color = Smoke,
                     maxLines = 1,
                 )
             }
@@ -373,7 +371,7 @@ private fun TripChart(
 
         listOf(0.25f, 0.5f, 0.75f).forEach { fraction ->
             drawLine(
-                color = PaperLine,
+                color = SlateTrack,
                 start = Offset(0f, height * fraction),
                 end = Offset(width, height * fraction),
                 strokeWidth = 1.dp.toPx(),
@@ -384,7 +382,7 @@ private fun TripChart(
             val start = (event.startSeconds / durationSeconds).toFloat().coerceIn(0f, 1f)
             val end = (event.endSeconds / durationSeconds).toFloat().coerceIn(0f, 1f)
             drawRect(
-                color = PaperAmber.copy(alpha = EVENT_ALPHA),
+                color = Amber.copy(alpha = EVENT_ALPHA),
                 topLeft = Offset(width * start, 0f),
                 size = Size((width * (end - start)).coerceAtLeast(MIN_EVENT_WIDTH.dp.toPx()), height),
             )
@@ -427,18 +425,19 @@ private fun DrawScope.drawTrace(
 
 /** Engine speed leads, the temperatures follow, road speed is context. */
 private fun MetricId.traceColor(): Color = when (this) {
-    Metrics.Rpm -> PaperSteel
-    Metrics.OilTemp -> PaperAmber
-    Metrics.CoolantTemp -> PaperAmber.copy(alpha = 0.55f)
-    else -> PaperGrey
+    Metrics.Rpm -> Steel
+    Metrics.OilTemp -> Amber
+    Metrics.CoolantTemp -> Amber.copy(alpha = 0.55f)
+    else -> Smoke
 }
 
-private fun MetricId.traceWidth(): Float = if (this == Metrics.Rpm) 2.4f else 1.8f
+/** Hairline traces: thicker lines blur together wherever four of them cross. */
+private fun MetricId.traceWidth(): Float = if (this == Metrics.Rpm) 1.5f else 1.2f
 
 private const val PLOT_HEIGHT = 210
 private const val PLOT_INSET = 0.86f
 private const val PLOT_MARGIN = 0.07f
-private const val EVENT_ALPHA = 0.10f
+private const val EVENT_ALPHA = 0.14f
 private const val MIN_EVENT_WIDTH = 2
 private const val MIN_EVENT_DURATION_SECONDS = 1.0
 private const val EPSILON = 1e-6

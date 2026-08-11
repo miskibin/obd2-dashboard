@@ -215,9 +215,6 @@
     <string name="chart_mode_absolute_mixed">Careful: mixed units (%1$s).</string>
     <string name="chart_record_start">Record</string>
     <string name="chart_record_stop">Stop</string>
-    <string name="charts_recording_on">Recording this trip</string>
-    <string name="charts_recording_off">Recording stopped</string>
-    <string name="charts_recording_meta">%1$s · writing to CSV</string>
     <string name="dtc_never_read">Not read yet</string>
     <string name="dtc_clear_caveat">Clearing turns the lamp off but repairs nothing — the code comes back if the cause is still there.</string>
     <string name="dtc_no_frame_message">The control unit kept no frozen frame for this code.</string>
@@ -250,6 +247,7 @@
 
     <!-- Dashboard hero -->
     <string name="dashboard_vehicle_unknown">Vehicle</string>
+    <string name="vehicle_demo">Demo car</string>
     <string name="dashboard_session_max">max this session %1$s</string>
     <string name="dashboard_gear_drive">D</string>
     <string name="dashboard_gear_unknown">gear</string>
@@ -284,7 +282,6 @@
     <string name="chart_window_rate">%1$s · %2$d samples/s</string>
     <string name="chart_picker_title">Parameters on the chart</string>
     <string name="chart_picker_subtitle">Up to %1$d at once · the order sets the colours</string>
-    <string name="charts_recording_hint">Saved as CSV, listed under Trips</string>
     <plurals name="chart_picker_done">
         <item quantity="one">Done · %1$d parameter</item>
         <item quantity="other">Done · %1$d parameters</item>

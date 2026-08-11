@@ -32,20 +32,14 @@ import com.miskibin.obd2dashboard.ui.components.ScreenHeader
 import com.miskibin.obd2dashboard.ui.components.ScreenPadding
 import com.miskibin.obd2dashboard.ui.components.SectionHeader
 import com.miskibin.obd2dashboard.ui.theme.CardCorner
-import com.miskibin.obd2dashboard.ui.theme.PaperBorder
-import com.miskibin.obd2dashboard.ui.theme.PaperCard
-import com.miskibin.obd2dashboard.ui.theme.PaperInk
-import com.miskibin.obd2dashboard.ui.theme.PaperInkDim
-import com.miskibin.obd2dashboard.ui.theme.PaperInkQuiet
+import com.miskibin.obd2dashboard.ui.theme.Graphite
+import com.miskibin.obd2dashboard.ui.theme.LocalSkin
 
 /**
  * Every drive the app recorded, grouped by month.
  *
- * This is the one screen nobody reads while moving, so it is the one screen on paper: a
- * list of past journeys is scanned the way a statement is, and white cards on a warm
- * ground do that better in daylight than a near-black list ever will. The badges are the
- * point of the list — a trip where the oil went over its limit should be findable without
- * opening four of them.
+ * The badges are the point of the list — a trip where the oil went over its limit should
+ * be findable without opening four of them.
  */
 @Composable
 fun TripsScreen(
@@ -108,12 +102,13 @@ fun TripsScreen(
 @Composable
 private fun TripCard(entry: TripEntry, onClick: () -> Unit) {
     val analysis = entry.analysis
+    val skin = LocalSkin.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(CardCorner)
-            .background(PaperCard)
-            .border(1.dp, PaperBorder, CardCorner)
+            .background(skin.card)
+            .border(1.dp, skin.cardBorder, CardCorner)
             .clickable(onClick = onClick)
             .padding(start = 16.dp, end = 14.dp, top = 15.dp, bottom = 15.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -123,14 +118,14 @@ private fun TripCard(entry: TripEntry, onClick: () -> Unit) {
             Text(
                 text = formatTripTitle(entry.trip.startedAtMillis),
                 style = MaterialTheme.typography.titleSmall,
-                color = PaperInk,
+                color = skin.title,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = tripMeta(entry),
                 style = MaterialTheme.typography.bodySmall,
-                color = PaperInkDim,
+                color = skin.subtitle,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = 3.dp),
@@ -146,6 +141,6 @@ private fun TripCard(entry: TripEntry, onClick: () -> Unit) {
                 }
             }
         }
-        Text(text = "›", style = MaterialTheme.typography.headlineSmall, color = PaperInkQuiet)
+        Text(text = "›", style = MaterialTheme.typography.headlineSmall, color = Graphite)
     }
 }

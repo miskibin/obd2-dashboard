@@ -25,7 +25,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -73,9 +72,7 @@ import com.miskibin.obd2dashboard.ui.diagnostics.DiagnosticsScreen
 import com.miskibin.obd2dashboard.ui.diagnostics.FaultDetailScreen
 import com.miskibin.obd2dashboard.ui.settings.REPOSITORY_URL
 import com.miskibin.obd2dashboard.ui.settings.SettingsScreen
-import com.miskibin.obd2dashboard.ui.theme.GraphiteSkin
 import com.miskibin.obd2dashboard.ui.theme.LocalSkin
-import com.miskibin.obd2dashboard.ui.theme.PaperSkin
 import com.miskibin.obd2dashboard.ui.theme.Signal
 import com.miskibin.obd2dashboard.ui.theme.Skin
 import com.miskibin.obd2dashboard.ui.theme.ToastSurface
@@ -178,54 +175,47 @@ private fun Obd2Shell(viewModel: ObdViewModel, hasSavedAdapter: Boolean) {
         route == Routes.FAULT_DETAIL
     val milOn = diagnostics?.monitorStatus?.milOn == true
     val faultCount = diagnostics?.let { it.monitorStatus?.dtcCount ?: it.all.size } ?: 0
-    val skin = skinFor(route)
+    val skin = LocalSkin.current
 
-    CompositionLocalProvider(LocalSkin provides skin) {
-        Scaffold(
-            containerColor = skin.background,
-            snackbarHost = { SnackbarHost(snackbarHostState) { data -> AlertToast(data.visuals.message) } },
-            bottomBar = {
-                if (!showBottomBar) return@Scaffold
-                BottomNav(
-                    destinations = destinations,
-                    route = route,
-                    skin = skin,
-                    faultCount = if (milOn || faultCount > 0) faultCount else 0,
-                    recording = recording is RecordingState.Active,
-                    onSelect = navController::switchTo,
-                )
-            },
-        ) { innerPadding ->
-            Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-                // The dashboard states the connection in its own header, and the trip
-                // screens are read with the engine off; everywhere else the pill is the
-                // only answer to "is it still talking to the car?".
-                if (route in PILL_ROUTES) {
-                    ConnectionPill(
-                        state = connectionState,
-                        label = connectionState.label(),
-                        onClick = { navController.navigate(Routes.CONNECT) },
-                        modifier = Modifier.padding(
-                            start = ScreenPadding,
-                            end = ScreenPadding,
-                            top = 10.dp,
-                        ),
-                    )
-                }
-                AppNavHost(
-                    navController = navController,
-                    viewModel = viewModel,
-                    modifier = Modifier.fillMaxSize(),
+    Scaffold(
+        containerColor = skin.background,
+        snackbarHost = { SnackbarHost(snackbarHostState) { data -> AlertToast(data.visuals.message) } },
+        bottomBar = {
+            if (!showBottomBar) return@Scaffold
+            BottomNav(
+                destinations = destinations,
+                route = route,
+                skin = skin,
+                faultCount = if (milOn || faultCount > 0) faultCount else 0,
+                recording = recording is RecordingState.Active,
+                onSelect = navController::switchTo,
+            )
+        },
+    ) { innerPadding ->
+        Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+            // The dashboard states the connection in its own header, and the trip screens
+            // are about a drive that is already over; everywhere else the pill is the only
+            // answer to "is it still talking to the car?".
+            if (route in PILL_ROUTES) {
+                ConnectionPill(
+                    state = connectionState,
+                    label = connectionState.label(),
+                    onClick = { navController.navigate(Routes.CONNECT) },
+                    modifier = Modifier.padding(
+                        start = ScreenPadding,
+                        end = ScreenPadding,
+                        top = 10.dp,
+                    ),
                 )
             }
+            AppNavHost(
+                navController = navController,
+                viewModel = viewModel,
+                modifier = Modifier.fillMaxSize(),
+            )
         }
     }
 }
-
-/** Trips are read with the engine off, so they are the one part drawn on paper. */
-@Composable
-private fun skinFor(route: String): Skin =
-    if (route == Routes.TRIPS || route == Routes.TRIP_DETAIL) PaperSkin else GraphiteSkin
 
 /**
  * The bottom bar, drawn by hand.
@@ -385,7 +375,10 @@ private fun AppNavHost(
             val chartMetrics by viewModel.chartMetrics.collectAsStateWithLifecycle()
             val recording by viewModel.recording.collectAsStateWithLifecycle()
             val supported by viewModel.supportedPids.collectAsStateWithLifecycle()
+            val vin by viewModel.vin.collectAsStateWithLifecycle()
+            val savedAdapter by viewModel.savedAdapter.collectAsStateWithLifecycle()
             ChartsScreen(
+                vehicleLabel = vehicleLabel(vin, connectionState, savedAdapter),
                 chartMetrics = chartMetrics,
                 supportedPids = supported,
                 snapshot = snapshot,

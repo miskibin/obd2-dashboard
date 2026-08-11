@@ -454,12 +454,20 @@ private const val RIGHT_PADDING = 8
 private const val TOP_PADDING = 10
 private const val BOTTOM_PADDING = 20
 private const val LABEL_GAP = 4
-private const val STROKE_WIDTH = 2.4f
+
+/**
+ * A hairline, not a marker pen.
+ *
+ * A trace is read for its shape, and a thick stroke turns a lively signal into a fat
+ * ribbon that hides its own detail — worse still with six of them crossing. The head dot
+ * and the fill under a lone series are sized to match, so nothing outweighs the line.
+ */
+private const val STROKE_WIDTH = 1.5f
 private const val POINT_RADIUS = 3
-private const val HEAD_RADIUS = 2.6f
-private const val FILL_ALPHA = 0.18f
+private const val HEAD_RADIUS = 2f
+private const val FILL_ALPHA = 0.14f
 private const val BAND_GAP = 6
 private const val BAND_LABEL_INSET = 11
 private const val BAND_ALPHA = 0.12f
-private const val MARKER_WIDTH = 2.5f
+private const val MARKER_WIDTH = 1.5f
 private const val EPSILON = 1e-6f

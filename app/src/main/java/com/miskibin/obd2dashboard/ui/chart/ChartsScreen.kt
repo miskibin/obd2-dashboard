@@ -1,5 +1,10 @@
 package com.miskibin.obd2dashboard.ui.chart
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -13,9 +18,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -28,6 +34,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -43,8 +50,6 @@ import com.miskibin.obd2dashboard.data.Sample
 import com.miskibin.obd2dashboard.data.valueOf
 import com.miskibin.obd2dashboard.obd.VehicleSnapshot
 import com.miskibin.obd2dashboard.ui.AppIcons
-import com.miskibin.obd2dashboard.ui.components.AccentButton
-import com.miskibin.obd2dashboard.ui.components.DangerButton
 import com.miskibin.obd2dashboard.ui.components.EmptyState
 import com.miskibin.obd2dashboard.ui.components.GroupedList
 import com.miskibin.obd2dashboard.ui.components.ScreenHeader
@@ -54,7 +59,6 @@ import com.miskibin.obd2dashboard.ui.components.SegmentedControl
 import com.miskibin.obd2dashboard.ui.components.formatReading
 import com.miskibin.obd2dashboard.ui.theme.AshDim
 import com.miskibin.obd2dashboard.ui.theme.CardCorner
-import com.miskibin.obd2dashboard.ui.theme.Chalk
 import com.miskibin.obd2dashboard.ui.theme.Fog
 import com.miskibin.obd2dashboard.ui.theme.Graphite
 import com.miskibin.obd2dashboard.ui.theme.PillCorner
@@ -62,6 +66,7 @@ import com.miskibin.obd2dashboard.ui.theme.SeriesColors
 import com.miskibin.obd2dashboard.ui.theme.Signal
 import com.miskibin.obd2dashboard.ui.theme.SignalBorder
 import com.miskibin.obd2dashboard.ui.theme.SignalSurface
+import com.miskibin.obd2dashboard.ui.theme.SignalText
 import com.miskibin.obd2dashboard.ui.theme.Slate
 import com.miskibin.obd2dashboard.ui.theme.SlateBorder
 import com.miskibin.obd2dashboard.ui.theme.SlateEdge
@@ -89,6 +94,7 @@ enum class ChartWindow(val millis: Long, val labelRes: Int, val summaryRes: Int)
  */
 @Composable
 fun ChartsScreen(
+    vehicleLabel: String,
     chartMetrics: List<MetricId>,
     supportedPids: Set<Int>,
     snapshot: VehicleSnapshot,
@@ -135,11 +141,18 @@ fun ChartsScreen(
 
     Column(modifier = modifier.fillMaxSize()) {
         ScreenHeader(
-            title = stringResource(R.string.nav_charts),
+            title = vehicleLabel,
             subtitle = if (rate > 0) {
                 stringResource(R.string.chart_window_rate, stringResource(window.summaryRes), rate)
             } else {
                 stringResource(window.summaryRes)
+            },
+            leading = {
+                RecordControl(
+                    recording = recording,
+                    now = now,
+                    onToggleRecording = onToggleRecording,
+                )
             },
             trailing = {
                 SegmentedControl(
@@ -219,13 +232,6 @@ fun ChartsScreen(
 
             Box(modifier = Modifier.height(4.dp))
         }
-
-        RecordingCard(
-            recording = recording,
-            now = now,
-            onToggleRecording = onToggleRecording,
-            modifier = Modifier.padding(start = ScreenPadding, end = ScreenPadding, bottom = 12.dp),
-        )
     }
 
     if (picking) {
@@ -341,66 +347,58 @@ private fun SeriesStats(
 }
 
 /**
- * Recording, as a card rather than a button, pinned above the navigation bar.
+ * Recording, as one control in the header row.
  *
- * It stays put however many series are on the plot: a recording the driver started and
- * cannot find the stop button for is the failure mode worth designing against, and while
- * it runs the card itself turns red so it cannot be mistaken for idle.
+ * A card pinned above the navigation bar spent a tenth of the screen saying "not
+ * recording" — everything it had to communicate is a dot and, once it runs, how long for.
+ * Idle it is a grey dot; recording it turns red and pulses, and states the elapsed time
+ * next to itself so a recording the driver forgot about announces itself.
  */
 @Composable
-private fun RecordingCard(
+private fun RecordControl(
     recording: RecordingState,
     now: Long,
     onToggleRecording: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val active = recording as? RecordingState.Active
+    val pulse = if (active != null) {
+        val transition = rememberInfiniteTransition(label = "record-pulse")
+        transition.animateFloat(
+            initialValue = 0.4f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(tween(700), RepeatMode.Reverse),
+            label = "record-alpha",
+        ).value
+    } else {
+        1f
+    }
+
     Row(
         modifier = modifier
-            .fillMaxWidth()
-            .clip(CardCorner)
+            .sizeIn(minWidth = 36.dp, minHeight = 36.dp)
+            .clip(PillCorner)
             .background(if (active != null) SignalSurface else Slate)
-            .border(1.dp, if (active != null) SignalBorder else SlateBorder, CardCorner)
-            .padding(start = 16.dp, end = 12.dp, top = 12.dp, bottom = 12.dp),
+            .border(1.dp, if (active != null) SignalBorder else SlateBorder, PillCorner)
+            .clickable(onClick = onToggleRecording)
+            .padding(horizontal = 10.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
     ) {
-        Box(
-            modifier = Modifier
-                .size(10.dp)
-                .clip(CircleShape)
-                .background(if (active != null) Signal else Graphite),
+        Icon(
+            imageVector = AppIcons.RecordDot,
+            contentDescription = stringResource(
+                if (active != null) R.string.chart_record_stop else R.string.chart_record_start,
+            ),
+            tint = if (active != null) Signal else Graphite,
+            modifier = Modifier.size(14.dp).alpha(pulse),
         )
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = stringResource(
-                    if (active != null) R.string.charts_recording_on else R.string.charts_recording_off,
-                ),
-                style = MaterialTheme.typography.bodyLarge,
-                color = Chalk,
-            )
-            Text(
-                text = if (active != null) {
-                    stringResource(
-                        R.string.charts_recording_meta,
-                        formatDuration((now - active.startedAtMillis) / 1000),
-                    )
-                } else {
-                    stringResource(R.string.charts_recording_hint)
-                },
-                style = MaterialTheme.typography.labelMedium,
-                color = Smoke,
-            )
-        }
         if (active != null) {
-            DangerButton(
-                label = stringResource(R.string.chart_record_stop),
-                onClick = onToggleRecording,
-            )
-        } else {
-            AccentButton(
-                label = stringResource(R.string.chart_record_start),
-                onClick = onToggleRecording,
+            Text(
+                text = formatDuration((now - active.startedAtMillis) / 1000),
+                style = MaterialTheme.typography.labelMedium,
+                color = SignalText,
+                maxLines = 1,
             )
         }
     }

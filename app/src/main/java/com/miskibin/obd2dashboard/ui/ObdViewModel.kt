@@ -69,6 +69,7 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
     val snapshot = connection.snapshot
     val diagnostics = connection.diagnostics
     val supportedPids: StateFlow<Set<Int>> = connection.supportedPids
+    val vin: StateFlow<String?> = connection.vin
     val recording = recorder.state
     val alertEvents = ObdHolder.alerts.events
 

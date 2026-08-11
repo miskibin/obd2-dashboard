@@ -4,16 +4,14 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
 /**
- * Which of the two grounds the current screen is drawn on.
+ * The ground the app is drawn on, and the roles that go with it.
  *
- * The app is dark wherever it is read through a windscreen mount and light wherever it is
- * read with the engine off. Rather than branch on the route inside every card, each screen
- * publishes its skin and the shared chrome — cards, headers, grouped lists, the bottom
- * bar — reads it from here. Everything else about the two grounds is identical: same
- * radii, same type scale, same spacing.
+ * Rather than name a colour inside every card, the shared chrome — cards, headers,
+ * grouped lists, the bottom bar — asks for a role and gets it from here, so a change of
+ * ground is a change in one file. There is one ground today: the app is read through a
+ * windscreen mount, and it is dark everywhere.
  */
 data class Skin(
-    val dark: Boolean,
     /** The shell behind the screen. */
     val background: Color,
     /** The surface a card is drawn on. */
@@ -36,9 +34,8 @@ data class Skin(
     val navIdle: Color,
 )
 
-/** The instrument ground: dashboard, charts, codes, settings, connection. */
+/** The instrument ground: every screen in the app. */
 val GraphiteSkin = Skin(
-    dark = true,
     background = Ink,
     card = Slate,
     cardBorder = SlateBorder,
@@ -51,23 +48,6 @@ val GraphiteSkin = Skin(
     navBorder = SlateLine,
     navSelected = Chalk,
     navIdle = SmokeDim,
-)
-
-/** The after-the-drive ground: the trip list and one trip's detail. */
-val PaperSkin = Skin(
-    dark = false,
-    background = Paper,
-    card = PaperCard,
-    cardBorder = PaperBorder,
-    divider = PaperBorder,
-    title = PaperInk,
-    subtitle = PaperInkDim,
-    prose = PaperInkDim,
-    quiet = PaperInkFaint,
-    navBackground = PaperRaised,
-    navBorder = PaperBorder,
-    navSelected = PaperInk,
-    navIdle = PaperInkFaint,
 )
 
 val LocalSkin = staticCompositionLocalOf { GraphiteSkin }

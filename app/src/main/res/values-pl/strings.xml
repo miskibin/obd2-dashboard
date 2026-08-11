@@ -219,9 +219,6 @@
     <string name="chart_mode_absolute_mixed">Uwaga: różne jednostki (%1$s).</string>
     <string name="chart_record_start">Nagrywaj</string>
     <string name="chart_record_stop">Zatrzymaj</string>
-    <string name="charts_recording_on">Nagrywanie przejazdu</string>
-    <string name="charts_recording_off">Nagrywanie zatrzymane</string>
-    <string name="charts_recording_meta">%1$s · zapis do CSV</string>
     <string name="dtc_never_read">Jeszcze nieodczytane</string>
     <string name="dtc_clear_caveat">Kasowanie gasi kontrolkę, ale nie naprawia usterki — kod wróci, jeśli przyczyna nie zniknie.</string>
     <string name="dtc_no_frame_message">Sterownik nie zapisał zamrożonej ramki dla tego kodu.</string>
@@ -256,6 +253,7 @@
 
     <!-- Pulpit -->
     <string name="dashboard_vehicle_unknown">Pojazd</string>
+    <string name="vehicle_demo">Auto demo</string>
     <string name="dashboard_session_max">maks. w tej sesji %1$s</string>
     <string name="dashboard_gear_drive">D</string>
     <string name="dashboard_gear_unknown">bieg</string>
@@ -290,7 +288,6 @@
     <string name="chart_window_rate">%1$s · %2$d próbek/s</string>
     <string name="chart_picker_title">Parametry na wykresie</string>
     <string name="chart_picker_subtitle">Do %1$d naraz · kolejność wyboru ustala kolory</string>
-    <string name="charts_recording_hint">Zapis do CSV, widoczny w Przejazdach</string>
     <plurals name="chart_picker_done">
         <item quantity="one">Gotowe · %1$d parametr</item>
         <item quantity="few">Gotowe · %1$d parametry</item>
