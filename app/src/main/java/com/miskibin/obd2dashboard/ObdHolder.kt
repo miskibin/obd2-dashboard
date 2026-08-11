@@ -1,0 +1,80 @@
+package com.miskibin.obd2dashboard
+
+import android.Manifest
+import android.app.Application
+import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
+import com.miskibin.obd2dashboard.ble.ConnectionManager
+import com.miskibin.obd2dashboard.ble.DiscoveredDevice
+import com.miskibin.obd2dashboard.data.AppPreferences
+import com.miskibin.obd2dashboard.data.MetricHistory
+import com.miskibin.obd2dashboard.data.TripRecorder
+import com.miskibin.obd2dashboard.data.TripRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+
+/**
+ * Process-wide owner of the connection.
+ *
+ * The UI and [com.miskibin.obd2dashboard.service.ObdConnectionService] must talk to the
+ * *same* [ConnectionManager] — a second one would open a second GATT link to a dongle
+ * that only accepts one. A plain singleton is enough here; a DI container would be
+ * ceremony around a single object graph that never varies.
+ */
+object ObdHolder {
+
+    val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    lateinit var connection: ConnectionManager
+        private set
+    lateinit var preferences: AppPreferences
+        private set
+    lateinit var history: MetricHistory
+        private set
+    lateinit var recorder: TripRecorder
+        private set
+    lateinit var trips: TripRepository
+        private set
+
+    private var installed = false
+
+    fun install(application: Application) {
+        if (installed) return
+        installed = true
+        connection = ConnectionManager(application, scope)
+        preferences = AppPreferences(application)
+        history = MetricHistory()
+        recorder = TripRecorder(application, scope)
+        trips = TripRepository(application)
+
+        scope.launch { connection.snapshot.collect(history::record) }
+        scope.launch { preferences.pollingEnabled.collect(connection::setPollingEnabled) }
+    }
+
+    /**
+     * Reconnects to the remembered adapter without asking anything of the driver — the
+     * app is normally launched already sitting in a mount with the dongle plugged in.
+     */
+    suspend fun autoConnect(context: Context): Boolean {
+        if (!hasConnectPermission(context)) return false
+        val saved = preferences.savedAdapter.first() ?: return false
+        connection.connect(
+            DiscoveredDevice(
+                address = saved.address,
+                name = saved.name,
+                rssi = 0,
+                looksLikeAdapter = true,
+            ),
+        )
+        return true
+    }
+
+    fun hasConnectPermission(context: Context): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+            context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) ==
+            PackageManager.PERMISSION_GRANTED
+}

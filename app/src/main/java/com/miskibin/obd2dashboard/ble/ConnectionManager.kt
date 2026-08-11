@@ -61,6 +61,10 @@ class ConnectionManager(
     private val _vin = MutableStateFlow<String?>(null)
     val vin: StateFlow<String?> = _vin.asStateFlow()
 
+    /** PIDs the vehicle answered `0100`/`0120`/… for; empty until the first connect. */
+    private val _supportedPids = MutableStateFlow<Set<Int>>(emptySet())
+    val supportedPids: StateFlow<Set<Int>> = _supportedPids.asStateFlow()
+
     private var scanJob: Job? = null
     private var sessionJob: Job? = null
     private var mirrorJob: Job? = null
@@ -193,6 +197,7 @@ class ConnectionManager(
         val newClient = Obd2Client(newSession, info.protocol).also { client = it }
         _state.value = ConnectionState.Initializing("supported PIDs")
         val supported = newClient.scanSupportedPids()
+        _supportedPids.value = supported
         newClient.probeBatching(Pids.tier(PidTier.Fast).take(BATCH_PROBE_SIZE))
 
         val newScheduler = PidScheduler(

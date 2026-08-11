@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Trip recordings written by TripRecorder, shared read-only through the share sheet. -->
+    <files-path
+        name="trips"
+        path="trips/" />
+</paths>
