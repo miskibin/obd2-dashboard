@@ -115,6 +115,41 @@ class Obd2Client(
     )
 
     /**
+     * Mode 02 frame [frame]: the values the ECU froze when it set a code.
+     *
+     * Every parameter is asked for on its own (`02 0C 00`), because the freeze frame is
+     * read once per report rather than in a polling loop and a car that answers `NO DATA`
+     * for one PID must still give up the rest. A car with nothing stored answers `NO DATA`
+     * to all of them, which comes back as an empty [FreezeFrame].
+     */
+    suspend fun readFreezeFrame(frame: Int = FreezeFrames.FIRST_FRAME): FreezeFrame {
+        val trigger = readFrameBytes(FreezeFrames.DTC_PID, frame, DTC_BYTES)
+            ?.let { DtcDecoder.decode(it[0], it[1]) }
+        val values = FreezeFrames.pids.mapNotNull { pid ->
+            readFrameBytes(pid.id, frame, pid.bytes)?.let { pid.id to pid.decode(it) }
+        }
+        return FreezeFrame(trigger, values.toMap())
+    }
+
+    /**
+     * A Mode 02 reply repeats the PID *and* the frame number before the data
+     * (`42 0C 00 1F 40`), so the payload cannot be located by PID alone.
+     */
+    private suspend fun readFrameBytes(pid: Int, frame: Int, count: Int): IntArray? {
+        val command = "%02X%02X%02X".format(MODE_FREEZE_FRAME, pid, frame)
+        val response = session.request(command, PID_TIMEOUT_MILLIS)
+        if (response !is ElmResponse.Ok) return null
+        val frames = ObdResponseParser.frames(response.lines, protocol)
+        val payload = ObdResponseParser.afterMarker(
+            frames,
+            MODE_FREEZE_FRAME + ObdResponseParser.RESPONSE_OFFSET,
+            pid,
+            frame,
+        ) ?: return null
+        return if (payload.size < count) null else payload.take(count).toIntArray()
+    }
+
+    /**
      * Mode 04. The ECU can take well over a second to answer, so the response ceiling is
      * raised for the duration and restored afterwards.
      */
@@ -143,6 +178,7 @@ class Obd2Client(
 
         private const val MONITOR_STATUS_PID = 0x01
         private const val MONITOR_STATUS_BYTES = 4
+        private const val DTC_BYTES = 2
         private const val MAX_COUNT_DIGIT = 0xF
     }
 }

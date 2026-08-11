@@ -11,6 +11,7 @@ import com.miskibin.obd2dashboard.obd.ElmInitConfig
 import com.miskibin.obd2dashboard.obd.ElmInitializer
 import com.miskibin.obd2dashboard.obd.ElmSession
 import com.miskibin.obd2dashboard.obd.ElmTransport
+import com.miskibin.obd2dashboard.obd.FreezeFrame
 import com.miskibin.obd2dashboard.obd.InitOutcome
 import com.miskibin.obd2dashboard.obd.Obd2Client
 import com.miskibin.obd2dashboard.obd.ObdProtocol
@@ -69,6 +70,9 @@ class ConnectionManager(
 
     private val _vin = MutableStateFlow<String?>(null)
     val vin: StateFlow<String?> = _vin.asStateFlow()
+
+    private val _freezeFrame = MutableStateFlow<FreezeFrame?>(null)
+    val freezeFrame: StateFlow<FreezeFrame?> = _freezeFrame.asStateFlow()
 
     /** PIDs the vehicle answered `0100`/`0120`/… for; empty until the first connect. */
     private val _supportedPids = MutableStateFlow<Set<Int>>(emptySet())
@@ -153,10 +157,22 @@ class ConnectionManager(
         return result
     }
 
+    /** Null when the car has no frame stored, which is the normal answer with no codes. */
+    suspend fun readFreezeFrame(): FreezeFrame? {
+        val active = client ?: return null
+        val frame = withScheduler { active.readFreezeFrame() }.takeIf { !it.isEmpty }
+        _freezeFrame.value = frame
+        return frame
+    }
+
     suspend fun clearDtcs(): Boolean {
         val active = client ?: return false
         val cleared = withScheduler { active.clearDtcs() }
-        if (cleared) refreshDiagnostics()
+        // Mode 04 erases the freeze frame along with the codes that owned it.
+        if (cleared) {
+            _freezeFrame.value = null
+            refreshDiagnostics()
+        }
         return cleared
     }
 

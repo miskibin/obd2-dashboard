@@ -8,6 +8,7 @@ import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothProfile
+import android.bluetooth.BluetoothStatusCodes
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
@@ -136,7 +137,8 @@ class BleElmTransport(
         val value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
         awaitOperation {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                connection.writeDescriptor(cccd, value) == BluetoothGatt.GATT_SUCCESS
+                // API 33 returns a BluetoothStatusCodes value, not a GATT status.
+                connection.writeDescriptor(cccd, value) == BluetoothStatusCodes.SUCCESS
             } else {
                 @Suppress("DEPRECATION")
                 cccd.value = value
@@ -161,7 +163,7 @@ class BleElmTransport(
         awaitOperation {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 connection.writeCharacteristic(characteristic, chunk, writeType) ==
-                    BluetoothGatt.GATT_SUCCESS
+                    BluetoothStatusCodes.SUCCESS
             } else {
                 @Suppress("DEPRECATION")
                 characteristic.value = chunk

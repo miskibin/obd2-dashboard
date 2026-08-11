@@ -102,6 +102,34 @@ class DemoElmTransportTest {
     }
 
     @Test
+    fun `readiness has the catalyst and evap monitors still running`() = runTest {
+        val (client, _) = connect(backgroundScope)
+        val readiness = client.readDiagnostics().monitorStatus?.readiness!!
+
+        assertEquals(IgnitionType.Spark, readiness.ignition)
+        assertEquals(
+            listOf(MonitorId.Catalyst, MonitorId.EvaporativeSystem),
+            readiness.incomplete.map(Monitor::id),
+        )
+        assertFalse(readiness.ready)
+        assertEquals(7, readiness.supported.size)
+    }
+
+    @Test
+    fun `a freeze frame is stored for the code that set the light`() = runTest {
+        val (client, _) = connect(backgroundScope)
+        val frame = client.readFreezeFrame()
+
+        assertEquals(DemoElmTransport.FREEZE_FRAME_CODE, frame.triggerCode)
+        assertEquals(2_100.0, frame.values[Pids.ENGINE_RPM]!!, 1.0)
+        assertEquals(84.0, frame.values[Pids.VEHICLE_SPEED]!!, 1.0)
+        assertEquals(92.0, frame.values[Pids.COOLANT_TEMP]!!, 1.0)
+        assertEquals(48.0, frame.values[Pids.INTAKE_MAP]!!, 1.0)
+        assertEquals(10.2, frame.values[Pids.LONG_FUEL_TRIM_1]!!, 0.5)
+        assertEquals(FreezeFrames.pids.size, frame.values.size)
+    }
+
+    @Test
     fun `mode 04 clears stored and pending codes and turns the light off`() = runTest {
         val (client, _) = connect(backgroundScope)
 
@@ -112,6 +140,20 @@ class DemoElmTransportTest {
         assertEquals(emptyList<Dtc>(), diagnostics.pending)
         assertEquals(false, diagnostics.monitorStatus?.milOn)
         assertEquals(0, diagnostics.monitorStatus?.dtcCount)
+        // Clearing takes the freeze frame with it.
+        assertTrue(client.readFreezeFrame().isEmpty)
+    }
+
+    @Test
+    fun `the drive cycle heats the coolant past the default alert threshold`() {
+        val vehicle = DemoVehicle()
+        val cycle = (0..179).map { vehicle.sampleAt(it * 1_000L) }
+
+        val hot = cycle.filter { it.coolantC > 105.0 }
+        assertTrue("nothing crossed 105 °C in one cycle", hot.isNotEmpty())
+        assertTrue("coolant reached ${cycle.maxOf { it.coolantC }}", cycle.maxOf { it.coolantC } < 115.0)
+        // It comes back down, so a threshold alert re-arms rather than latching on.
+        assertTrue(cycle.last().coolantC < 95.0)
     }
 
     @Test

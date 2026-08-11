@@ -2,6 +2,7 @@ package com.miskibin.obd2dashboard.ui.diagnostics
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -42,9 +43,13 @@ import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.unit.dp
 import com.miskibin.obd2dashboard.R
 import com.miskibin.obd2dashboard.data.DtcDescriptions
+import com.miskibin.obd2dashboard.data.MonitorNames
 import com.miskibin.obd2dashboard.obd.Diagnostics
 import com.miskibin.obd2dashboard.obd.Dtc
 import com.miskibin.obd2dashboard.obd.DtcKind
+import com.miskibin.obd2dashboard.obd.IgnitionType
+import com.miskibin.obd2dashboard.obd.MonitorState
+import com.miskibin.obd2dashboard.obd.Readiness
 import com.miskibin.obd2dashboard.ui.AppIcons
 import com.miskibin.obd2dashboard.ui.DtcOperation
 import com.miskibin.obd2dashboard.ui.components.EmptyState
@@ -64,6 +69,7 @@ fun DiagnosticsScreen(
     connected: Boolean,
     onRead: () -> Unit,
     onClear: () -> Unit,
+    onShareReport: () -> Unit,
     onConnect: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -89,37 +95,49 @@ fun DiagnosticsScreen(
         StatusHeader(diagnostics)
 
         Box(modifier = Modifier.weight(1f)) {
-            when {
-                diagnostics == null -> EmptyState(
-                    icon = AppIcons.Gauge,
-                    title = stringResource(R.string.dtc_idle_title),
-                    message = stringResource(R.string.dtc_idle_message),
-                    modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
-                )
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                when {
+                    diagnostics == null -> item {
+                        EmptyState(
+                            icon = AppIcons.Gauge,
+                            title = stringResource(R.string.dtc_idle_title),
+                            message = stringResource(R.string.dtc_idle_message),
+                            modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
+                        )
+                    }
 
-                diagnostics.all.isEmpty() -> EmptyState(
-                    icon = AppIcons.Gauge,
-                    title = stringResource(R.string.dtc_none_title),
-                    message = stringResource(R.string.dtc_none_message),
-                    modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
-                )
+                    diagnostics.all.isEmpty() -> item {
+                        EmptyState(
+                            icon = AppIcons.Gauge,
+                            title = stringResource(R.string.dtc_none_title),
+                            message = stringResource(R.string.dtc_none_message),
+                            modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
+                        )
+                    }
 
-                else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    section(
-                        titleRes = R.string.dtc_section_stored,
-                        codes = diagnostics.stored,
-                        language = language,
-                    )
-                    section(
-                        titleRes = R.string.dtc_section_pending,
-                        codes = diagnostics.pending,
-                        language = language,
-                    )
-                    section(
-                        titleRes = R.string.dtc_section_permanent,
-                        codes = diagnostics.permanent,
-                        language = language,
-                    )
+                    else -> {
+                        section(
+                            titleRes = R.string.dtc_section_stored,
+                            codes = diagnostics.stored,
+                            language = language,
+                        )
+                        section(
+                            titleRes = R.string.dtc_section_pending,
+                            codes = diagnostics.pending,
+                            language = language,
+                        )
+                        section(
+                            titleRes = R.string.dtc_section_permanent,
+                            codes = diagnostics.permanent,
+                            language = language,
+                        )
+                    }
+                }
+
+                diagnostics?.monitorStatus?.readiness?.let { readiness ->
+                    item(key = "readiness") {
+                        ReadinessCard(readiness = readiness, language = language)
+                    }
                 }
             }
         }
@@ -143,19 +161,32 @@ fun DiagnosticsScreen(
             )
         }
 
-        if (diagnostics != null && diagnostics.all.isNotEmpty()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             OutlinedButton(
-                onClick = { confirmClear = true },
+                onClick = onShareReport,
                 enabled = operation == null,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 52.dp)
-                    .padding(bottom = 8.dp),
+                modifier = Modifier.weight(1f).heightIn(min = 52.dp),
             ) {
-                Text(
-                    text = stringResource(R.string.action_clear_codes),
-                    color = MaterialTheme.colorScheme.error,
-                )
+                if (operation == DtcOperation.Reporting) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(8.dp))
+                }
+                Text(stringResource(R.string.action_share_report))
+            }
+            if (diagnostics != null && diagnostics.all.isNotEmpty()) {
+                OutlinedButton(
+                    onClick = { confirmClear = true },
+                    enabled = operation == null,
+                    modifier = Modifier.weight(1f).heightIn(min = 52.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.action_clear_codes),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
             }
         }
     }
@@ -228,6 +259,121 @@ private fun StatusHeader(diagnostics: Diagnostics?) {
                     text = pluralStringResource(R.plurals.dtc_status_count, count, count),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The answer to "will it pass the inspection?", with the detail behind it one tap away.
+ *
+ * The verdict is the only line that matters to most owners, so the per-monitor table —
+ * which needs the reader to know what an evap monitor is — stays collapsed until asked
+ * for.
+ */
+@Composable
+private fun ReadinessCard(readiness: Readiness, language: String) {
+    var expanded by remember { mutableStateOf(false) }
+    val incomplete = readiness.incomplete.size
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .clickable { expanded = !expanded }
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.readiness_section).uppercase(),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(12.dp)
+                    .clip(CircleShape)
+                    .background(
+                        if (readiness.ready) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.secondary
+                        },
+                    ),
+            )
+            Text(
+                text = if (readiness.ready) {
+                    stringResource(R.string.readiness_ready)
+                } else {
+                    pluralStringResource(R.plurals.readiness_not_ready, incomplete, incomplete)
+                },
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        Text(
+            text = stringResource(
+                if (expanded) R.string.readiness_hide else R.string.readiness_show,
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.primary,
+        )
+
+        if (!expanded) return@Column
+
+        Text(
+            text = stringResource(
+                when (readiness.ignition) {
+                    IgnitionType.Spark -> R.string.readiness_ignition_spark
+                    IgnitionType.Compression -> R.string.readiness_ignition_compression
+                },
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        readiness.supported.forEach { monitor ->
+            val complete = monitor.state == MonitorState.Complete
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (complete) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.secondary
+                            },
+                        ),
+                )
+                Text(
+                    text = MonitorNames[monitor.id].forLanguage(language),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    text = stringResource(
+                        if (complete) R.string.readiness_complete else R.string.readiness_incomplete,
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (complete) {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    } else {
+                        MaterialTheme.colorScheme.secondary
+                    },
                 )
             }
         }

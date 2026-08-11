@@ -15,6 +15,9 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -27,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -48,6 +52,7 @@ import com.miskibin.obd2dashboard.ui.components.ConnectionPill
 import com.miskibin.obd2dashboard.ui.connect.ConnectScreen
 import com.miskibin.obd2dashboard.ui.dashboard.DashboardScreen
 import com.miskibin.obd2dashboard.ui.dashboard.PidPickerScreen
+import com.miskibin.obd2dashboard.service.describe
 import com.miskibin.obd2dashboard.ui.diagnostics.DiagnosticsScreen
 import com.miskibin.obd2dashboard.ui.settings.REPOSITORY_URL
 import com.miskibin.obd2dashboard.ui.settings.SettingsScreen
@@ -99,6 +104,18 @@ private fun Obd2Shell(viewModel: ObdViewModel, hasSavedAdapter: Boolean) {
         }
     }
 
+    // A threshold breach is worth interrupting whatever screen the driver is on.
+    val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(Unit) {
+        viewModel.alertEvents.collect { event ->
+            snackbarHostState.showSnackbar(
+                message = describe(context, event),
+                duration = SnackbarDuration.Long,
+            )
+        }
+    }
+
     val destinations = listOf(
         Destination(Routes.DASHBOARD, AppIcons.Gauge, R.string.nav_dashboard),
         Destination(Routes.CHARTS, AppIcons.Timeline, R.string.nav_charts),
@@ -110,6 +127,7 @@ private fun Obd2Shell(viewModel: ObdViewModel, hasSavedAdapter: Boolean) {
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             if (!showBottomBar) return@Scaffold
             NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
@@ -202,12 +220,23 @@ private fun AppNavHost(
         composable(Routes.DIAGNOSTICS) {
             val diagnostics by viewModel.diagnostics.collectAsStateWithLifecycle()
             val operation by viewModel.dtcOperation.collectAsStateWithLifecycle()
+            val report by viewModel.report.collectAsStateWithLifecycle()
+            val language = Locale.current.language
+
+            // The report is built off the main thread; the share sheet opens when it lands.
+            LaunchedEffect(report) {
+                val text = report ?: return@LaunchedEffect
+                runCatching { context.startActivity(reportChooser(context, text)) }
+                viewModel.consumeReport()
+            }
+
             DiagnosticsScreen(
                 diagnostics = diagnostics,
                 operation = operation,
                 connected = connectionState is ConnectionState.Connected,
                 onRead = viewModel::readCodes,
                 onClear = viewModel::clearCodes,
+                onShareReport = { viewModel.buildReport(language) },
                 onConnect = { navController.navigate(Routes.CONNECT) },
             )
         }
@@ -215,16 +244,20 @@ private fun AppNavHost(
         composable(Routes.SETTINGS) {
             val savedAdapter by viewModel.savedAdapter.collectAsStateWithLifecycle()
             val pollingEnabled by viewModel.pollingEnabled.collectAsStateWithLifecycle()
+            val alertRules by viewModel.alertRules.collectAsStateWithLifecycle()
             val language = remember(context) { LocalePreference.current(context) }
             val versionName = remember(context) { versionNameOf(context) }
             SettingsScreen(
                 savedAdapter = savedAdapter,
                 language = language,
                 pollingEnabled = pollingEnabled,
+                alertRules = alertRules,
                 versionName = versionName,
                 onForgetAdapter = viewModel::forgetAdapter,
                 onLanguageChange = { selected -> applyLanguage(context, selected) },
                 onPollingChange = viewModel::setPollingEnabled,
+                onAlertRuleChange = viewModel::setAlertRule,
+                onRestoreDefaultAlerts = viewModel::restoreDefaultAlerts,
                 onOpenRepository = {
                     runCatching {
                         context.startActivity(Intent(Intent.ACTION_VIEW, REPOSITORY_URL.toUri()))
@@ -295,6 +328,17 @@ private fun NavController.switchTo(route: String) {
         launchSingleTop = true
         restoreState = true
     }
+}
+
+/** The report goes out as plain text, so any messenger or mail app can take it. */
+private fun reportChooser(context: android.content.Context, report: String): Intent {
+    val send = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_SUBJECT, context.getString(R.string.report_subject))
+        putExtra(Intent.EXTRA_TEXT, report)
+    }
+    return Intent.createChooser(send, context.getString(R.string.action_share))
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 }
 
 private fun applyLanguage(context: android.content.Context, language: AppLanguage) {

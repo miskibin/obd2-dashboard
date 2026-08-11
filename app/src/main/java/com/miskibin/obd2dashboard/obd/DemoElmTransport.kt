@@ -86,7 +86,7 @@ class DemoVehicle(seed: Long = DEFAULT_SEED) {
                 COLD_C + (HOT_COOLANT_C - COLD_C) * warmed
             } else {
                 HOT_COOLANT_C + wobble(seconds, THERMOSTAT_SWING_C, THERMOSTAT_SECONDS)
-            },
+            } + heatSoak(seconds),
             intakeC = INTAKE_COLD_C + INTAKE_RISE_C * warmed - INTAKE_RAM_COOLING_C * (speed / TOP_KPH),
             ambientC = AMBIENT_C + wobble(seconds, AMBIENT_SWING_C, AMBIENT_SECONDS),
             oilC = COLD_C + (HOT_OIL_C - COLD_C) * min(1.0, seconds / OIL_WARM_SECONDS),
@@ -115,6 +115,25 @@ class DemoVehicle(seed: Long = DEFAULT_SEED) {
 
             phase < CRUISE_UNTIL -> TOP_KPH
             phase < COAST_UNTIL -> TOP_KPH * (COAST_UNTIL - phase) / (COAST_UNTIL - CRUISE_UNTIL)
+            else -> 0.0
+        }
+    }
+
+    /**
+     * The long motorway pull at the top of each cycle, as degrees above the thermostat.
+     *
+     * It is what makes the coolant threshold alert demonstrable without a real car: the
+     * temperature climbs past 105 °C towards the end of the cruise and drops back on the
+     * coast, so an alert fires, re-arms and can fire again on the next lap.
+     */
+    private fun heatSoak(seconds: Double): Double {
+        val phase = seconds.mod(CYCLE_SECONDS)
+        return when {
+            phase < HEAT_SOAK_FROM -> 0.0
+            phase < CRUISE_UNTIL ->
+                HEAT_SOAK_PEAK_C * (phase - HEAT_SOAK_FROM) / (CRUISE_UNTIL - HEAT_SOAK_FROM)
+
+            phase < COAST_UNTIL -> HEAT_SOAK_PEAK_C * (COAST_UNTIL - phase) / (COAST_UNTIL - CRUISE_UNTIL)
             else -> 0.0
         }
     }
@@ -189,7 +208,11 @@ class DemoVehicle(seed: Long = DEFAULT_SEED) {
         const val COLD_C = 20.0
         const val HOT_COOLANT_C = 90.0
         const val HOT_OIL_C = 95.0
-        const val COOLANT_WARM_SECONDS = 180.0
+        const val COOLANT_WARM_SECONDS = 100.0
+
+        /** Starts where the warm-up ends, so the two never overlap. */
+        const val HEAT_SOAK_FROM = 100.0
+        const val HEAT_SOAK_PEAK_C = 18.0
         const val OIL_WARM_SECONDS = 300.0
         const val THERMOSTAT_SWING_C = 1.5
         const val THERMOSTAT_SECONDS = 30.0
@@ -311,6 +334,7 @@ class DemoElmTransport(
         val banner = if (searched) emptyList() else listOf(SEARCHING).also { searched = true }
         val payload = when (bytes.firstOrNull()) {
             MODE_CURRENT_DATA -> currentData(bytes.drop(1))
+            MODE_FREEZE_FRAME -> freezeFrame(bytes.drop(1))
             MODE_STORED_DTC -> troubleCodes(MODE_STORED_DTC, stored)
             MODE_PENDING_DTC -> troubleCodes(MODE_PENDING_DTC, pending)
             MODE_PERMANENT_DTC -> null
@@ -332,6 +356,32 @@ class DemoElmTransport(
         return payload.takeIf { it.size > 1 }
     }
 
+    /**
+     * The frame the ECU kept from the moment P0420 was set: a steady motorway cruise with
+     * the mixture already leaning on a long-term correction. Clearing the codes takes the
+     * frame with it, exactly as Mode 04 does on a real car.
+     */
+    private fun freezeFrame(request: List<Int>): List<Int>? {
+        val pid = request.getOrNull(0) ?: return null
+        val frame = request.getOrNull(1) ?: FreezeFrames.FIRST_FRAME
+        if (stored.isEmpty() || frame != FreezeFrames.FIRST_FRAME) return null
+        val data = frozenData(pid) ?: return null
+        return listOf(MODE_FREEZE_FRAME + ObdResponseParser.RESPONSE_OFFSET, pid, frame) + data
+    }
+
+    private fun frozenData(pid: Int): List<Int>? = when (pid) {
+        FreezeFrames.DTC_PID -> DtcDecoder.encode(FREEZE_FRAME_CODE)
+        Pids.ENGINE_LOAD -> listOf(ratio(FROZEN_LOAD_PERCENT))
+        Pids.COOLANT_TEMP -> listOf(temperature(FROZEN_COOLANT_C))
+        Pids.SHORT_FUEL_TRIM_1 -> listOf(fuelTrim(FROZEN_SHORT_TRIM))
+        Pids.LONG_FUEL_TRIM_1 -> listOf(fuelTrim(FROZEN_LONG_TRIM))
+        Pids.INTAKE_MAP -> listOf(byte(FROZEN_MANIFOLD_KPA))
+        Pids.ENGINE_RPM -> word(FROZEN_RPM * RPM_QUARTERS)
+        Pids.VEHICLE_SPEED -> listOf(byte(FROZEN_SPEED_KPH))
+        Pids.INTAKE_AIR_TEMP -> listOf(temperature(FROZEN_INTAKE_C))
+        else -> null
+    }
+
     private fun troubleCodes(mode: Int, codes: List<String>): List<Int> =
         listOf(mode + ObdResponseParser.RESPONSE_OFFSET, codes.size) +
             codes.flatMap { DtcDecoder.encode(it).orEmpty() }
@@ -351,7 +401,7 @@ class DemoElmTransport(
     /** Live data, support bitmasks and the lamp status, as raw Mode 01 data bytes. */
     private fun dataFor(pid: Int, state: DemoVehicleState): List<Int>? = when (pid) {
         0x00, 0x20, 0x40 -> supportMask(pid)
-        0x01 -> listOf(lampByte(), 0x07, 0x65, 0x00)
+        0x01 -> listOf(lampByte()) + READINESS_BYTES
         0x03 -> listOf(0x02, 0x00)
         Pids.ENGINE_LOAD -> listOf(ratio(state.engineLoadPercent))
         Pids.COOLANT_TEMP -> listOf(temperature(state.coolantC))
@@ -492,6 +542,18 @@ class DemoElmTransport(
         val STORED_CODES = listOf("P0420", "P0301")
         val PENDING_CODES = listOf("P0171")
 
+        /**
+         * Bytes B, C and D of `0101` for a petrol car that was driven since the last
+         * clear but has not finished every self-test: B `07` supports all three
+         * continuous monitors and marks them complete on a spark-ignition engine, C `65`
+         * supports catalyst, evap and both oxygen-sensor monitors, and D `05` says the
+         * catalyst and evap tests are still pending.
+         */
+        val READINESS_BYTES = listOf(0x07, 0x65, 0x05)
+
+        /** The code the stored freeze frame belongs to; the first of [STORED_CODES]. */
+        const val FREEZE_FRAME_CODE = "P0420"
+
         private const val LATENCY_SEED = 0x1701L
         private const val NOTIFICATION_CHUNK = 20
         private const val AT_PREFIX = "AT"
@@ -530,5 +592,15 @@ class DemoElmTransport(
         private const val FUEL_RATE_TWENTIETHS = 20.0
         private const val CLOSED_THROTTLE_OFFSET = 6.0
         private const val PEDAL_OFFSET = 2.0
+
+        // The frozen cruise, in engineering units.
+        private const val FROZEN_RPM = 2_100.0
+        private const val FROZEN_SPEED_KPH = 84.0
+        private const val FROZEN_LOAD_PERCENT = 44.0
+        private const val FROZEN_COOLANT_C = 92.0
+        private const val FROZEN_MANIFOLD_KPA = 48.0
+        private const val FROZEN_INTAKE_C = 34.0
+        private const val FROZEN_SHORT_TRIM = 3.9
+        private const val FROZEN_LONG_TRIM = 10.2
     }
 }

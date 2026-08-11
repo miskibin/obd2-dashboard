@@ -37,6 +37,9 @@
     <string name="action_stop_recording">Zatrzymaj · %1$s</string>
     <string name="action_read_codes">Odczytaj błędy</string>
     <string name="action_clear_codes">Skasuj błędy</string>
+    <string name="action_share_report">Wyślij raport</string>
+    <string name="action_save">Zapisz</string>
+    <string name="action_restore_defaults">Przywróć domyślne</string>
 
     <!-- Ekran połączenia -->
     <string name="connect_title">Połącz adapter</string>
@@ -106,6 +109,37 @@
         <item quantity="many">%1$d zapisanych kodów</item>
         <item quantity="other">%1$d zapisanych kodów</item>
     </plurals>
+
+    <!-- Testy gotowości -->
+    <string name="readiness_section">Testy gotowości</string>
+    <string name="readiness_ready">Gotowy do badania technicznego</string>
+    <string name="readiness_complete">Ukończony</string>
+    <string name="readiness_incomplete">Nieukończony</string>
+    <string name="readiness_show">Pokaż szczegóły</string>
+    <string name="readiness_hide">Ukryj szczegóły</string>
+    <string name="readiness_ignition_spark">Zapłon iskrowy (benzyna)</string>
+    <string name="readiness_ignition_compression">Zapłon samoczynny (diesel)</string>
+    <string name="report_subject">Raport z pojazdu</string>
+
+    <plurals name="readiness_not_ready">
+        <item quantity="one">%1$d test nieukończony</item>
+        <item quantity="few">%1$d testy nieukończone</item>
+        <item quantity="many">%1$d testów nieukończonych</item>
+        <item quantity="other">%1$d testów nieukończonych</item>
+    </plurals>
+
+    <!-- Alerty progowe -->
+    <string name="settings_alerts">Alerty</string>
+    <string name="settings_alerts_description">Ostrzegaj, gdy wartość wyjdzie poza bezpieczny zakres. Alert pojawi się jako powiadomienie i jako pasek w aplikacji.</string>
+    <string name="alert_limit_above">Powyżej %1$s</string>
+    <string name="alert_limit_below">Poniżej %1$s</string>
+    <string name="alert_edit_title">Próg alertu</string>
+    <string name="alert_edit_hint">Próg (%1$s)</string>
+    <string name="alert_above">%1$s wynosi %2$s, powyżej progu %3$s</string>
+    <string name="alert_below">%1$s wynosi %2$s, poniżej progu %3$s</string>
+    <string name="alert_notification_title">Alert z pojazdu</string>
+    <string name="alert_channel_name">Alerty z pojazdu</string>
+    <string name="alert_channel_description">Ostrzega, gdy temperatura płynu, napięcie lub inna obserwowana wartość wyjdzie poza bezpieczny zakres.</string>
 
     <!-- Ustawienia -->
     <string name="settings_adapter">Zapisany adapter</string>

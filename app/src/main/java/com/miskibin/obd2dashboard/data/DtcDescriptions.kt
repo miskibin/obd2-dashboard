@@ -3,9 +3,7 @@ package com.miskibin.obd2dashboard.data
 import java.util.Locale
 
 /** A trouble-code description in both languages the app ships. */
-data class DtcText(val en: String, val pl: String) {
-    fun forLanguage(language: String): String = if (language.lowercase(Locale.ROOT) == "pl") pl else en
-}
+typealias DtcText = LocalizedText
 
 /**
  * Generic (SAE J2012) descriptions for the codes an owner actually meets.

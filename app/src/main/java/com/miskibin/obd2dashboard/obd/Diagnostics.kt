@@ -19,7 +19,10 @@ data class MonitorStatus(
     val milOn: Boolean,
     val dtcCount: Int,
     val readinessBytes: List<Int> = emptyList(),
-)
+) {
+    /** Bytes B, C and D of the same response; null when the ECU sent a short reply. */
+    val readiness: Readiness? get() = ReadinessDecoder.parse(readinessBytes)
+}
 
 data class Diagnostics(
     val stored: List<Dtc> = emptyList(),

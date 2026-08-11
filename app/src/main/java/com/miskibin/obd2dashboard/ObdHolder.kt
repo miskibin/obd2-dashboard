@@ -12,6 +12,7 @@ import com.miskibin.obd2dashboard.data.AppPreferences
 import com.miskibin.obd2dashboard.data.MetricHistory
 import com.miskibin.obd2dashboard.data.TripRecorder
 import com.miskibin.obd2dashboard.data.TripRepository
+import com.miskibin.obd2dashboard.service.AlertMonitor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -41,6 +42,8 @@ object ObdHolder {
         private set
     lateinit var trips: TripRepository
         private set
+    lateinit var alerts: AlertMonitor
+        private set
 
     private var installed = false
 
@@ -52,9 +55,16 @@ object ObdHolder {
         history = MetricHistory()
         recorder = TripRecorder(application, scope)
         trips = TripRepository(application)
+        alerts = AlertMonitor(
+            context = application,
+            scope = scope,
+            rules = preferences.alertRules,
+            snapshots = connection.snapshot,
+        )
 
         scope.launch { connection.snapshot.collect(history::record) }
         scope.launch { preferences.pollingEnabled.collect(connection::setPollingEnabled) }
+        alerts.start()
     }
 
     /**

@@ -41,6 +41,9 @@ class AppPreferences(context: Context) {
 
     val pollingEnabled: Flow<Boolean> = store.data.map { it[KEY_POLLING_ENABLED] ?: true }
 
+    /** Always the full set of shipped rules; only the driver's edits are stored. */
+    val alertRules: Flow<List<AlertRule>> = store.data.map { AlertRules.decode(it[KEY_ALERTS]) }
+
     suspend fun saveAdapter(address: String, name: String?) {
         store.edit { prefs ->
             prefs[KEY_ADAPTER_ADDRESS] = address
@@ -67,12 +70,25 @@ class AppPreferences(context: Context) {
         store.edit { it[KEY_POLLING_ENABLED] = enabled }
     }
 
+    suspend fun setAlertRule(rule: AlertRule) {
+        store.edit { prefs ->
+            val updated = AlertRules.decode(prefs[KEY_ALERTS])
+                .map { if (it.id == rule.id) rule else it }
+            prefs[KEY_ALERTS] = AlertRules.encode(updated)
+        }
+    }
+
+    suspend fun restoreDefaultAlertRules() {
+        store.edit { it.remove(KEY_ALERTS) }
+    }
+
     private companion object {
         val KEY_ADAPTER_ADDRESS = stringPreferencesKey("adapter_address")
         val KEY_ADAPTER_NAME = stringPreferencesKey("adapter_name")
         val KEY_TILES = stringPreferencesKey("tiles")
         val KEY_CHART_METRICS = stringPreferencesKey("chart_metrics")
         val KEY_POLLING_ENABLED = booleanPreferencesKey("polling_enabled")
+        val KEY_ALERTS = stringPreferencesKey("alert_rules")
 
         const val SEPARATOR = "|"
 

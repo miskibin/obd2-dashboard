@@ -4,8 +4,13 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.miskibin.obd2dashboard.ObdHolder
+import com.miskibin.obd2dashboard.R
 import com.miskibin.obd2dashboard.ble.ConnectionState
 import com.miskibin.obd2dashboard.ble.DiscoveredDevice
+import com.miskibin.obd2dashboard.data.AlertRule
+import com.miskibin.obd2dashboard.data.AlertRules
+import com.miskibin.obd2dashboard.data.MechanicReport
+import com.miskibin.obd2dashboard.data.MechanicReportData
 import com.miskibin.obd2dashboard.data.MetricId
 import com.miskibin.obd2dashboard.data.Metrics
 import com.miskibin.obd2dashboard.data.SavedAdapter
@@ -30,7 +35,7 @@ sealed interface Startup {
 }
 
 /** Which long-running diagnostics request, if any, is in flight. */
-enum class DtcOperation { Reading, Clearing }
+enum class DtcOperation { Reading, Clearing, Reporting }
 
 /**
  * The single view model behind all four screens.
@@ -52,6 +57,10 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
     val diagnostics = connection.diagnostics
     val supportedPids: StateFlow<Set<Int>> = connection.supportedPids
     val recording = recorder.state
+    val alertEvents = ObdHolder.alerts.events
+
+    val alertRules: StateFlow<List<AlertRule>> =
+        preferences.alertRules.stateIn(viewModelScope, SharingStarted.Eagerly, AlertRules.defaults)
 
     val savedAdapter: StateFlow<SavedAdapter?> =
         preferences.savedAdapter.stateIn(viewModelScope, SharingStarted.Eagerly, null)
@@ -78,6 +87,10 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _trips = MutableStateFlow<List<Trip>>(emptyList())
     val trips: StateFlow<List<Trip>> = _trips.asStateFlow()
+
+    /** A finished report waiting to be handed to the share sheet, or null. */
+    private val _report = MutableStateFlow<String?>(null)
+    val report: StateFlow<String?> = _report.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -195,6 +208,56 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
             runCatching { connection.clearDtcs() }
             _dtcOperation.value = null
         }
+    }
+
+    // ---- mechanic report --------------------------------------------------------
+
+    /**
+     * Re-reads everything the report quotes before writing it: a report is shown to
+     * somebody who was not there, so it must not carry a code the car has since cleared.
+     */
+    fun buildReport(language: String) {
+        if (_dtcOperation.value != null) return
+        _dtcOperation.value = DtcOperation.Reporting
+        viewModelScope.launch {
+            runCatching {
+                connection.refreshDiagnostics()
+                connection.readFreezeFrame()
+                if (connection.vin.value == null) connection.readVin()
+            }
+            _report.value = MechanicReport.build(
+                data = MechanicReportData(
+                    appName = getApplication<Application>().getString(R.string.app_name),
+                    versionName = versionName(),
+                    generatedAtMillis = System.currentTimeMillis(),
+                    vin = connection.vin.value,
+                    diagnostics = connection.diagnostics.value,
+                    freezeFrame = connection.freezeFrame.value,
+                    batteryVoltage = connection.snapshot.value.batteryVoltage,
+                ),
+                language = language,
+            )
+            _dtcOperation.value = null
+        }
+    }
+
+    fun consumeReport() {
+        _report.value = null
+    }
+
+    private fun versionName(): String = runCatching {
+        val context = getApplication<Application>()
+        context.packageManager.getPackageInfo(context.packageName, 0).versionName
+    }.getOrNull().orEmpty()
+
+    // ---- alerts -----------------------------------------------------------------
+
+    fun setAlertRule(rule: AlertRule) {
+        viewModelScope.launch { preferences.setAlertRule(rule) }
+    }
+
+    fun restoreDefaultAlerts() {
+        viewModelScope.launch { preferences.restoreDefaultAlertRules() }
     }
 
     // ---- trip recording ---------------------------------------------------------

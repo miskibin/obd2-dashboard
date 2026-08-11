@@ -21,6 +21,7 @@ data class Pid(
 }
 
 const val MODE_CURRENT_DATA = 0x01
+const val MODE_FREEZE_FRAME = 0x02
 const val MODE_STORED_DTC = 0x03
 const val MODE_CLEAR_DTC = 0x04
 const val MODE_PENDING_DTC = 0x07

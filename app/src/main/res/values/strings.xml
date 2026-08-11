@@ -37,6 +37,9 @@
     <string name="action_stop_recording">Stop · %1$s</string>
     <string name="action_read_codes">Read codes</string>
     <string name="action_clear_codes">Clear codes</string>
+    <string name="action_share_report">Share report</string>
+    <string name="action_save">Save</string>
+    <string name="action_restore_defaults">Restore defaults</string>
 
     <!-- Connection screen -->
     <string name="connect_title">Connect your adapter</string>
@@ -104,6 +107,35 @@
         <item quantity="one">%1$d code stored</item>
         <item quantity="other">%1$d codes stored</item>
     </plurals>
+
+    <!-- Readiness monitors -->
+    <string name="readiness_section">Readiness monitors</string>
+    <string name="readiness_ready">Ready for inspection</string>
+    <string name="readiness_complete">Complete</string>
+    <string name="readiness_incomplete">Not complete</string>
+    <string name="readiness_show">Show details</string>
+    <string name="readiness_hide">Hide details</string>
+    <string name="readiness_ignition_spark">Spark ignition (petrol)</string>
+    <string name="readiness_ignition_compression">Compression ignition (diesel)</string>
+    <string name="report_subject">Vehicle report</string>
+
+    <plurals name="readiness_not_ready">
+        <item quantity="one">%1$d monitor not ready</item>
+        <item quantity="other">%1$d monitors not ready</item>
+    </plurals>
+
+    <!-- Threshold alerts -->
+    <string name="settings_alerts">Alerts</string>
+    <string name="settings_alerts_description">Warn me when a value leaves its safe range. Alerts arrive as a notification and as a banner in the app.</string>
+    <string name="alert_limit_above">Above %1$s</string>
+    <string name="alert_limit_below">Below %1$s</string>
+    <string name="alert_edit_title">Alert limit</string>
+    <string name="alert_edit_hint">Limit (%1$s)</string>
+    <string name="alert_above">%1$s is %2$s, above the %3$s limit</string>
+    <string name="alert_below">%1$s is %2$s, below the %3$s limit</string>
+    <string name="alert_notification_title">Vehicle alert</string>
+    <string name="alert_channel_name">Vehicle alerts</string>
+    <string name="alert_channel_description">Warns when coolant temperature, voltage or another watched value leaves its safe range.</string>
 
     <!-- Settings -->
     <string name="settings_adapter">Saved adapter</string>
