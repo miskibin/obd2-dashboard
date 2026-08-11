@@ -11,8 +11,19 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
-/** The adapter the driver connected to last, so the next start needs no interaction. */
-data class SavedAdapter(val address: String, val name: String?)
+/**
+ * The adapter the driver connected to last, so the next start needs no interaction.
+ *
+ * [classic] records which radio it answered on. It is not a detail worth losing: a
+ * dual-radio dongle exposes a classic and an LE identity at two different addresses, and
+ * reconnecting to the remembered address over the wrong one hangs exactly the way the first
+ * connection did.
+ */
+data class SavedAdapter(
+    val address: String,
+    val name: String?,
+    val classic: Boolean = false,
+)
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "obd2_dashboard")
 
@@ -28,7 +39,7 @@ class AppPreferences(context: Context) {
 
     val savedAdapter: Flow<SavedAdapter?> = store.data.map { prefs ->
         val address = prefs[KEY_ADAPTER_ADDRESS] ?: return@map null
-        SavedAdapter(address, prefs[KEY_ADAPTER_NAME])
+        SavedAdapter(address, prefs[KEY_ADAPTER_NAME], prefs[KEY_ADAPTER_CLASSIC] ?: false)
     }
 
     val tiles: Flow<List<MetricId>> = store.data.map { prefs ->
@@ -57,9 +68,10 @@ class AppPreferences(context: Context) {
     /** Whether the driver reads speed in miles; everything is polled in km/h regardless. */
     val imperialUnits: Flow<Boolean> = store.data.map { it[KEY_IMPERIAL] ?: false }
 
-    suspend fun saveAdapter(address: String, name: String?) {
+    suspend fun saveAdapter(address: String, name: String?, classic: Boolean = false) {
         store.edit { prefs ->
             prefs[KEY_ADAPTER_ADDRESS] = address
+            prefs[KEY_ADAPTER_CLASSIC] = classic
             if (name.isNullOrBlank()) prefs.remove(KEY_ADAPTER_NAME) else prefs[KEY_ADAPTER_NAME] = name
         }
     }
@@ -68,6 +80,7 @@ class AppPreferences(context: Context) {
         store.edit { prefs ->
             prefs.remove(KEY_ADAPTER_ADDRESS)
             prefs.remove(KEY_ADAPTER_NAME)
+            prefs.remove(KEY_ADAPTER_CLASSIC)
         }
     }
 
@@ -129,6 +142,7 @@ class AppPreferences(context: Context) {
     private companion object {
         val KEY_ADAPTER_ADDRESS = stringPreferencesKey("adapter_address")
         val KEY_ADAPTER_NAME = stringPreferencesKey("adapter_name")
+        val KEY_ADAPTER_CLASSIC = booleanPreferencesKey("adapter_classic")
         val KEY_TILES = stringPreferencesKey("tiles")
         val KEY_CHART_METRICS = stringPreferencesKey("chart_metrics")
         val KEY_POLLING_ENABLED = booleanPreferencesKey("polling_enabled")

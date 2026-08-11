@@ -120,6 +120,75 @@ class ElmInitializerTest {
         assertTrue("ATSP0" in transport.commands)
     }
 
+    /**
+     * `ATWS` is a v1.4+ command. A clone that predates it — or reimplements only half the
+     * set — answers `?`, and the sequence has to fall back to the cold reset every ELM327
+     * has always understood instead of carrying on against a chip that was never reset.
+     */
+    @Test
+    fun `falls back to a cold ATZ when the adapter does not know ATWS`() = runTest {
+        val transport = FakeElmTransport.scripted(
+            script = healthyAdapter - "ATWS" + ("ATZ" to "ELM327 v1.5"),
+        )
+        val outcome = ElmInitializer(ElmSession(transport, backgroundScope)).initialize()
+
+        assertTrue(outcome is InitOutcome.Success)
+        assertEquals(listOf("ATWS", "ATZ", "ATE0"), transport.commands.take(3))
+    }
+
+    @Test
+    fun `does not reset twice when the adapter accepts ATWS`() = runTest {
+        val transport = FakeElmTransport.scripted(script = healthyAdapter)
+        ElmInitializer(ElmSession(transport, backgroundScope)).initialize()
+
+        assertFalse("ATZ" in transport.commands)
+    }
+
+    /** A clone that has just come back from a reset regularly swallows the first command. */
+    @Test
+    fun `retries echo off before giving up on it`() = runTest {
+        var attempts = 0
+        val transport = FakeElmTransport { command ->
+            val key = command.uppercase()
+            val reply = if (key == "ATE0") {
+                attempts++
+                if (attempts < 3) "?" else "OK"
+            } else {
+                healthyAdapter[key] ?: "OK"
+            }
+            reply + FakeElmTransport.PROMPT
+        }
+        val outcome = ElmInitializer(ElmSession(transport, backgroundScope)).initialize()
+
+        assertTrue(outcome is InitOutcome.Success)
+        assertEquals(3, transport.countOf("ATE0"))
+    }
+
+    @Test
+    fun `reports which step failed so the screen can name it`() = runTest {
+        val transport = FakeElmTransport.scripted(
+            script = healthyAdapter + ("0100" to "UNABLE TO CONNECT"),
+        )
+        val outcome = ElmInitializer(ElmSession(transport, backgroundScope)).initialize()
+
+        assertEquals("0100", (outcome as InitOutcome.Failure).step)
+        assertEquals(ElmError.UnableToConnect, outcome.error)
+    }
+
+    @Test
+    fun `announces every command it is on`() = runTest {
+        val steps = mutableListOf<String>()
+        val transport = FakeElmTransport.scripted(script = healthyAdapter)
+        ElmInitializer(
+            session = ElmSession(transport, backgroundScope),
+            onStep = { steps += it },
+        ).initialize()
+
+        assertEquals("ATWS", steps.first())
+        assertTrue("ATE0" in steps)
+        assertTrue("0100" in steps)
+    }
+
     @Test
     fun `parses the ATDPN protocol readback`() {
         assertEquals(ObdProtocol.Can11Bit500 to true, ObdProtocol.parseDpn("A6"))

@@ -29,9 +29,16 @@
     <!-- The foreground service notification is the only one the app ever posts. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!--
+        Not required: a classic-SPP dongle over RFCOMM is a first-class transport here, and
+        a phone with Bluetooth but no LE can still use one.
+    -->
     <uses-feature
         android:name="android.hardware.bluetooth_le"
-        android:required="true" />
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.bluetooth"
+        android:required="false" />
 
     <application
         android:name=".Obd2DashboardApplication"

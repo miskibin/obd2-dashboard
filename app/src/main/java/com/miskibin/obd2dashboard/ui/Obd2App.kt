@@ -70,6 +70,7 @@ import com.miskibin.obd2dashboard.ui.dashboard.DashboardScreen
 import com.miskibin.obd2dashboard.ui.dashboard.PidPickerScreen
 import com.miskibin.obd2dashboard.ui.diagnostics.DiagnosticsScreen
 import com.miskibin.obd2dashboard.ui.diagnostics.FaultDetailScreen
+import com.miskibin.obd2dashboard.ui.settings.ConnectionLogScreen
 import com.miskibin.obd2dashboard.ui.settings.REPOSITORY_URL
 import com.miskibin.obd2dashboard.ui.settings.SettingsScreen
 import com.miskibin.obd2dashboard.ui.theme.LocalSkin
@@ -88,6 +89,7 @@ object Routes {
     const val SETTINGS = "settings"
     const val CONNECT = "connect"
     const val PICKER = "picker"
+    const val CONNECTION_LOG = "connection-log"
 
     const val TRIP_ARGUMENT = "trip"
     const val TRIP_DETAIL = "trip/{$TRIP_ARGUMENT}"
@@ -158,7 +160,11 @@ private fun Obd2Shell(viewModel: ObdViewModel, hasSavedAdapter: Boolean) {
     val report by viewModel.report.collectAsStateWithLifecycle()
     LaunchedEffect(report) {
         val text = report ?: return@LaunchedEffect
-        runCatching { context.startActivity(reportChooser(context, text)) }
+        runCatching {
+            context.startActivity(
+                plainTextChooser(context, context.getString(R.string.report_subject), text),
+            )
+        }
         viewModel.consumeReport()
     }
 
@@ -506,27 +512,49 @@ private fun AppNavHost(
                         context.startActivity(Intent(Intent.ACTION_VIEW, REPOSITORY_URL.toUri()))
                     }
                 },
+                onOpenConnectionLog = { navController.navigate(Routes.CONNECTION_LOG) },
+            )
+        }
+
+        composable(Routes.CONNECTION_LOG) {
+            ConnectionLogScreen(
+                onShare = { log ->
+                    runCatching {
+                        context.startActivity(
+                            plainTextChooser(
+                                context,
+                                context.getString(R.string.log_share_subject),
+                                log,
+                            ),
+                        )
+                    }
+                },
+                onBack = { navController.popBackStack() },
             )
         }
 
         composable(Routes.CONNECT) {
             val devices by viewModel.devices.collectAsStateWithLifecycle()
             val savedAdapter by viewModel.savedAdapter.collectAsStateWithLifecycle()
+            val scanFinished by viewModel.scanFinished.collectAsStateWithLifecycle()
             ConnectScreen(
                 state = connectionState,
                 devices = devices,
                 savedAdapter = savedAdapter,
+                scanFinished = scanFinished,
                 onScan = viewModel::startScan,
                 onStopScan = viewModel::stopScan,
-                onConnect = { device ->
-                    viewModel.connect(device)
-                    navController.popBackStack()
-                },
-                onDemo = {
-                    viewModel.connectDemo()
-                    navController.popBackStack()
-                },
+                // No pop here: the screen stays until the connection either comes up or
+                // fails, which is the only place the driver can see which it was.
+                onConnect = viewModel::connect,
+                onCancel = viewModel::cancelConnect,
+                onDemo = viewModel::connectDemo,
                 onDisconnect = viewModel::disconnect,
+                onConnected = {
+                    if (navController.currentBackStackEntry?.destination?.route == Routes.CONNECT) {
+                        navController.popBackStack()
+                    }
+                },
                 onBack = { navController.popBackStack() },
             )
         }
@@ -554,12 +582,19 @@ private fun NavController.switchTo(route: String) {
     }
 }
 
-/** The report goes out as plain text, so any messenger or mail app can take it. */
-private fun reportChooser(context: android.content.Context, report: String): Intent {
+/**
+ * Anything the app hands out in words — the mechanic's report, the connection log — goes
+ * out as plain text, so any messenger or mail app can take it.
+ */
+private fun plainTextChooser(
+    context: android.content.Context,
+    subject: String,
+    body: String,
+): Intent {
     val send = Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"
-        putExtra(Intent.EXTRA_SUBJECT, context.getString(R.string.report_subject))
-        putExtra(Intent.EXTRA_TEXT, report)
+        putExtra(Intent.EXTRA_SUBJECT, subject)
+        putExtra(Intent.EXTRA_TEXT, body)
     }
     return Intent.createChooser(send, context.getString(R.string.action_share))
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

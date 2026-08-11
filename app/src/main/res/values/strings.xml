@@ -44,7 +44,6 @@
     <string name="connect_title">Connect your adapter</string>
     <string name="connect_empty_hint">Plug the adapter into the OBD-II socket, turn the ignition on, then scan.</string>
     <string name="connect_saved_hint">%1$s is remembered and will be reconnected automatically.</string>
-    <string name="connect_unnamed_device">Unnamed device</string>
     <string name="connect_likely_adapter">Looks like an OBD-II adapter</string>
     <string name="connect_remembered">Your saved adapter</string>
     <string name="connect_adapter_details">%1$s · protocol %2$s</string>
@@ -322,4 +321,33 @@
     <string name="chart_remove_parameter">Remove %1$s from the chart</string>
     <string name="action_more">More options</string>
     <string name="dashboard_units">Units</string>
+
+    <!-- Connection screen: progress, sections and the things that block a connection -->
+    <string name="status_connecting_attempt">Connecting to %1$s · attempt %2$d</string>
+    <string name="connect_section_paired">Paired</string>
+    <string name="connect_section_nearby">Nearby</string>
+    <string name="connect_unnamed_with_address">(no name) %1$s</string>
+    <string name="connect_signal_dbm">%1$d dBm</string>
+    <string name="connect_kind_classic">Classic Bluetooth</string>
+    <string name="connect_nothing_found">No adapters found. Check that the dongle is in the socket with its light on, and that it is paired in system Bluetooth settings.</string>
+    <string name="connect_paired_hint">Adapters paired in system Bluetooth settings. Most dongles work over this connection.</string>
+    <string name="connect_error_step">%1$s → %2$s</string>
+    <string name="action_retry">Try again</string>
+    <string name="action_enable_bluetooth">Turn Bluetooth on</string>
+    <string name="action_open_app_settings">Open app settings</string>
+    <string name="action_open_location_settings">Location settings</string>
+    <string name="issue_bluetooth_off">Bluetooth is turned off.</string>
+    <string name="issue_no_adapter">This phone has no usable Bluetooth adapter.</string>
+    <string name="issue_location_off">Location services are off. Up to Android 11 the system finds no Bluetooth devices at all without them.</string>
+    <string name="issue_scan_permission">Permission to search for nearby devices was declined.</string>
+    <string name="issue_connect_permission">Permission to connect to Bluetooth devices was declined.</string>
+    <string name="issue_scan_failed">Android refused to start the search (%1$s).</string>
+
+    <!-- Connection log -->
+    <string name="settings_connection_log">Connection log</string>
+    <string name="settings_connection_log_description">Every step of the last connections, for when one of them does not work.</string>
+    <string name="log_title">Connection log</string>
+    <string name="log_subtitle">%1$d lines</string>
+    <string name="log_empty">Nothing logged yet. Try connecting and come back.</string>
+    <string name="log_share_subject">OBD2 connection log</string>
 </resources>

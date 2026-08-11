@@ -44,7 +44,6 @@
     <string name="connect_title">Połącz adapter</string>
     <string name="connect_empty_hint">Włóż adapter do gniazda OBD-II, włącz zapłon i rozpocznij wyszukiwanie.</string>
     <string name="connect_saved_hint">Adapter %1$s jest zapamiętany i połączy się automatycznie.</string>
-    <string name="connect_unnamed_device">Urządzenie bez nazwy</string>
     <string name="connect_likely_adapter">Wygląda na adapter OBD-II</string>
     <string name="connect_remembered">Twój zapisany adapter</string>
     <string name="connect_adapter_details">%1$s · protokół %2$s</string>
@@ -332,4 +331,33 @@
     <string name="chart_remove_parameter">Usuń %1$s z wykresu</string>
     <string name="action_more">Więcej opcji</string>
     <string name="dashboard_units">Jednostki</string>
+
+    <!-- Ekran połączenia: postęp, sekcje i to, co blokuje połączenie -->
+    <string name="status_connecting_attempt">Łączenie z %1$s · próba %2$d</string>
+    <string name="connect_section_paired">Sparowane</string>
+    <string name="connect_section_nearby">W pobliżu</string>
+    <string name="connect_unnamed_with_address">(bez nazwy) %1$s</string>
+    <string name="connect_signal_dbm">%1$d dBm</string>
+    <string name="connect_kind_classic">Klasyczny Bluetooth</string>
+    <string name="connect_nothing_found">Nie znaleziono adapterów. Sprawdź, czy adapter jest w gnieździe i się świeci oraz czy jest sparowany w ustawieniach Bluetooth.</string>
+    <string name="connect_paired_hint">Adaptery sparowane w ustawieniach Bluetooth. Większość adapterów działa właśnie przez to połączenie.</string>
+    <string name="connect_error_step">%1$s → %2$s</string>
+    <string name="action_retry">Spróbuj ponownie</string>
+    <string name="action_enable_bluetooth">Włącz Bluetooth</string>
+    <string name="action_open_app_settings">Otwórz ustawienia aplikacji</string>
+    <string name="action_open_location_settings">Ustawienia lokalizacji</string>
+    <string name="issue_bluetooth_off">Bluetooth jest wyłączony.</string>
+    <string name="issue_no_adapter">Ten telefon nie ma sprawnego modułu Bluetooth.</string>
+    <string name="issue_location_off">Lokalizacja jest wyłączona. Do Androida 11 bez niej system nie znajduje żadnych urządzeń Bluetooth.</string>
+    <string name="issue_scan_permission">Brak zgody na wyszukiwanie urządzeń w pobliżu.</string>
+    <string name="issue_connect_permission">Brak zgody na łączenie się z urządzeniami Bluetooth.</string>
+    <string name="issue_scan_failed">Android odmówił rozpoczęcia wyszukiwania (%1$s).</string>
+
+    <!-- Dziennik połączenia -->
+    <string name="settings_connection_log">Dziennik połączenia</string>
+    <string name="settings_connection_log_description">Każdy krok ostatnich połączeń — na wypadek, gdyby któreś nie zadziałało.</string>
+    <string name="log_title">Dziennik połączenia</string>
+    <string name="log_subtitle">%1$d linii</string>
+    <string name="log_empty">Nic jeszcze nie zapisano. Spróbuj się połączyć i wróć tutaj.</string>
+    <string name="log_share_subject">Dziennik połączenia OBD2</string>
 </resources>

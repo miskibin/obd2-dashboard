@@ -6,9 +6,13 @@ import android.app.Application
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import com.miskibin.obd2dashboard.ble.ConnectionIssue
 import com.miskibin.obd2dashboard.ble.ConnectionManager
+import com.miskibin.obd2dashboard.ble.DeviceKind
 import com.miskibin.obd2dashboard.ble.DiscoveredDevice
 import com.miskibin.obd2dashboard.data.AppPreferences
+import com.miskibin.obd2dashboard.log.LogTag
+import com.miskibin.obd2dashboard.log.ObdLog
 import com.miskibin.obd2dashboard.data.MetricHistory
 import com.miskibin.obd2dashboard.data.TripRecorder
 import com.miskibin.obd2dashboard.data.TripRepository
@@ -70,16 +74,33 @@ object ObdHolder {
     /**
      * Reconnects to the remembered adapter without asking anything of the driver — the
      * app is normally launched already sitting in a mount with the dongle plugged in.
+     *
+     * A missing permission is reported rather than returned as a bare `false`: silently
+     * doing nothing here is how the app ends up looking broken to somebody who revoked
+     * Bluetooth access in system settings and has no idea that is what they did.
      */
     suspend fun autoConnect(context: Context): Boolean {
-        if (!hasConnectPermission(context)) return false
         val saved = preferences.savedAdapter.first() ?: return false
+        if (!hasConnectPermission(context)) {
+            ObdLog.log(LogTag.CONN, "auto-connect skipped: BLUETOOTH_CONNECT not granted")
+            connection.reportSetupIssue(
+                ConnectionIssue.ConnectPermission,
+                "BLUETOOTH_CONNECT not granted",
+            )
+            return false
+        }
+        ObdLog.log(
+            LogTag.CONN,
+            "auto-connecting to ${saved.address} (${if (saved.classic) "classic" else "LE"})",
+        )
         connection.connect(
             DiscoveredDevice(
                 address = saved.address,
                 name = saved.name,
                 rssi = 0,
                 looksLikeAdapter = true,
+                kind = if (saved.classic) DeviceKind.Classic else DeviceKind.Le,
+                bonded = saved.classic,
             ),
         )
         return true

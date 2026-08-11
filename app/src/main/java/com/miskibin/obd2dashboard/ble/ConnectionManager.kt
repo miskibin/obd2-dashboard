@@ -2,6 +2,8 @@ package com.miskibin.obd2dashboard.ble
 
 import android.bluetooth.BluetoothManager
 import android.content.Context
+import com.miskibin.obd2dashboard.log.LogTag
+import com.miskibin.obd2dashboard.log.ObdLog
 import com.miskibin.obd2dashboard.obd.AdapterInfo
 import com.miskibin.obd2dashboard.obd.DemoElmTransport
 import com.miskibin.obd2dashboard.obd.Diagnostics
@@ -22,18 +24,33 @@ import com.miskibin.obd2dashboard.obd.VehicleSnapshot
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import java.io.IOException
+import kotlin.coroutines.coroutineContext
 
+/**
+ * Where the connection is, in enough detail to put on screen.
+ *
+ * [Connecting.attempt] and [Initializing.step] are not decoration: a driver watching
+ * "Connecting…" for four minutes has no way to tell a dongle that is asleep from an app
+ * that has hung, and the difference between "attempt 2 of 3" and "ATZ" is the difference
+ * between waiting and giving up.
+ */
 sealed interface ConnectionState {
     data object Idle : ConnectionState
     data object Scanning : ConnectionState
-    data class Connecting(val device: DiscoveredDevice) : ConnectionState
+    data class Connecting(val device: DiscoveredDevice, val attempt: Int = 1) : ConnectionState
     data class Initializing(val step: String) : ConnectionState
 
     /** [demo] marks the simulated vehicle, which must never be mistaken for a real car. */
@@ -44,12 +61,26 @@ sealed interface ConnectionState {
     ) : ConnectionState
 
     data class Reconnecting(val attempt: Int, val delayMillis: Long) : ConnectionState
-    data class Error(val reason: String, val elmError: ElmError? = null) : ConnectionState
+
+    /**
+     * [step] is the ELM327 command that failed, [issue] is a precondition the driver can
+     * fix themselves — the screen turns the second one into a button.
+     */
+    data class Error(
+        val reason: String,
+        val elmError: ElmError? = null,
+        val step: String? = null,
+        val issue: ConnectionIssue? = null,
+    ) : ConnectionState
 }
 
 /**
- * Owns the whole connection lifecycle: scan → GATT link → ELM327 init → PID polling,
+ * Owns the whole connection lifecycle: scan → radio link → ELM327 init → PID polling,
  * plus the reconnect loop that a dongle which sleeps after 30 minutes makes unavoidable.
+ *
+ * The radio is chosen per device rather than per app: [DeviceKind.Classic] devices get an
+ * RFCOMM socket and [DeviceKind.Le] devices get GATT. Everything above [ElmTransport] is
+ * identical for both.
  */
 class ConnectionManager(
     private val context: Context,
@@ -61,6 +92,10 @@ class ConnectionManager(
 
     private val _devices = MutableStateFlow<List<DiscoveredDevice>>(emptyList())
     val devices: StateFlow<List<DiscoveredDevice>> = _devices.asStateFlow()
+
+    /** True once a scan has run its full course, so the screen can say "nothing found". */
+    private val _scanFinished = MutableStateFlow(false)
+    val scanFinished: StateFlow<Boolean> = _scanFinished.asStateFlow()
 
     private val _snapshot = MutableStateFlow(VehicleSnapshot())
     val snapshot: StateFlow<VehicleSnapshot> = _snapshot.asStateFlow()
@@ -97,20 +132,33 @@ class ConnectionManager(
 
     fun startScan() {
         if (scanJob?.isActive == true) return
+        if (sessionInFlight()) {
+            ObdLog.log(LogTag.CONN, "scan request ignored: a session is already in flight")
+            return
+        }
+        _scanFinished.value = false
         _devices.value = emptyList()
-        _state.value = ConnectionState.Scanning
+        setState(ConnectionState.Scanning)
         scanJob = scope.launch {
             try {
-                scanner.scan().collect { device ->
-                    _devices.update { current ->
-                        (current.filterNot { it.address == device.address } + device)
-                            .sortedByDescending { it.looksLikeAdapter }
-                    }
+                // The paired list first: a classic dongle is reachable the moment the
+                // screen opens and will never turn up in the LE scan that follows.
+                _devices.value = runCatching { scanner.bondedDevices() }.getOrDefault(emptyList())
+                withTimeoutOrNull(BleScanner.SCAN_DURATION_MILLIS) {
+                    scanner.scan().collect(::merge)
                 }
+                _scanFinished.value = true
+                ObdLog.log(LogTag.SCAN, "scan finished with ${_devices.value.size} device(s)")
+                if (_state.value is ConnectionState.Scanning) setState(ConnectionState.Idle)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
-                _state.value = ConnectionState.Error(error.message ?: "Scan failed")
+                setState(
+                    ConnectionState.Error(
+                        reason = error.message ?: "Scan failed",
+                        issue = (error as? ConnectionSetupException)?.issue,
+                    ),
+                )
             }
         }
     }
@@ -118,13 +166,46 @@ class ConnectionManager(
     fun stopScan() {
         scanJob?.cancel()
         scanJob = null
-        if (_state.value is ConnectionState.Scanning) _state.value = ConnectionState.Idle
+        if (_state.value is ConnectionState.Scanning) setState(ConnectionState.Idle)
+    }
+
+    /**
+     * A device seen twice keeps the identity that can actually be opened.
+     *
+     * A dual-radio dongle answers an LE scan under a second address; if the classic one is
+     * already listed from the bonded set, the LE sighting only refreshes its signal.
+     */
+    private fun merge(device: DiscoveredDevice) {
+        _devices.update { current ->
+            val existing = current.firstOrNull { it.address == device.address }
+            when {
+                existing == null -> current + device
+                existing.kind == DeviceKind.Classic -> current.map {
+                    if (it.address != device.address) {
+                        it
+                    } else {
+                        it.copy(
+                            rssi = device.rssi,
+                            looksLikeAdapter = it.looksLikeAdapter || device.looksLikeAdapter,
+                        )
+                    }
+                }
+
+                else -> current.filterNot { it.address == device.address } + device
+            }
+        }
     }
 
     fun connect(device: DiscoveredDevice) {
-        stopScan()
-        sessionJob?.cancel()
-        sessionJob = scope.launch { runSession(device, demo = false) }
+        val previous = sessionJob
+        previous?.cancel()
+        sessionJob = scope.launch {
+            // The previous session's socket has to be gone before the next one opens:
+            // a connectGatt issued against an unclosed client is a permanent 133.
+            previous?.join()
+            stopScanAndSettle()
+            guardedSession(device, demo = false)
+        }
     }
 
     /**
@@ -134,16 +215,35 @@ class ConnectionManager(
      * an adapter, because there is nothing to reconnect to.
      */
     fun connectDemo() {
-        stopScan()
-        sessionJob?.cancel()
-        sessionJob = scope.launch { runSession(DEMO_DEVICE, demo = true) }
+        val previous = sessionJob
+        previous?.cancel()
+        sessionJob = scope.launch {
+            previous?.join()
+            stopScanAndSettle()
+            guardedSession(DEMO_DEVICE, demo = true)
+        }
     }
 
+    /**
+     * The job reference is deliberately *kept* after cancelling: the next [connect] joins
+     * it, so the radio the old session held is released before the new one asks for it.
+     */
     fun disconnect() {
+        ObdLog.log(LogTag.CONN, "disconnect requested")
         sessionJob?.cancel()
-        sessionJob = null
-        tearDownSession()
-        _state.value = ConnectionState.Idle
+        setState(ConnectionState.Idle)
+    }
+
+    /** Cancels a connection attempt and leaves the screen able to say why nothing happened. */
+    fun cancelConnect() {
+        ObdLog.log(LogTag.CONN, "connection attempt cancelled by the driver")
+        sessionJob?.cancel()
+        setState(ConnectionState.Idle)
+    }
+
+    /** Lets a caller outside the session loop (auto-connect) put a precondition on screen. */
+    fun reportSetupIssue(issue: ConnectionIssue, reason: String) {
+        setState(ConnectionState.Error(reason, issue = issue))
     }
 
     fun setPollingEnabled(enabled: Boolean) {
@@ -184,54 +284,117 @@ class ConnectionManager(
     private suspend fun <T> withScheduler(block: suspend () -> T): T =
         scheduler?.exclusive(block) ?: block()
 
+    /**
+     * Runs a session and guarantees the radio is released afterwards, whether the session
+     * ended, failed or was cancelled from the connect screen.
+     */
+    private suspend fun guardedSession(device: DiscoveredDevice, demo: Boolean) {
+        try {
+            if (!demo && !preflight()) return
+            runSession(device, demo)
+        } finally {
+            withContext(NonCancellable) { tearDownSession("session ended") }
+        }
+    }
+
+    /** The two conditions that make a connect pointless before it is attempted. */
+    private fun preflight(): Boolean {
+        if (!scanner.hasAdapter) {
+            setState(
+                ConnectionState.Error("No Bluetooth adapter", issue = ConnectionIssue.NoAdapter),
+            )
+            return false
+        }
+        if (!scanner.isBluetoothEnabled) {
+            setState(
+                ConnectionState.Error("Bluetooth is off", issue = ConnectionIssue.BluetoothOff),
+            )
+            return false
+        }
+        if (!scanner.hasConnectPermission()) {
+            setState(
+                ConnectionState.Error(
+                    "BLUETOOTH_CONNECT not granted",
+                    issue = ConnectionIssue.ConnectPermission,
+                ),
+            )
+            return false
+        }
+        return true
+    }
+
+    /**
+     * A scan still running when `connectGatt` is called is the classic cause of status 133,
+     * and `stopScan` is asynchronous — so the scan is not only cancelled but waited for.
+     */
+    private suspend fun stopScanAndSettle() {
+        val running = scanJob
+        scanJob = null
+        if (running == null) return
+        running.cancel()
+        running.join()
+        ObdLog.log(LogTag.CONN, "scan stopped, settling for $SCAN_SETTLE_MILLIS ms")
+        delay(SCAN_SETTLE_MILLIS)
+    }
+
     private suspend fun runSession(device: DiscoveredDevice, demo: Boolean) {
         var attempt = 0
         while (currentlyActive()) {
             try {
-                openAndPoll(device, demo)
+                openAndPoll(device, demo, attempt + 1)
                 return
-            } catch (cancelled: CancellationException) {
-                throw cancelled
             } catch (error: Exception) {
-                tearDownSession()
+                // A `withTimeout` that expires throws a CancellationException. Treating
+                // every one of those as "the driver pressed cancel" is what used to make a
+                // failed connect end in silence with the UI stuck on "Connecting".
+                if (error is CancellationException && !coroutineContext.isActive) throw error
+                ObdLog.log(LogTag.CONN, "session failed: ${error.javaClass.simpleName}: ${error.message}")
+                tearDownSession("session failed")
                 attempt++
                 if (attempt > MAX_RECONNECT_ATTEMPTS) {
-                    _state.value = ConnectionState.Error(
-                        reason = error.message ?: "Connection lost",
-                        elmError = (error as? ElmFatalException)?.error,
+                    val fatal = error as? ElmFatalException
+                    setState(
+                        ConnectionState.Error(
+                            reason = error.message ?: "Connection lost",
+                            elmError = fatal?.error,
+                            step = fatal?.step,
+                            issue = (error as? ConnectionSetupException)?.issue
+                                ?: (error as? SecurityException)?.let { ConnectionIssue.ConnectPermission },
+                        ),
                     )
                     return
                 }
                 val backoff = backoffMillis(attempt)
-                _state.value = ConnectionState.Reconnecting(attempt, backoff)
+                setState(ConnectionState.Reconnecting(attempt, backoff))
                 delay(backoff)
             }
         }
     }
 
-    private suspend fun openAndPoll(device: DiscoveredDevice, demo: Boolean) {
-        _state.value = ConnectionState.Connecting(device)
+    private suspend fun openAndPoll(device: DiscoveredDevice, demo: Boolean, attempt: Int) {
+        setState(ConnectionState.Connecting(device, attempt))
 
-        val newTransport = (if (demo) DemoElmTransport() else bleTransport(device))
+        val newTransport = (if (demo) DemoElmTransport() else transportFor(device))
             .also { transport = it }
         newTransport.open()
 
         val newSession = ElmSession(newTransport, scope).also { session = it }
-        _state.value = ConnectionState.Initializing("ELM327")
+        setState(ConnectionState.Initializing(ElmInitializer.FIRST_STEP))
 
         val outcome = ElmInitializer(
             session = newSession,
             config = if (demo) DEMO_INIT_CONFIG else ElmInitConfig(preferredProtocol = lastProtocol),
+            onStep = { step -> setState(ConnectionState.Initializing(step)) },
         ).initialize()
         val info = when (outcome) {
             is InitOutcome.Success -> outcome.info
-            is InitOutcome.Failure -> throw ElmFatalException(outcome.error)
+            is InitOutcome.Failure -> throw ElmFatalException(outcome.error, outcome.step)
         }
         // A protocol the simulation picked says nothing about the car in the driveway.
         if (!demo) lastProtocol = info.protocol
 
         val newClient = Obd2Client(newSession, info.protocol).also { client = it }
-        _state.value = ConnectionState.Initializing("supported PIDs")
+        setState(ConnectionState.Initializing(SUPPORTED_PIDS_STEP))
         val supported = newClient.scanSupportedPids()
         _supportedPids.value = supported
         newClient.probeBatching(Pids.tier(PidTier.Fast).take(BATCH_PROBE_SIZE))
@@ -243,15 +406,35 @@ class ConnectionManager(
         newScheduler.configure(supported)
         mirrorJob = scope.launch { newScheduler.snapshot.collect { _snapshot.value = it } }
 
-        _state.value = ConnectionState.Connected(device, info, demo)
+        setState(ConnectionState.Connected(device, info, demo))
         keepAliveJob = scope.launch { keepAlive(newClient, newScheduler) }
-        newScheduler.run()
+
+        coroutineScope {
+            // Without this the link can drop silently: the scheduler goes on asking, every
+            // request times out, and the UI keeps saying "Connected" until somebody looks.
+            val linkWatch = launch {
+                newTransport.connected.first { !it }
+                throw IOException("Link to ${device.address} dropped")
+            }
+            newScheduler.run()
+            linkWatch.cancel()
+        }
     }
 
-    private fun bleTransport(device: DiscoveredDevice): BleElmTransport {
+    /** BLE or classic, decided by what the device actually is rather than by what the app is. */
+    private fun transportFor(device: DiscoveredDevice): ElmTransport {
         val bluetooth = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
             ?: error("Bluetooth unavailable")
-        return BleElmTransport(context, bluetooth.adapter.getRemoteDevice(device.address))
+        val adapter = bluetooth.adapter ?: error("Bluetooth unavailable")
+        val remote = adapter.getRemoteDevice(device.address)
+        ObdLog.log(
+            LogTag.CONN,
+            "opening ${device.kind} transport to ${device.address} (${device.name ?: "unnamed"})",
+        )
+        return when (device.kind) {
+            DeviceKind.Classic -> SppElmTransport(adapter, remote)
+            DeviceKind.Le -> BleElmTransport(context, remote)
+        }
     }
 
     /**
@@ -268,7 +451,14 @@ class ConnectionManager(
         }
     }
 
-    private fun tearDownSession() {
+    /**
+     * Releases everything, and *waits* for the radio to be released.
+     *
+     * This used to close the transport on a launched coroutine, which meant the next
+     * connect attempt regularly raced an unclosed GATT client — permanent status 133 with
+     * no way out but killing the app.
+     */
+    private suspend fun tearDownSession(reason: String) {
         keepAliveJob?.cancel()
         mirrorJob?.cancel()
         keepAliveJob = null
@@ -277,9 +467,36 @@ class ConnectionManager(
         client = null
         session?.close()
         session = null
-        val open = transport
+        val open = transport ?: return
         transport = null
-        scope.launch { open?.close() }
+        ObdLog.log(LogTag.CONN, "tearing down transport: $reason")
+        withContext(NonCancellable) { runCatching { open.close() } }
+    }
+
+    private fun setState(state: ConnectionState) {
+        if (_state.value == state) return
+        ObdLog.log(LogTag.CONN, "state → ${describe(state)}")
+        _state.value = state
+    }
+
+    private fun describe(state: ConnectionState): String = when (state) {
+        ConnectionState.Idle -> "Idle"
+        ConnectionState.Scanning -> "Scanning"
+        is ConnectionState.Connecting -> "Connecting(${state.device.address}, attempt ${state.attempt})"
+        is ConnectionState.Initializing -> "Initializing(${state.step})"
+        is ConnectionState.Connected -> "Connected(${state.device.address}, ${state.adapter.protocol})"
+        is ConnectionState.Reconnecting -> "Reconnecting(${state.attempt}, ${state.delayMillis} ms)"
+        is ConnectionState.Error -> "Error(${state.reason}, step=${state.step}, issue=${state.issue})"
+    }
+
+    private fun sessionInFlight(): Boolean = when (_state.value) {
+        is ConnectionState.Connecting,
+        is ConnectionState.Initializing,
+        is ConnectionState.Connected,
+        is ConnectionState.Reconnecting,
+        -> sessionJob?.isActive == true
+
+        else -> false
     }
 
     private fun currentlyActive(): Boolean = scope.isActive
@@ -303,5 +520,10 @@ class ConnectionManager(
         const val MAX_BACKOFF_MILLIS = 30_000L
         const val KEEP_ALIVE_MILLIS = 5_000L
         const val BATCH_PROBE_SIZE = 3
+
+        /** Let the LE scanner actually stop before the radio is asked to connect. */
+        const val SCAN_SETTLE_MILLIS = 500L
+
+        const val SUPPORTED_PIDS_STEP = "supported PIDs"
     }
 }

@@ -100,6 +100,7 @@ fun SettingsScreen(
     onAlertRuleChange: (AlertRule) -> Unit,
     onRestoreDefaultAlerts: () -> Unit,
     onOpenRepository: () -> Unit,
+    onOpenConnectionLog: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var editing by remember { mutableStateOf<AlertRule?>(null) }
@@ -168,6 +169,14 @@ fun SettingsScreen(
                     subtitle = stringResource(R.string.settings_polling_description),
                     checked = pollingEnabled,
                     onCheckedChange = onPollingChange,
+                )
+                // Next to the adapter settings rather than hidden behind a developer flag:
+                // when a dongle will not connect, this is the only thing in the app that
+                // can say why, and it is worth nothing if it cannot be found.
+                NavigationRow(
+                    title = stringResource(R.string.settings_connection_log),
+                    subtitle = stringResource(R.string.settings_connection_log_description),
+                    onClick = onOpenConnectionLog,
                 )
             }
 
@@ -282,6 +291,32 @@ private fun Group(title: String, content: @Composable ColumnScope.() -> Unit) {
     Column {
         SectionHeader(text = title)
         GroupedList(modifier = Modifier.fillMaxWidth(), content = content)
+    }
+}
+
+/** A row of the same grouped list that opens a screen instead of setting a value. */
+@Composable
+private fun NavigationRow(title: String, subtitle: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Slate)
+            .clickable(onClick = onClick)
+            .heightIn(min = 50.dp)
+            .padding(start = Dimens.rowPaddingH, end = 10.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = title, style = MaterialTheme.typography.bodyLarge, color = Chalk)
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.labelMedium,
+                color = Smoke,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        }
+        Text(text = "›", style = MaterialTheme.typography.titleMedium, color = Fog)
     }
 }
 

@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.miskibin.obd2dashboard.ObdHolder
 import com.miskibin.obd2dashboard.R
 import com.miskibin.obd2dashboard.ble.ConnectionState
+import com.miskibin.obd2dashboard.ble.DeviceKind
 import com.miskibin.obd2dashboard.ble.DiscoveredDevice
 import com.miskibin.obd2dashboard.data.AlertRule
 import com.miskibin.obd2dashboard.data.AlertRules
@@ -66,6 +67,7 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
 
     val connectionState: StateFlow<ConnectionState> = connection.state
     val devices: StateFlow<List<DiscoveredDevice>> = connection.devices
+    val scanFinished: StateFlow<Boolean> = connection.scanFinished
     val snapshot = connection.snapshot
     val diagnostics = connection.diagnostics
     val supportedPids: StateFlow<Set<Int>> = connection.supportedPids
@@ -148,7 +150,13 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
             connection.state.collect { state ->
                 // The demo has no adapter to come back to, so it is never remembered.
                 if (state is ConnectionState.Connected && !state.demo) {
-                    preferences.saveAdapter(state.device.address, state.device.name)
+                    // The radio is remembered along with the address: reconnecting to a
+                    // dual-radio dongle over the wrong one hangs.
+                    preferences.saveAdapter(
+                        address = state.device.address,
+                        name = state.device.name,
+                        classic = state.device.kind == DeviceKind.Classic,
+                    )
                 }
                 if (state is ConnectionState.Idle) {
                     _sessionMaxRpm.value = null
@@ -249,6 +257,12 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
 
     fun disconnect() {
         connection.disconnect()
+        ObdConnectionService.stop(getApplication())
+    }
+
+    /** Abandons an attempt in progress without forgetting the adapter. */
+    fun cancelConnect() {
+        connection.cancelConnect()
         ObdConnectionService.stop(getApplication())
     }
 

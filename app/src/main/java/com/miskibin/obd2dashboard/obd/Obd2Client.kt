@@ -68,11 +68,27 @@ class Obd2Client(
         return batchingEnabled
     }
 
+    /**
+     * Asks the car which PIDs it answers for, one support block at a time.
+     *
+     * The *first* `0100` gets the protocol-search ceiling rather than the ordinary PID one.
+     * On a slow protocol — five-baud ISO 9141 init, or a CAN bus that has to be searched
+     * for — the initializer's own probe can succeed while this one times out 1.5 s in, and
+     * the result is a car that reports "Connected" with zero supported PIDs and a dashboard
+     * that stays blank forever.
+     */
     suspend fun scanSupportedPids(): Set<Int> {
         val supported = sortedSetOf<Int>()
         var base: Int? = 0x00
+        var first = true
         while (base != null) {
-            val response = session.request("%02X%02X".format(MODE_CURRENT_DATA, base), PID_TIMEOUT_MILLIS)
+            val timeout = if (first) {
+                ElmSession.PROTOCOL_SEARCH_TIMEOUT_MILLIS
+            } else {
+                PID_TIMEOUT_MILLIS
+            }
+            first = false
+            val response = session.request("%02X%02X".format(MODE_CURRENT_DATA, base), timeout)
             if (response !is ElmResponse.Ok) break
             val block = ObdResponseParser.supportedPids(
                 ObdResponseParser.frames(response.lines, protocol),
