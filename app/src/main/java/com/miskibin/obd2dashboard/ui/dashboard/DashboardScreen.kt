@@ -5,18 +5,20 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.itemsIndexed
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,73 +28,80 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.zIndex
 import com.miskibin.obd2dashboard.R
 import com.miskibin.obd2dashboard.data.AlertRule
+import com.miskibin.obd2dashboard.data.GearReading
 import com.miskibin.obd2dashboard.data.MetricHistory
 import com.miskibin.obd2dashboard.data.MetricId
 import com.miskibin.obd2dashboard.data.Metrics
-import com.miskibin.obd2dashboard.data.updatedAtOf
+import com.miskibin.obd2dashboard.data.RecordingState
 import com.miskibin.obd2dashboard.data.isBreached
+import com.miskibin.obd2dashboard.data.updatedAtOf
 import com.miskibin.obd2dashboard.data.valueOf
 import com.miskibin.obd2dashboard.obd.VehicleSnapshot
 import com.miskibin.obd2dashboard.ui.AppIcons
+import com.miskibin.obd2dashboard.ui.chart.formatDuration
 import com.miskibin.obd2dashboard.ui.components.EmptyState
 import com.miskibin.obd2dashboard.ui.components.ScreenHeader
 import com.miskibin.obd2dashboard.ui.components.ScreenPadding
-import com.miskibin.obd2dashboard.ui.components.formatReading
+import com.miskibin.obd2dashboard.ui.theme.CardCorner
+import com.miskibin.obd2dashboard.ui.theme.Fog
+import com.miskibin.obd2dashboard.ui.theme.Graphite
+import com.miskibin.obd2dashboard.ui.theme.PanelCorner
 import com.miskibin.obd2dashboard.ui.theme.PillCorner
+import com.miskibin.obd2dashboard.ui.theme.Signal
 import com.miskibin.obd2dashboard.ui.theme.Slate
 import com.miskibin.obd2dashboard.ui.theme.SlateBorder
+import com.miskibin.obd2dashboard.ui.theme.SlateEdge
+import com.miskibin.obd2dashboard.ui.theme.SlateLine
+import com.miskibin.obd2dashboard.ui.theme.Smoke
 import com.miskibin.obd2dashboard.ui.theme.SteelLight
 import kotlinx.coroutines.delay
 
 /**
  * The screen the driver actually looks at.
  *
- * A flat grid of large numbers, nothing above it but the connection pill, and exactly one
- * gesture to learn: long-press to rearrange or remove, "+" to add. Engine speed, when the
- * driver keeps it, is drawn across the full width — it is the number read at a glance,
- * and a redline bar says more in peripheral vision than four digits do.
+ * One hero card for the three values that get read at speed, then everything else as a
+ * list of rows: label, what normal looks like, the number. A grid of equal tiles gave
+ * every value the same weight, which is not how a dashboard is read — coolant temperature
+ * does not deserve the same area as engine speed. Any row opens onto its own trace, and a
+ * long press turns the list into something the driver can prune and reorder.
  */
 @Composable
 fun DashboardScreen(
+    vehicleName: String,
+    connectionLabel: String,
     tiles: List<MetricId>,
     snapshot: VehicleSnapshot,
     history: MetricHistory,
     historyRevision: Long,
     showEmptyState: Boolean,
     redline: Int,
+    sessionMaxRpm: Double?,
+    gear: GearReading,
+    imperial: Boolean,
     alertRules: List<AlertRule>,
+    recording: RecordingState,
     onMove: (from: Int, to: Int) -> Unit,
-    onDrop: () -> Unit,
     onRemove: (MetricId) -> Unit,
     onAddTile: () -> Unit,
+    onToggleUnits: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onOpenCharts: () -> Unit,
+    onOpenConnection: () -> Unit,
     onConnect: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    if (showEmptyState) {
-        EmptyState(
-            icon = AppIcons.Bluetooth,
-            title = stringResource(R.string.dashboard_empty_title),
-            message = stringResource(R.string.dashboard_empty_message),
-            actionLabel = stringResource(R.string.action_connect),
-            onAction = onConnect,
-            modifier = modifier.fillMaxSize().padding(top = 40.dp),
-        )
-        return
-    }
-
-    val context = LocalContext.current
     var editing by remember { mutableStateOf(false) }
+    var openMetric by remember { mutableStateOf<MetricId?>(null) }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     val haptics = LocalHapticFeedback.current
 
@@ -102,29 +111,11 @@ fun DashboardScreen(
             delay(STALENESS_TICK_MILLIS)
         }
     }
-    LaunchedEffect(tiles.size) { if (tiles.isEmpty()) editing = false }
 
-    val gridState = rememberLazyGridState()
-    val reorderState = rememberGridReorderState(
-        gridState = gridState,
-        onMove = onMove,
-        onDrop = onDrop,
-    )
+    // The hero card already draws revs and speed, so a row for either would say it twice.
+    val rows = remember(tiles) { tiles.filterNot { it == Metrics.Rpm || it == Metrics.Speed } }
+    LaunchedEffect(rows.size) { if (rows.isEmpty()) editing = false }
 
-    // Speed rides along in the engine-speed tile rather than taking a cell of its own,
-    // the way it sits next to the rev counter in a real cluster.
-    val secondary = remember(snapshot, tiles) {
-        val metric = Metrics[Metrics.Speed]?.takeIf { Metrics.Speed in tiles } ?: return@remember null
-        val value = snapshot.valueOf(Metrics.Speed) ?: return@remember null
-        HeroSecondary(
-            value = formatReading(value, metric.decimals),
-            unit = metric.unit,
-            label = context.getString(metric.nameRes),
-        )
-    }
-
-    // A tile whose own alert rule is tripped says so on the tile, not only in a
-    // notification the driver may have swiped away three minutes ago.
     val breached = remember(snapshot, alertRules) {
         alertRules.filter { rule ->
             val value = snapshot.valueOf(rule.metric)
@@ -134,121 +125,223 @@ fun DashboardScreen(
 
     Column(modifier = modifier.fillMaxSize()) {
         ScreenHeader(
-            title = stringResource(R.string.nav_dashboard),
-            subtitle = stringResource(
-                if (editing) R.string.dashboard_edit_hint else R.string.dashboard_subtitle,
-            ),
+            title = vehicleName,
+            subtitle = connectionLabel,
+            modifier = Modifier.clickable(onClick = onOpenConnection),
             trailing = {
-                AnimatedVisibility(visible = editing) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    AnimatedVisibility(visible = editing) {
+                        Text(
+                            text = stringResource(R.string.action_done),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = SteelLight,
+                            modifier = Modifier
+                                .clip(PillCorner)
+                                .background(Slate)
+                                .border(1.dp, SlateBorder, PillCorner)
+                                .clickable { editing = false }
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                        )
+                    }
                     Text(
-                        text = stringResource(R.string.action_done),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = SteelLight,
+                        text = stringResource(
+                            if (imperial) R.string.dashboard_units_imperial
+                            else R.string.dashboard_units_metric,
+                        ),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Smoke,
                         modifier = Modifier
                             .clip(PillCorner)
                             .background(Slate)
                             .border(1.dp, SlateBorder, PillCorner)
-                            .clickable { editing = false }
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                            .clickable(onClick = onToggleUnits)
+                            .padding(horizontal = 11.dp, vertical = 7.dp),
+                    )
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = stringResource(R.string.nav_settings),
+                        tint = Smoke,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .clickable(onClick = onOpenSettings)
+                            .padding(8.dp),
                     )
                 }
             },
         )
 
-        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            val columns = (maxWidth / MIN_TILE_WIDTH.dp).toInt().coerceIn(2, 4)
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(columns),
-                state = gridState,
-                contentPadding = PaddingValues(
-                    start = ScreenPadding,
-                    end = ScreenPadding,
-                    top = 4.dp,
-                    bottom = 16.dp,
-                ),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .reorderableGrid(
-                        state = reorderState,
-                        canDrag = { index -> index < tiles.size },
-                        onLongPress = {
-                            editing = true
-                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        },
+        if (showEmptyState) {
+            EmptyState(
+                icon = AppIcons.Bluetooth,
+                title = stringResource(R.string.dashboard_empty_title),
+                message = stringResource(R.string.dashboard_empty_message),
+                actionLabel = stringResource(R.string.action_connect),
+                onAction = onConnect,
+                modifier = Modifier.fillMaxSize().padding(top = 24.dp),
+            )
+            return@Column
+        }
+
+        LazyColumn(
+            contentPadding = PaddingValues(
+                start = ScreenPadding,
+                end = ScreenPadding,
+                top = 4.dp,
+                bottom = 16.dp,
+            ),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            item(key = HERO_KEY) {
+                HeroCard(
+                    state = HeroState(
+                        rpm = snapshot.valueOf(Metrics.Rpm),
+                        redline = redline,
+                        sessionMaxRpm = sessionMaxRpm,
+                        speed = snapshot.valueOf(Metrics.Speed)
+                            ?.let { if (imperial) it * MILES_PER_KM else it },
+                        speedUnit = stringResource(
+                            if (imperial) R.string.unit_mph else R.string.unit_kmh,
+                        ),
+                        gear = gear,
+                        stale = now - snapshot.updatedAtOf(Metrics.Rpm) > STALE_AFTER_MILLIS,
                     ),
-            ) {
-                itemsIndexed(
-                    items = tiles,
-                    key = { _, id -> id.storageKey },
-                    span = { _, id ->
-                        GridItemSpan(if (id == Metrics.Rpm) maxLineSpan else 1)
-                    },
-                ) { index, id ->
-                    val metric = Metrics[id]
-                    val dragging = index == reorderState.draggingIndex
-                    val hero = id == Metrics.Rpm
-                    val tileModifier = Modifier
-                        .then(if (hero) Modifier.height(HERO_HEIGHT.dp) else Modifier.aspectRatio(TILE_ASPECT_RATIO))
-                        .then(if (dragging) Modifier.zIndex(1f) else Modifier)
-                        .graphicsLayer {
-                            if (dragging) {
-                                translationX = reorderState.offset.x
-                                translationY = reorderState.offset.y
-                                scaleX = DRAG_SCALE
-                                scaleY = DRAG_SCALE
-                                shadowElevation = DRAG_ELEVATION
+                )
+            }
+
+            if (rows.isNotEmpty()) {
+                item(key = ROWS_KEY) {
+                    // One card, hairlines between the rows: a stack of separately rounded
+                    // rows would read as a list of buttons rather than as one readout.
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(CardCorner)
+                            .background(Slate)
+                            .border(1.dp, SlateBorder, CardCorner),
+                    ) {
+                        rows.forEachIndexed { index, id ->
+                            val metric = Metrics[id] ?: return@forEachIndexed
+                            if (index > 0) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(1.dp)
+                                        .background(SlateLine),
+                                )
                             }
+                            MetricRow(
+                                metric = metric,
+                                value = snapshot.valueOf(id),
+                                band = Metrics.bandFor(id, alertRules),
+                                warn = id in breached,
+                                stale = now - snapshot.updatedAtOf(id) > STALE_AFTER_MILLIS,
+                                editing = editing,
+                                canMoveUp = index > 0,
+                                onClick = { openMetric = id },
+                                onLongClick = {
+                                    editing = true
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                },
+                                onMoveUp = {
+                                    val from = tiles.indexOf(id)
+                                    val to = tiles.indexOf(rows[index - 1])
+                                    if (from >= 0 && to >= 0) onMove(from, to)
+                                },
+                                onRemove = { onRemove(id) },
+                            )
                         }
-                        .then(if (dragging) Modifier else Modifier.animateItem())
+                    }
+                }
+            }
 
-                    if (metric == null) return@itemsIndexed
-                    val stale = now - snapshot.updatedAtOf(id) > STALE_AFTER_MILLIS
+            item(key = ADD_KEY) {
+                DashedRow(
+                    label = stringResource(R.string.action_add_tile),
+                    trailing = "+",
+                    onClick = onAddTile,
+                )
+            }
 
-                    if (hero) {
-                        RpmHeroTile(
-                            value = snapshot.valueOf(id),
-                            redline = redline,
-                            stale = stale,
-                            secondary = secondary,
-                            editing = editing,
-                            onRemove = { onRemove(id) },
-                            modifier = tileModifier,
+            item(key = RECORDING_KEY) {
+                val active = recording as? RecordingState.Active
+                DashedRow(
+                    label = if (active != null) {
+                        stringResource(
+                            R.string.dashboard_recording_active,
+                            formatDuration((now - active.startedAtMillis) / 1000),
                         )
-                        return@itemsIndexed
-                    }
-
-                    val samples = remember(historyRevision, id) {
-                        history.series(id, MetricHistory.SPARKLINE_WINDOW_MILLIS, now)
-                    }
-                    MetricTile(
-                        metric = metric,
-                        value = snapshot.valueOf(id),
-                        stale = stale,
-                        samples = samples,
-                        editing = editing,
-                        warn = id in breached,
-                        onRemove = { onRemove(id) },
-                        modifier = tileModifier,
-                    )
-                }
-
-                item(key = ADD_TILE_KEY) {
-                    AddTileButton(
-                        onClick = onAddTile,
-                        modifier = Modifier.aspectRatio(TILE_ASPECT_RATIO),
-                    )
-                }
+                    } else {
+                        stringResource(R.string.dashboard_recording_idle)
+                    },
+                    trailing = "›",
+                    dotColor = if (active != null) Signal else Graphite,
+                    onClick = onOpenCharts,
+                )
             }
         }
     }
+
+    val metricId = openMetric
+    val metric = metricId?.let { Metrics[it] }
+    if (metricId != null && metric != null) {
+        val samples = remember(historyRevision, metricId, now) {
+            history.series(metricId, METRIC_SHEET_WINDOW_MILLIS, now)
+        }
+        MetricSheet(
+            metric = metric,
+            label = stringResource(metric.nameRes),
+            samples = samples,
+            band = Metrics.bandFor(metricId, alertRules),
+            windowMillis = METRIC_SHEET_WINDOW_MILLIS,
+            nowMillis = now,
+            onDismiss = { openMetric = null },
+        )
+    }
 }
 
-private const val ADD_TILE_KEY = "add-tile"
-private const val MIN_TILE_WIDTH = 190
-private const val TILE_ASPECT_RATIO = 1.15f
-private const val HERO_HEIGHT = 164
-private const val DRAG_SCALE = 1.04f
-private const val DRAG_ELEVATION = 16f
+/** The dashed rows at the foot of the list: add a value, and what recording is doing. */
+@Composable
+private fun DashedRow(
+    label: String,
+    trailing: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    dotColor: Color? = null,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(PanelCorner)
+            .border(1.dp, SlateEdge, PanelCorner)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        if (dotColor != null) {
+            Box(modifier = Modifier.size(9.dp).clip(CircleShape).background(dotColor))
+        }
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = Smoke,
+            modifier = Modifier.weight(1f),
+        )
+        Text(text = trailing, style = MaterialTheme.typography.bodyLarge, color = Fog)
+    }
+}
+
+/** How much of a minute the metric sheet plots. */
+const val METRIC_SHEET_WINDOW_MILLIS = 60_000L
+
+private const val HERO_KEY = "hero"
+private const val ROWS_KEY = "rows"
+private const val ADD_KEY = "add-metric"
+private const val RECORDING_KEY = "recording"
+private const val MILES_PER_KM = 0.621371
 private const val STALENESS_TICK_MILLIS = 500L

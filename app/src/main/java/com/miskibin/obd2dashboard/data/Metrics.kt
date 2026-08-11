@@ -64,13 +64,40 @@ data class Metric(
     val exportKey: String get() = id.storageKey
 }
 
+/**
+ * The range a value sits in when nothing is wrong.
+ *
+ * Either end may be absent: oil temperature has a ceiling and no floor worth stating,
+ * fuel trim has both, and most PIDs have neither.
+ */
+data class NormalBand(val min: Double?, val max: Double?) {
+    val isEmpty: Boolean get() = min == null && max == null
+}
+
+/**
+ * How the parameter picker files a metric.
+ *
+ * The catalogue is forty-odd PIDs long, which is a list nobody reads; grouped by what
+ * part of the car the value comes from, it is four short lists that somebody diagnosing a
+ * lean mixture can go straight to.
+ */
+enum class MetricGroup { Engine, Temperature, Mixture, Vehicle }
+
 object Metrics {
 
     val Rpm = MetricId.Sensor(Pids.ENGINE_RPM)
     val Speed = MetricId.Sensor(Pids.VEHICLE_SPEED)
     val CoolantTemp = MetricId.Sensor(Pids.COOLANT_TEMP)
+    val OilTemp = MetricId.Sensor(Pids.OIL_TEMP)
     val IntakeAirTemp = MetricId.Sensor(Pids.INTAKE_AIR_TEMP)
+    val EngineLoad = MetricId.Sensor(Pids.ENGINE_LOAD)
+    val Throttle = MetricId.Sensor(Pids.THROTTLE_POSITION)
+    val Timing = MetricId.Sensor(Pids.TIMING_ADVANCE)
+    val Maf = MetricId.Sensor(Pids.MAF_RATE)
+    val ShortTrim = MetricId.Sensor(Pids.SHORT_FUEL_TRIM_1)
+    val LongTrim = MetricId.Sensor(Pids.LONG_FUEL_TRIM_1)
     val Boost = MetricId.Derived(DerivedMetrics.Boost.key)
+    val FuelPer100Km = MetricId.Derived(DerivedMetrics.FuelPer100Km.key)
     val Battery = MetricId.Battery
 
     /** What a fresh install shows before the driver picks their own tiles. */
@@ -105,6 +132,38 @@ object Metrics {
 
     operator fun get(id: MetricId): Metric? = byId[id]
 
+    /**
+     * What "normal" looks like, for the handful of values where an owner can be told.
+     *
+     * A number on its own only means something to somebody who already knows the engine —
+     * 104 °C is either fine or the start of a bad afternoon depending on what it is. These
+     * bands are what turn the row into an answer, and they are deliberately sparse: a band
+     * is only shipped where one honestly exists across engines. Everything else shows the
+     * reading and nothing more.
+     */
+    val normalBands: Map<MetricId, NormalBand> = mapOf(
+        CoolantTemp to NormalBand(82.0, 98.0),
+        OilTemp to NormalBand(80.0, 110.0),
+        Battery to NormalBand(13.8, 14.4),
+        MetricId.Sensor(Pids.SHORT_FUEL_TRIM_1) to NormalBand(-10.0, 10.0),
+        MetricId.Sensor(Pids.LONG_FUEL_TRIM_1) to NormalBand(-10.0, 10.0),
+    )
+
+    /**
+     * The band for [id], with the driver's own alert threshold substituted in.
+     *
+     * Where a rule exists it wins: the oil row should say "below 110 °C" when that is
+     * where the driver set the warning, not where the default happened to sit.
+     */
+    fun bandFor(id: MetricId, rules: List<AlertRule>): NormalBand? {
+        val base = normalBands[id]
+        val rule = rules.firstOrNull { it.metric == id && it.enabled } ?: return base
+        return when (rule.comparison) {
+            AlertComparison.Above -> NormalBand(base?.min, rule.threshold)
+            AlertComparison.Below -> NormalBand(rule.threshold, base?.max)
+        }
+    }
+
     fun byStorageKey(key: String): Metric? = MetricId.parse(key)?.let(::get)
 
     /**
@@ -119,6 +178,38 @@ object Metrics {
     const val REDLINE_MAX = 9_000
 
     const val REDLINE_STEP = 250
+
+    /**
+     * Which of the four lists a metric belongs in.
+     *
+     * Grouped by where the number comes from rather than by PID order, because somebody
+     * chasing a lean mixture wants the trims, the airflow and lambda next to each other —
+     * they are consecutive in a diagnosis and scattered in the standard.
+     */
+    fun groupOf(id: MetricId): MetricGroup = when (id) {
+        is MetricId.Battery -> MetricGroup.Vehicle
+        is MetricId.Derived -> when (id.key) {
+            DerivedMetrics.Boost.key -> MetricGroup.Engine
+            else -> MetricGroup.Vehicle
+        }
+
+        is MetricId.Sensor -> when (id.pid) {
+            Pids.COOLANT_TEMP, Pids.INTAKE_AIR_TEMP, Pids.OIL_TEMP, Pids.AMBIENT_AIR_TEMP,
+            in 0x3C..0x3F, 0x67, 0x68,
+            -> MetricGroup.Temperature
+
+            Pids.SHORT_FUEL_TRIM_1, Pids.LONG_FUEL_TRIM_1, 0x08, 0x09, Pids.MAF_RATE,
+            in 0x14..0x1B, in 0x24..0x2B, in 0x34..0x3B, 0x44, 0x2C, 0x2D, 0x2E, 0x52, 0x53,
+            -> MetricGroup.Mixture
+
+            Pids.VEHICLE_SPEED, Pids.FUEL_LEVEL, Pids.RUN_TIME, Pids.DISTANCE_WITH_MIL,
+            Pids.DISTANCE_SINCE_CLEARED, Pids.CONTROL_MODULE_VOLTAGE, 0xA6, 0x4D, 0x4E, 0x49,
+            0x4A, 0x4C,
+            -> MetricGroup.Vehicle
+
+            else -> MetricGroup.Engine
+        }
+    }
 
     private fun decimalsFor(unit: String): Int = when (unit) {
         "rpm", "km/h", "km", "s", "min", "count", "N·m", "Pa", "kPa", "°C", "°" -> 0

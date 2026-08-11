@@ -17,15 +17,22 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,10 +41,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.miskibin.obd2dashboard.R
 import com.miskibin.obd2dashboard.ble.ConnectionState
 import com.miskibin.obd2dashboard.ui.theme.Amber
 import com.miskibin.obd2dashboard.ui.theme.AshDim
@@ -46,7 +55,10 @@ import com.miskibin.obd2dashboard.ui.theme.Chalk
 import com.miskibin.obd2dashboard.ui.theme.ControlCorner
 import com.miskibin.obd2dashboard.ui.theme.Fog
 import com.miskibin.obd2dashboard.ui.theme.Graphite
+import com.miskibin.obd2dashboard.ui.theme.LocalSkin
 import com.miskibin.obd2dashboard.ui.theme.PanelCorner
+import com.miskibin.obd2dashboard.ui.theme.PaperCard
+import com.miskibin.obd2dashboard.ui.theme.PaperInk
 import com.miskibin.obd2dashboard.ui.theme.PillCorner
 import com.miskibin.obd2dashboard.ui.theme.Signal
 import com.miskibin.obd2dashboard.ui.theme.SignalBorder
@@ -75,8 +87,8 @@ val ScreenPadding = 16.dp
 fun DashCard(
     modifier: Modifier = Modifier,
     shape: Shape = CardCorner,
-    background: Color = Slate,
-    border: Color = SlateBorder,
+    background: Color = LocalSkin.current.card,
+    border: Color = LocalSkin.current.cardBorder,
     contentPadding: PaddingValues = PaddingValues(16.dp),
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
@@ -95,14 +107,19 @@ fun DashCard(
 /**
  * The title block every screen opens with: name on the left, one line of context under
  * it, and at most one control on the right.
+ *
+ * [onBack] turns it into a detail header — the arrow takes the place of nothing, since
+ * the title block is already inset far enough for it.
  */
 @Composable
 fun ScreenHeader(
     title: String,
     modifier: Modifier = Modifier,
     subtitle: String? = null,
+    onBack: (() -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
 ) {
+    val skin = LocalSkin.current
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -110,18 +127,31 @@ fun ScreenHeader(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        if (onBack != null) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = stringResource(R.string.action_back),
+                tint = skin.subtitle,
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .clickable(onClick = onBack)
+                    .padding(8.dp),
+            )
+        }
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
                 style = MaterialTheme.typography.headlineMedium,
-                color = Chalk,
+                color = skin.title,
                 maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             if (subtitle != null) {
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodySmall,
-                    color = Smoke,
+                    color = skin.subtitle,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = 3.dp),
@@ -134,7 +164,11 @@ fun ScreenHeader(
 
 /** A quiet, uppercase divider between the groups of a list. */
 @Composable
-fun SectionHeader(text: String, modifier: Modifier = Modifier, color: Color = Smoke) {
+fun SectionHeader(
+    text: String,
+    modifier: Modifier = Modifier,
+    color: Color = LocalSkin.current.subtitle,
+) {
     Text(
         text = text.uppercase(),
         style = MaterialTheme.typography.labelSmall,
@@ -151,11 +185,12 @@ fun SectionHeader(text: String, modifier: Modifier = Modifier, color: Color = Sm
  */
 @Composable
 fun GroupedList(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    val divider = LocalSkin.current.divider
     Column(
         modifier = modifier
             .clip(PanelCorner)
-            .background(SlateBorder)
-            .border(1.dp, SlateBorder, PanelCorner),
+            .background(divider)
+            .border(1.dp, divider, PanelCorner),
         verticalArrangement = Arrangement.spacedBy(1.dp),
         content = content,
     )
@@ -429,6 +464,7 @@ fun EmptyState(
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
 ) {
+    val skin = LocalSkin.current
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -439,19 +475,19 @@ fun EmptyState(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = Graphite,
+            tint = skin.quiet,
             modifier = Modifier.size(36.dp),
         )
         Text(
             text = title,
             style = MaterialTheme.typography.titleMedium,
-            color = Chalk,
+            color = skin.title,
             textAlign = TextAlign.Center,
         )
         Text(
             text = message,
             style = MaterialTheme.typography.bodyMedium,
-            color = Smoke,
+            color = skin.subtitle,
             textAlign = TextAlign.Center,
             modifier = Modifier.widthIn(max = 340.dp),
         )
@@ -461,6 +497,72 @@ fun EmptyState(
                 onClick = onAction,
                 modifier = Modifier.padding(top = 10.dp),
             )
+        }
+    }
+}
+
+/**
+ * The primary action on paper.
+ *
+ * On the light ground the steel fill of [AccentButton] loses its authority — next to a
+ * white card it reads as another card. Ink-filled, it reads as the button.
+ */
+@Composable
+fun InkButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    ActionButton(
+        label = label,
+        onClick = onClick,
+        modifier = modifier,
+        enabled = true,
+        background = PaperInk,
+        border = BorderStroke(1.dp, PaperInk),
+        contentColor = PaperCard,
+        leading = null,
+    )
+}
+
+/**
+ * The app's bottom sheet: a handle, a title, one line of context, then the content.
+ *
+ * Dialogs float in the middle of the screen and land where the driver's thumb is not; a
+ * sheet comes up from the bottom edge, which is where the hand already is. Sheets are
+ * always dark, even over a paper screen — they are a layer above the page, and the
+ * inversion is what says so.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DesignSheet(
+    title: String,
+    subtitle: String,
+    onDismiss: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(),
+        containerColor = Slate,
+        contentColor = Chalk,
+        shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp),
+        dragHandle = {
+            Box(
+                modifier = Modifier
+                    .padding(top = 12.dp, bottom = 4.dp)
+                    .width(38.dp)
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(SlateEdge),
+            )
+        },
+    ) {
+        Column(modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 30.dp)) {
+            Text(text = title, style = MaterialTheme.typography.titleMedium, color = Chalk)
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = Smoke,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            content()
         }
     }
 }

@@ -17,16 +17,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -50,42 +49,58 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.miskibin.obd2dashboard.R
 import com.miskibin.obd2dashboard.ble.ConnectionState
 import com.miskibin.obd2dashboard.data.AppLanguage
+import com.miskibin.obd2dashboard.data.DtcLog
+import com.miskibin.obd2dashboard.data.DtcDescriptions
 import com.miskibin.obd2dashboard.data.LocalePreference
 import com.miskibin.obd2dashboard.data.RecordingState
+import com.miskibin.obd2dashboard.service.describe
 import com.miskibin.obd2dashboard.ui.chart.ChartsScreen
-import com.miskibin.obd2dashboard.ui.chart.RecordingsScreen
 import com.miskibin.obd2dashboard.ui.components.ConnectionPill
 import com.miskibin.obd2dashboard.ui.components.ScreenPadding
 import com.miskibin.obd2dashboard.ui.connect.ConnectScreen
 import com.miskibin.obd2dashboard.ui.dashboard.DashboardScreen
 import com.miskibin.obd2dashboard.ui.dashboard.PidPickerScreen
-import com.miskibin.obd2dashboard.service.describe
 import com.miskibin.obd2dashboard.ui.diagnostics.DiagnosticsScreen
+import com.miskibin.obd2dashboard.ui.diagnostics.FaultDetailScreen
 import com.miskibin.obd2dashboard.ui.settings.REPOSITORY_URL
 import com.miskibin.obd2dashboard.ui.settings.SettingsScreen
-import com.miskibin.obd2dashboard.ui.theme.Chalk
-import com.miskibin.obd2dashboard.ui.theme.InkRaised
+import com.miskibin.obd2dashboard.ui.theme.GraphiteSkin
+import com.miskibin.obd2dashboard.ui.theme.LocalSkin
+import com.miskibin.obd2dashboard.ui.theme.PaperSkin
 import com.miskibin.obd2dashboard.ui.theme.Signal
-import com.miskibin.obd2dashboard.ui.theme.SlateLine
-import com.miskibin.obd2dashboard.ui.theme.SmokeDim
+import com.miskibin.obd2dashboard.ui.theme.Skin
 import com.miskibin.obd2dashboard.ui.theme.ToastSurface
 import com.miskibin.obd2dashboard.ui.theme.ToastText
+import com.miskibin.obd2dashboard.ui.trips.TripDetailScreen
+import com.miskibin.obd2dashboard.ui.trips.TripsScreen
 
 object Routes {
     const val DASHBOARD = "dashboard"
     const val CHARTS = "charts"
+    const val TRIPS = "trips"
     const val DIAGNOSTICS = "diagnostics"
     const val SETTINGS = "settings"
     const val CONNECT = "connect"
     const val PICKER = "picker"
-    const val RECORDINGS = "recordings"
+
+    const val TRIP_ARGUMENT = "trip"
+    const val TRIP_DETAIL = "trip/{$TRIP_ARGUMENT}"
+
+    const val FAULT_ARGUMENT = "code"
+    const val FAULT_DETAIL = "fault/{$FAULT_ARGUMENT}"
+
+    fun tripDetail(fileName: String) = "trip/$fileName"
+
+    fun faultDetail(code: String) = "fault/$code"
 }
 
 private data class Destination(val route: String, val icon: ImageVector, val labelRes: Int)
@@ -93,6 +108,10 @@ private data class Destination(val route: String, val icon: ImageVector, val lab
 /**
  * The navigation shell: four destinations, one persistent connection indicator, and no
  * drawer, overflow menu or nested settings anywhere.
+ *
+ * Settings is reached from the dashboard rather than from the bar, because it is opened
+ * about twice in the life of an install and a fourth of the bar is worth more to the trip
+ * log, which is opened after every drive.
  */
 @Composable
 fun Obd2App(viewModel: ObdViewModel = viewModel()) {
@@ -137,53 +156,76 @@ private fun Obd2Shell(viewModel: ObdViewModel, hasSavedAdapter: Boolean) {
         }
     }
 
+    // The report is built off the main thread and can be asked for from two screens, so
+    // the share sheet is opened here rather than inside either of them.
+    val report by viewModel.report.collectAsStateWithLifecycle()
+    LaunchedEffect(report) {
+        val text = report ?: return@LaunchedEffect
+        runCatching { context.startActivity(reportChooser(context, text)) }
+        viewModel.consumeReport()
+    }
+
     val recording by viewModel.recording.collectAsStateWithLifecycle()
 
     val destinations = listOf(
         Destination(Routes.DASHBOARD, AppIcons.Gauge, R.string.nav_dashboard),
         Destination(Routes.CHARTS, AppIcons.Timeline, R.string.nav_charts),
+        Destination(Routes.TRIPS, AppIcons.Trips, R.string.nav_trips),
         Destination(Routes.DIAGNOSTICS, AppIcons.Alert, R.string.nav_diagnostics),
-        Destination(Routes.SETTINGS, Icons.Default.Settings, R.string.nav_settings),
     )
-    val showBottomBar = destinations.any { it.route == route }
+    val showBottomBar = destinations.any { it.route == route } ||
+        route == Routes.TRIP_DETAIL ||
+        route == Routes.FAULT_DETAIL
     val milOn = diagnostics?.monitorStatus?.milOn == true
     val faultCount = diagnostics?.let { it.monitorStatus?.dtcCount ?: it.all.size } ?: 0
+    val skin = skinFor(route)
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        snackbarHost = { SnackbarHost(snackbarHostState) { data -> AlertToast(data.visuals.message) } },
-        bottomBar = {
-            if (!showBottomBar) return@Scaffold
-            BottomNav(
-                destinations = destinations,
-                route = route,
-                faultCount = if (milOn || faultCount > 0) faultCount else 0,
-                recording = recording is RecordingState.Active,
-                onSelect = navController::switchTo,
-            )
-        },
-    ) { innerPadding ->
-        Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-            if (route != Routes.CONNECT) {
-                ConnectionPill(
-                    state = connectionState,
-                    label = connectionState.label(),
-                    onClick = { navController.navigate(Routes.CONNECT) },
-                    modifier = Modifier.padding(
-                        start = ScreenPadding,
-                        end = ScreenPadding,
-                        top = 10.dp,
-                    ),
+    CompositionLocalProvider(LocalSkin provides skin) {
+        Scaffold(
+            containerColor = skin.background,
+            snackbarHost = { SnackbarHost(snackbarHostState) { data -> AlertToast(data.visuals.message) } },
+            bottomBar = {
+                if (!showBottomBar) return@Scaffold
+                BottomNav(
+                    destinations = destinations,
+                    route = route,
+                    skin = skin,
+                    faultCount = if (milOn || faultCount > 0) faultCount else 0,
+                    recording = recording is RecordingState.Active,
+                    onSelect = navController::switchTo,
+                )
+            },
+        ) { innerPadding ->
+            Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+                // The dashboard states the connection in its own header, and the trip
+                // screens are read with the engine off; everywhere else the pill is the
+                // only answer to "is it still talking to the car?".
+                if (route in PILL_ROUTES) {
+                    ConnectionPill(
+                        state = connectionState,
+                        label = connectionState.label(),
+                        onClick = { navController.navigate(Routes.CONNECT) },
+                        modifier = Modifier.padding(
+                            start = ScreenPadding,
+                            end = ScreenPadding,
+                            top = 10.dp,
+                        ),
+                    )
+                }
+                AppNavHost(
+                    navController = navController,
+                    viewModel = viewModel,
+                    modifier = Modifier.fillMaxSize(),
                 )
             }
-            AppNavHost(
-                navController = navController,
-                viewModel = viewModel,
-                modifier = Modifier.fillMaxSize(),
-            )
         }
     }
 }
+
+/** Trips are read with the engine off, so they are the one part drawn on paper. */
+@Composable
+private fun skinFor(route: String): Skin =
+    if (route == Routes.TRIPS || route == Routes.TRIP_DETAIL) PaperSkin else GraphiteSkin
 
 /**
  * The bottom bar, drawn by hand.
@@ -197,6 +239,7 @@ private fun Obd2Shell(viewModel: ObdViewModel, hasSavedAdapter: Boolean) {
 private fun BottomNav(
     destinations: List<Destination>,
     route: String,
+    skin: Skin,
     faultCount: Int,
     recording: Boolean,
     onSelect: (String) -> Unit,
@@ -204,14 +247,20 @@ private fun BottomNav(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(SlateLine)
+            .background(skin.navBorder)
             .padding(top = 1.dp)
-            .background(InkRaised)
+            .background(skin.navBackground)
             .navigationBarsPadding()
             .padding(top = 10.dp, bottom = 12.dp),
     ) {
         destinations.forEach { destination ->
-            val selected = route == destination.route
+            // A detail screen keeps its parent tab lit: the driver is still "in" trips
+            // while reading one of them.
+            val selected = when (destination.route) {
+                Routes.TRIPS -> route == Routes.TRIPS || route == Routes.TRIP_DETAIL
+                Routes.DIAGNOSTICS -> route == Routes.DIAGNOSTICS || route == Routes.FAULT_DETAIL
+                else -> route == destination.route
+            }
             Column(
                 modifier = Modifier
                     .weight(1f)
@@ -224,7 +273,7 @@ private fun BottomNav(
                     Icon(
                         imageVector = destination.icon,
                         contentDescription = null,
-                        tint = if (selected) Chalk else SmokeDim,
+                        tint = if (selected) skin.navSelected else skin.navIdle,
                         modifier = Modifier.size(21.dp),
                     )
                     when {
@@ -255,7 +304,7 @@ private fun BottomNav(
                 Text(
                     text = stringResource(destination.labelRes),
                     style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp),
-                    color = if (selected) Chalk else SmokeDim,
+                    color = if (selected) skin.navSelected else skin.navIdle,
                 )
             }
         }
@@ -301,18 +350,33 @@ private fun AppNavHost(
             val idle = connectionState is ConnectionState.Idle || connectionState is ConnectionState.Error
             val redline by viewModel.redline.collectAsStateWithLifecycle()
             val alertRules by viewModel.alertRules.collectAsStateWithLifecycle()
+            val savedAdapter by viewModel.savedAdapter.collectAsStateWithLifecycle()
+            val sessionMaxRpm by viewModel.sessionMaxRpm.collectAsStateWithLifecycle()
+            val gear by viewModel.gear.collectAsStateWithLifecycle()
+            val imperial by viewModel.imperialUnits.collectAsStateWithLifecycle()
+            val recording by viewModel.recording.collectAsStateWithLifecycle()
             DashboardScreen(
+                vehicleName = savedAdapter?.name?.takeIf(String::isNotBlank)
+                    ?: stringResource(R.string.dashboard_vehicle_unknown),
+                connectionLabel = connectionState.label(),
                 tiles = tiles,
                 snapshot = snapshot,
                 history = viewModel.history,
                 historyRevision = historyRevision,
                 showEmptyState = idle && snapshot.readings.isEmpty(),
                 redline = redline,
+                sessionMaxRpm = sessionMaxRpm,
+                gear = gear,
+                imperial = imperial,
                 alertRules = alertRules,
+                recording = recording,
                 onMove = viewModel::moveTile,
-                onDrop = viewModel::commitTiles,
                 onRemove = viewModel::removeTile,
                 onAddTile = { navController.navigate(Routes.PICKER) },
+                onToggleUnits = viewModel::toggleUnits,
+                onOpenSettings = { navController.navigate(Routes.SETTINGS) },
+                onOpenCharts = { navController.switchTo(Routes.CHARTS) },
+                onOpenConnection = { navController.navigate(Routes.CONNECT) },
                 onConnect = { navController.navigate(Routes.CONNECT) },
             )
         }
@@ -320,46 +384,110 @@ private fun AppNavHost(
         composable(Routes.CHARTS) {
             val chartMetrics by viewModel.chartMetrics.collectAsStateWithLifecycle()
             val recording by viewModel.recording.collectAsStateWithLifecycle()
-            val trips by viewModel.trips.collectAsStateWithLifecycle()
-            LaunchedEffect(Unit) { viewModel.refreshTrips() }
+            val supported by viewModel.supportedPids.collectAsStateWithLifecycle()
             ChartsScreen(
-                tiles = tiles,
                 chartMetrics = chartMetrics,
+                supportedPids = supported,
                 snapshot = snapshot,
                 history = viewModel.history,
                 historyRevision = historyRevision,
                 recording = recording,
-                tripCount = trips.size,
+                maxSeries = ObdViewModel.MAX_CHART_SERIES,
                 onToggleMetric = viewModel::toggleChartMetric,
                 onToggleRecording = viewModel::toggleRecording,
-                onOpenRecordings = { navController.navigate(Routes.RECORDINGS) },
-                onAddTiles = { navController.navigate(Routes.PICKER) },
+            )
+        }
+
+        composable(Routes.TRIPS) {
+            val trips by viewModel.trips.collectAsStateWithLifecycle()
+            TripsScreen(
+                entries = trips,
+                onOpen = { trip -> navController.navigate(Routes.tripDetail(trip.name)) },
+                onRefresh = viewModel::refreshTrips,
+            )
+        }
+
+        composable(
+            route = Routes.TRIP_DETAIL,
+            arguments = listOf(navArgument(Routes.TRIP_ARGUMENT) { type = NavType.StringType }),
+        ) { entry ->
+            val name = entry.arguments?.getString(Routes.TRIP_ARGUMENT)
+            val trips by viewModel.trips.collectAsStateWithLifecycle()
+            val selected = trips.firstOrNull { it.trip.name == name }
+            if (selected == null) {
+                LaunchedEffect(name) { navController.popBackStack() }
+                return@composable
+            }
+            TripDetailScreen(
+                trip = selected.trip,
+                analysis = selected.analysis,
+                onExport = {
+                    runCatching {
+                        context.startActivity(
+                            Intent.createChooser(
+                                viewModel.shareIntentFor(selected.trip),
+                                context.getString(R.string.action_share),
+                            ),
+                        )
+                    }
+                },
+                onDelete = {
+                    viewModel.deleteTrip(selected.trip)
+                    navController.popBackStack()
+                },
+                onBack = { navController.popBackStack() },
             )
         }
 
         composable(Routes.DIAGNOSTICS) {
             val diagnostics by viewModel.diagnostics.collectAsStateWithLifecycle()
             val operation by viewModel.dtcOperation.collectAsStateWithLifecycle()
-            val report by viewModel.report.collectAsStateWithLifecycle()
             val freezeFrame by viewModel.freezeFrame.collectAsStateWithLifecycle()
+            val contexts by viewModel.faultContexts.collectAsStateWithLifecycle()
             val language = Locale.current.language
-
-            // The report is built off the main thread; the share sheet opens when it lands.
-            LaunchedEffect(report) {
-                val text = report ?: return@LaunchedEffect
-                runCatching { context.startActivity(reportChooser(context, text)) }
-                viewModel.consumeReport()
-            }
 
             DiagnosticsScreen(
                 diagnostics = diagnostics,
                 freezeFrame = freezeFrame,
                 operation = operation,
                 connected = connectionState is ConnectionState.Connected,
+                recordedCodes = contexts.filterValues { it.hasTimeline }.keys,
                 onRead = viewModel::readCodes,
                 onClear = viewModel::clearCodes,
                 onShareReport = { viewModel.buildReport(language) },
+                onOpenFault = { dtc -> navController.navigate(Routes.faultDetail(dtc.code)) },
                 onConnect = { navController.navigate(Routes.CONNECT) },
+            )
+        }
+
+        composable(
+            route = Routes.FAULT_DETAIL,
+            arguments = listOf(navArgument(Routes.FAULT_ARGUMENT) { type = NavType.StringType }),
+        ) { entry ->
+            val code = entry.arguments?.getString(Routes.FAULT_ARGUMENT)
+            val diagnostics by viewModel.diagnostics.collectAsStateWithLifecycle()
+            val freezeFrame by viewModel.freezeFrame.collectAsStateWithLifecycle()
+            val contexts by viewModel.faultContexts.collectAsStateWithLifecycle()
+            val log by viewModel.dtcLog.collectAsStateWithLifecycle()
+            val language = Locale.current.language
+            val dtc = diagnostics?.all?.firstOrNull { it.code == code }
+            if (dtc == null) {
+                LaunchedEffect(code) { navController.popBackStack() }
+                return@composable
+            }
+            val related = remember(code, log) { DtcLog.relatedTo(dtc.code, log) }
+            FaultDetailScreen(
+                dtc = dtc,
+                observation = log.firstOrNull { it.code == dtc.code },
+                related = related,
+                relatedDescriptions = remember(related, language) {
+                    related.associate { it.code to DtcDescriptions.describe(it.code).forLanguage(language) }
+                },
+                context = contexts[dtc.code],
+                freezeFrame = freezeFrame?.takeIf { it.triggerCode == null || it.triggerCode == dtc.code },
+                language = language,
+                onBack = { navController.popBackStack() },
+                onOpenReport = { viewModel.buildReport(language) },
             )
         }
 
@@ -377,6 +505,7 @@ private fun AppNavHost(
                 alertRules = alertRules,
                 redline = redline,
                 versionName = versionName,
+                onBack = { navController.popBackStack() },
                 onForgetAdapter = viewModel::forgetAdapter,
                 onLanguageChange = { selected -> applyLanguage(context, selected) },
                 onPollingChange = viewModel::setPollingEnabled,
@@ -423,26 +552,6 @@ private fun AppNavHost(
                 onBack = { navController.popBackStack() },
             )
         }
-
-        composable(Routes.RECORDINGS) {
-            val trips by viewModel.trips.collectAsStateWithLifecycle()
-            RecordingsScreen(
-                trips = trips,
-                onShare = { trip ->
-                    runCatching {
-                        context.startActivity(
-                            Intent.createChooser(
-                                viewModel.shareIntentFor(trip),
-                                context.getString(R.string.action_share),
-                            ),
-                        )
-                    }
-                },
-                onDelete = viewModel::deleteTrip,
-                onRefresh = viewModel::refreshTrips,
-                onBack = { navController.popBackStack() },
-            )
-        }
     }
 }
 
@@ -483,3 +592,6 @@ private fun versionNameOf(context: android.content.Context): String =
     runCatching {
         context.packageManager.getPackageInfo(context.packageName, 0).versionName
     }.getOrNull().orEmpty()
+
+/** Where the connection pill is worth its line of screen. */
+private val PILL_ROUTES = setOf(Routes.CHARTS, Routes.DIAGNOSTICS, Routes.PICKER)

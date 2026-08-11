@@ -174,6 +174,31 @@ object AppIcons {
         }
     }
 
+    /** The trip log: a page with a pencil at its corner. */
+    val Trips: ImageVector by lazy {
+        icon("Trips") {
+            path(fill = SolidColor(Color.White), pathFillType = PathFillType.NonZero) {
+                moveTo(4f, 4f)
+                horizontalLineToRelative(10f)
+                verticalLineToRelative(2f)
+                horizontalLineTo(6f)
+                verticalLineToRelative(12f)
+                horizontalLineToRelative(12f)
+                verticalLineToRelative(-8f)
+                horizontalLineToRelative(2f)
+                verticalLineToRelative(10f)
+                horizontalLineTo(4f)
+                close()
+                moveTo(16.6f, 5f)
+                lineTo(20f, 8.4f)
+                lineToRelative(-7.3f, 7.3f)
+                lineToRelative(-3.4f, 0.1f)
+                lineToRelative(0.1f, -3.4f)
+                close()
+            }
+        }
+    }
+
     /** A chevron for rows that lead somewhere. */
     val ChevronRight: ImageVector by lazy {
         icon("ChevronRight") {

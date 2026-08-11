@@ -51,6 +51,12 @@ class AppPreferences(context: Context) {
     /** Always the full set of shipped rules; only the driver's edits are stored. */
     val alertRules: Flow<List<AlertRule>> = store.data.map { AlertRules.decode(it[KEY_ALERTS]) }
 
+    /** When each fault code was first and last seen, kept because OBD2 will not say. */
+    val dtcLog: Flow<List<DtcObservation>> = store.data.map { DtcLog.decode(it[KEY_DTC_LOG]) }
+
+    /** Whether the driver reads speed in miles; everything is polled in km/h regardless. */
+    val imperialUnits: Flow<Boolean> = store.data.map { it[KEY_IMPERIAL] ?: false }
+
     suspend fun saveAdapter(address: String, name: String?) {
         store.edit { prefs ->
             prefs[KEY_ADAPTER_ADDRESS] = address
@@ -93,6 +99,33 @@ class AppPreferences(context: Context) {
         store.edit { it.remove(KEY_ALERTS) }
     }
 
+    suspend fun setImperialUnits(imperial: Boolean) {
+        store.edit { it[KEY_IMPERIAL] = imperial }
+    }
+
+    /**
+     * Records that these codes were present just now.
+     *
+     * [previouslyPresent] comes from the previous read of the same session, so a code that
+     * has merely stayed stored does not inflate its own occurrence count.
+     */
+    suspend fun recordDtcSightings(
+        codes: Collection<String>,
+        previouslyPresent: Set<String>,
+        nowMillis: Long,
+    ) {
+        if (codes.isEmpty()) return
+        store.edit { prefs ->
+            val merged = DtcLog.merge(
+                log = DtcLog.decode(prefs[KEY_DTC_LOG]),
+                codes = codes,
+                previouslyPresent = previouslyPresent,
+                nowMillis = nowMillis,
+            )
+            prefs[KEY_DTC_LOG] = DtcLog.encode(merged)
+        }
+    }
+
     private companion object {
         val KEY_ADAPTER_ADDRESS = stringPreferencesKey("adapter_address")
         val KEY_ADAPTER_NAME = stringPreferencesKey("adapter_name")
@@ -101,6 +134,8 @@ class AppPreferences(context: Context) {
         val KEY_POLLING_ENABLED = booleanPreferencesKey("polling_enabled")
         val KEY_REDLINE = intPreferencesKey("redline_rpm")
         val KEY_ALERTS = stringPreferencesKey("alert_rules")
+        val KEY_DTC_LOG = stringPreferencesKey("dtc_log")
+        val KEY_IMPERIAL = booleanPreferencesKey("imperial_units")
 
         const val SEPARATOR = "|"
 

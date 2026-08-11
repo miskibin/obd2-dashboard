@@ -136,7 +136,7 @@ fun PidPickerScreen(
             if (available.isNotEmpty()) {
                 item { SectionHeader(stringResource(R.string.picker_available)) }
                 items(available, key = { it.first.id.storageKey }) { (metric, name) ->
-                    MetricRow(
+                    PickerRow(
                         name = name,
                         unit = metric.unit,
                         selected = metric.id in selected,
@@ -158,7 +158,7 @@ fun PidPickerScreen(
                     }
                 }
                 items(unavailable, key = { it.first.id.storageKey }) { (metric, name) ->
-                    MetricRow(
+                    PickerRow(
                         name = name,
                         unit = metric.unit,
                         selected = metric.id in selected,
@@ -182,7 +182,7 @@ fun PidPickerScreen(
 }
 
 @Composable
-private fun MetricRow(
+private fun PickerRow(
     name: String,
     unit: String,
     selected: Boolean,

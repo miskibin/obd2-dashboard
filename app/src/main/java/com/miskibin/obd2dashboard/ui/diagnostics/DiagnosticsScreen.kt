@@ -1,9 +1,6 @@
 package com.miskibin.obd2dashboard.ui.diagnostics
 
 import androidx.annotation.StringRes
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -15,7 +12,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -28,9 +24,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,24 +33,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.intl.Locale
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.miskibin.obd2dashboard.R
 import com.miskibin.obd2dashboard.data.DtcDescriptions
-import com.miskibin.obd2dashboard.data.MetricId
-import com.miskibin.obd2dashboard.data.Metrics
 import com.miskibin.obd2dashboard.data.MonitorNames
 import com.miskibin.obd2dashboard.obd.Diagnostics
 import com.miskibin.obd2dashboard.obd.Dtc
 import com.miskibin.obd2dashboard.obd.DtcKind
 import com.miskibin.obd2dashboard.obd.FreezeFrame
-import com.miskibin.obd2dashboard.obd.FreezeFrames
 import com.miskibin.obd2dashboard.obd.IgnitionType
 import com.miskibin.obd2dashboard.obd.MonitorState
 import com.miskibin.obd2dashboard.obd.Readiness
@@ -64,15 +53,14 @@ import com.miskibin.obd2dashboard.ui.AppIcons
 import com.miskibin.obd2dashboard.ui.DtcOperation
 import com.miskibin.obd2dashboard.ui.components.AccentButton
 import com.miskibin.obd2dashboard.ui.components.DangerButton
+import com.miskibin.obd2dashboard.ui.components.DesignSheet
 import com.miskibin.obd2dashboard.ui.components.EmptyState
-import com.miskibin.obd2dashboard.ui.components.GroupedList
 import com.miskibin.obd2dashboard.ui.components.QuietButton
 import com.miskibin.obd2dashboard.ui.components.ScreenHeader
 import com.miskibin.obd2dashboard.ui.components.ScreenPadding
 import com.miskibin.obd2dashboard.ui.components.SectionHeader
 import com.miskibin.obd2dashboard.ui.components.SolidDangerButton
 import com.miskibin.obd2dashboard.ui.components.Tag
-import com.miskibin.obd2dashboard.ui.components.formatReading
 import com.miskibin.obd2dashboard.ui.theme.AmberLight
 import com.miskibin.obd2dashboard.ui.theme.AmberProse
 import com.miskibin.obd2dashboard.ui.theme.AmberSurface
@@ -96,7 +84,6 @@ import com.miskibin.obd2dashboard.ui.theme.SignalSurfaceStrong
 import com.miskibin.obd2dashboard.ui.theme.SignalText
 import com.miskibin.obd2dashboard.ui.theme.Slate
 import com.miskibin.obd2dashboard.ui.theme.SlateBorder
-import com.miskibin.obd2dashboard.ui.theme.SlateEdge
 import com.miskibin.obd2dashboard.ui.theme.Smoke
 import com.miskibin.obd2dashboard.ui.theme.SmokeDim
 import com.miskibin.obd2dashboard.ui.theme.SteelDeep
@@ -106,9 +93,10 @@ import com.miskibin.obd2dashboard.ui.theme.SteelLight
  * Fault codes on one screen: what the lamp says, what the ECUs stored, and the two
  * actions that change either.
  *
- * A code is only half an answer, so each row opens onto the frozen parameters the ECU
- * kept from the moment it set the code. Clearing is deliberately awkward — it is the one
- * irreversible thing the app can do to a car, and the sheet says exactly what it costs.
+ * A code is only half an answer, so each row leads to a screen of its own: what the
+ * engine was doing when it appeared, what changed just before, and which codes landed
+ * near it. Clearing is deliberately awkward — it is the one irreversible thing the app can
+ * do to a car, and the sheet says exactly what it costs.
  */
 @Composable
 fun DiagnosticsScreen(
@@ -116,9 +104,11 @@ fun DiagnosticsScreen(
     freezeFrame: FreezeFrame?,
     operation: DtcOperation?,
     connected: Boolean,
+    recordedCodes: Set<String>,
     onRead: () -> Unit,
     onClear: () -> Unit,
     onShareReport: () -> Unit,
+    onOpenFault: (Dtc) -> Unit,
     onConnect: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -176,9 +166,9 @@ fun DiagnosticsScreen(
                 }
 
                 else -> {
-                    section(R.string.dtc_section_stored, diagnostics.stored, language, freezeFrame)
-                    section(R.string.dtc_section_pending, diagnostics.pending, language, freezeFrame)
-                    section(R.string.dtc_section_permanent, diagnostics.permanent, language, freezeFrame)
+                    section(R.string.dtc_section_stored, diagnostics.stored, language, recordedCodes, onOpenFault)
+                    section(R.string.dtc_section_pending, diagnostics.pending, language, recordedCodes, onOpenFault)
+                    section(R.string.dtc_section_permanent, diagnostics.permanent, language, recordedCodes, onOpenFault)
                 }
             }
 
@@ -324,35 +314,34 @@ private fun LazyListScope.section(
     @StringRes titleRes: Int,
     codes: List<Dtc>,
     language: String,
-    freezeFrame: FreezeFrame?,
+    recordedCodes: Set<String>,
+    onOpenFault: (Dtc) -> Unit,
 ) {
     if (codes.isEmpty()) return
     item(key = "header-$titleRes") { SectionHeader(text = stringResource(titleRes)) }
     items(codes, key = { "${it.kind}-${it.code}-${it.ecu}" }) { dtc ->
-        DtcCard(dtc = dtc, language = language, freezeFrame = freezeFrame)
+        DtcCard(
+            dtc = dtc,
+            language = language,
+            recorded = dtc.code in recordedCodes,
+            onClick = { onOpenFault(dtc) },
+        )
     }
 }
 
 /**
- * One code, closed and open.
+ * One code in the list: what it is, and the way in.
  *
- * Closed it is the code, its state and a plain-language description. Open it adds the
- * frozen frame — the parameters the ECU kept from the instant the fault was set, which
- * is the difference between "misfire" and "misfire at 86 % load and 13.6 V".
+ * The card deliberately stops at the description. Everything that makes a code
+ * diagnosable — what the engine was doing, what changed, which codes landed near it — is
+ * a screen of its own, because it is a screen's worth of material and because expanding
+ * it in place buried it under whatever code happened to be listed next.
  */
 @Composable
-private fun DtcCard(dtc: Dtc, language: String, freezeFrame: FreezeFrame?) {
-    var expanded by remember(dtc.code) { mutableStateOf(false) }
-    var allRows by remember(dtc.code) { mutableStateOf(false) }
+private fun DtcCard(dtc: Dtc, language: String, recorded: Boolean, onClick: () -> Unit) {
     val description = remember(dtc.code, language) {
         DtcDescriptions.describe(dtc.code).forLanguage(language)
     }
-    val frame = freezeFrame?.takeIf { it.triggerCode == dtc.code && it.values.isNotEmpty() }
-    val chevron by animateFloatAsState(
-        targetValue = if (expanded) 90f else 0f,
-        animationSpec = tween(200),
-        label = "dtc-chevron",
-    )
 
     Column(
         modifier = Modifier
@@ -360,7 +349,7 @@ private fun DtcCard(dtc: Dtc, language: String, freezeFrame: FreezeFrame?) {
             .clip(PanelCorner)
             .background(Slate)
             .border(1.dp, SlateBorder, PanelCorner)
-            .clickable { expanded = !expanded }
+            .clickable(onClick = onClick)
             .padding(start = 16.dp, end = 16.dp, top = 15.dp, bottom = 13.dp),
     ) {
         Row(
@@ -390,9 +379,11 @@ private fun DtcCard(dtc: Dtc, language: String, freezeFrame: FreezeFrame?) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            // Saying which of the two sources exists here, before the tap, is what stops
+            // the detail screen from being a disappointment.
             Text(
                 text = stringResource(
-                    if (frame != null) R.string.dtc_hint_frame else R.string.dtc_hint_no_frame,
+                    if (recorded) R.string.dtc_hint_recorded else R.string.dtc_hint_frame_only,
                 ),
                 style = MaterialTheme.typography.labelMedium,
                 color = Fog,
@@ -404,110 +395,7 @@ private fun DtcCard(dtc: Dtc, language: String, freezeFrame: FreezeFrame?) {
                 imageVector = AppIcons.ChevronRight,
                 contentDescription = null,
                 tint = Fog,
-                modifier = Modifier.size(16.dp).rotate(chevron),
-            )
-        }
-
-        AnimatedVisibility(visible = expanded) {
-            Column(modifier = Modifier.padding(top = 12.dp)) {
-                dtc.ecu?.let { ecu ->
-                    Text(
-                        text = stringResource(R.string.dtc_reported_by, ecu),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = Smoke,
-                        modifier = Modifier.padding(bottom = 10.dp),
-                    )
-                }
-                if (frame == null) {
-                    Text(
-                        text = stringResource(R.string.dtc_no_frame_message),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Smoke,
-                    )
-                    return@Column
-                }
-                FreezeFrameTable(
-                    frame = frame,
-                    allRows = allRows,
-                    onToggleRows = { allRows = !allRows },
-                )
-            }
-        }
-    }
-}
-
-/** The ECU's own snapshot, as a two-column table with the code's own reading on the right. */
-@Composable
-private fun FreezeFrameTable(frame: FreezeFrame, allRows: Boolean, onToggleRows: () -> Unit) {
-    val rows = remember(frame) {
-        FreezeFrames.pids.mapNotNull { pid ->
-            val value = frame.values[pid.id] ?: return@mapNotNull null
-            val metric = Metrics[MetricId.Sensor(pid.id)]
-            Triple(metric?.nameRes, pid.unit, formatReading(value, metric?.decimals ?: 1))
-        }
-    }
-    if (rows.isEmpty()) return
-    val shown = if (allRows) rows else rows.take(COLLAPSED_ROWS)
-
-    GroupedList(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(InkRaised)
-                .padding(horizontal = 14.dp, vertical = 9.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Text(
-                text = stringResource(R.string.dtc_frame_parameter).uppercase(),
-                style = MaterialTheme.typography.labelSmall,
-                color = Fog,
-                modifier = Modifier.weight(1f),
-            )
-            Text(
-                text = stringResource(R.string.dtc_frame_at_fault).uppercase(),
-                style = MaterialTheme.typography.labelSmall,
-                color = SignalLight,
-            )
-        }
-        shown.forEach { (nameRes, unit, value) ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Slate)
-                    .padding(horizontal = 14.dp, vertical = 11.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Text(
-                    text = nameRes?.let { stringResource(it) }.orEmpty(),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = AshDim,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    text = "$value $unit".trim(),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Chalk,
-                )
-            }
-        }
-        if (rows.size > COLLAPSED_ROWS) {
-            Text(
-                text = if (allRows) {
-                    stringResource(R.string.dtc_frame_show_fewer)
-                } else {
-                    stringResource(R.string.dtc_frame_show_all, rows.size)
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = SteelLight,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(InkRaised)
-                    .clickable(onClick = onToggleRows)
-                    .padding(vertical = 11.dp),
-                textAlign = TextAlign.Center,
+                modifier = Modifier.size(16.dp),
             )
         }
     }
@@ -744,64 +632,20 @@ private fun ReportSheet(
     }
 }
 
-/**
- * The app's bottom sheet: a handle, a title, one line of context, then the content.
- *
- * Dialogs float in the middle of the screen and land where the driver's thumb is not;
- * a sheet comes up from the bottom edge, which is where the hand already is.
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun DesignSheet(
-    title: String,
-    subtitle: String,
-    onDismiss: () -> Unit,
-    content: @Composable () -> Unit,
-) {
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(),
-        containerColor = Slate,
-        contentColor = Chalk,
-        shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp),
-        dragHandle = {
-            Box(
-                modifier = Modifier
-                    .padding(top = 12.dp, bottom = 4.dp)
-                    .width(38.dp)
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(SlateEdge),
-            )
-        },
-    ) {
-        Column(modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 30.dp)) {
-            Text(text = title, style = MaterialTheme.typography.titleMedium, color = Chalk)
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = Smoke,
-                modifier = Modifier.padding(top = 4.dp),
-            )
-            content()
-        }
-    }
-}
-
 @StringRes
-private fun DtcKind.labelRes(): Int = when (this) {
+internal fun DtcKind.labelRes(): Int = when (this) {
     DtcKind.Stored -> R.string.dtc_section_stored
     DtcKind.Pending -> R.string.dtc_section_pending
     DtcKind.Permanent -> R.string.dtc_section_permanent
 }
 
 /** Stored and permanent codes are faults now; a pending one is a fault the ECU is still deciding about. */
-private fun DtcKind.tone(): Color = when (this) {
+internal fun DtcKind.tone(): Color = when (this) {
     DtcKind.Stored, DtcKind.Permanent -> SignalLight
     DtcKind.Pending -> AmberLight
 }
 
-private fun DtcKind.toneBackground(): Color = when (this) {
+internal fun DtcKind.toneBackground(): Color = when (this) {
     DtcKind.Stored, DtcKind.Permanent -> SignalSurfaceStrong
     DtcKind.Pending -> AmberSurfaceStrong
 }

@@ -97,6 +97,60 @@ val MossText = Color(0xFFA9C4A9)
 val MossSurface = Color(0xFF1F2A22)
 val MossBorder = Color(0xFF33472F)
 
+// ---- paper: the screens that are read with the engine off ---------------------------
+
+/**
+ * Trips are the one thing nobody reads while driving — they are read afterwards, on a
+ * driveway or at a kitchen table, often in daylight. A near-black list of past journeys
+ * is harder to scan there than a printed page would be, so those screens invert: warm
+ * paper, white cards, ink-dark type. Same geometry, same type scale, opposite ground.
+ */
+val Paper = Color(0xFFF4F3F0)
+
+/** Nav bar and other chrome on paper, a half-step brighter than the sheet itself. */
+val PaperRaised = Color(0xFFFBFAF8)
+
+/** Cards on paper. */
+val PaperCard = Color(0xFFFFFFFF)
+
+/** Card borders on paper — the light theme's equivalent of [SlateBorder]. */
+val PaperBorder = Color(0xFFE3E1DC)
+
+/** Chart gridlines on paper. */
+val PaperLine = Color(0xFFEDEBE6)
+
+/** The stronger outline, for controls rather than cards. */
+val PaperEdge = Color(0xFFDCDAD4)
+
+/** Headlines and values on paper. */
+val PaperInk = Color(0xFF1A1B1C)
+
+/** Subtitles and metadata on paper. */
+val PaperInkDim = Color(0xFF6E7173)
+
+/** Axis ticks and captions on paper. */
+val PaperInkFaint = Color(0xFF8B8E90)
+
+/** Chevrons and other passive glyphs on paper. */
+val PaperInkQuiet = Color(0xFFB6B8B8)
+
+/** The steel accent, darkened until it holds contrast against white. */
+val PaperSteel = Color(0xFF3E6D89)
+
+/** A neutral trace on paper, for the series that is only context. */
+val PaperGrey = Color(0xFF9A9C9E)
+
+val PaperAmber = Color(0xFFA67A22)
+val PaperAmberText = Color(0xFF8A6412)
+val PaperAmberSurface = Color(0xFFF6EBD8)
+val PaperAmberBorder = Color(0xFFE9DFCF)
+
+val PaperSignalText = Color(0xFF9E3F35)
+val PaperSignalSurface = Color(0xFFF7E4E1)
+
+val PaperNeutralText = Color(0xFF5E6163)
+val PaperNeutralSurface = Color(0xFFEEEDE9)
+
 // ---- toast -------------------------------------------------------------------------
 
 val ToastSurface = Color(0xFF3A3D40)

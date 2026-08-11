@@ -91,6 +91,7 @@ fun SettingsScreen(
     alertRules: List<AlertRule>,
     redline: Int,
     versionName: String,
+    onBack: () -> Unit,
     onForgetAdapter: () -> Unit,
     onLanguageChange: (AppLanguage) -> Unit,
     onPollingChange: (Boolean) -> Unit,
@@ -106,6 +107,7 @@ fun SettingsScreen(
         ScreenHeader(
             title = stringResource(R.string.nav_settings),
             subtitle = stringResource(R.string.settings_version, versionName),
+            onBack = onBack,
         )
 
         Column(

@@ -56,7 +56,6 @@
     <!-- Pulpit -->
     <string name="dashboard_empty_title">Nie ma jeszcze czego pokazać</string>
     <string name="dashboard_empty_message">Połącz się z adapterem OBD-II, a pojawią się tutaj wartości na żywo.</string>
-    <string name="dashboard_edit_hint">Przeciągnij kafelki, aby zmienić kolejność, dotknij ✕, aby usunąć</string>
 
     <!-- Wybór parametrów -->
     <string name="picker_title">Dodaj wartość</string>
@@ -68,19 +67,12 @@
 
     <!-- Wykresy -->
     <string name="chart_window_30s">30 s</string>
-    <string name="chart_window_2min">2 min</string>
-    <string name="chart_window_10min">10 min</string>
-    <string name="charts_no_tiles_title">Nie ma czego rysować</string>
-    <string name="charts_no_tiles_message">Najpierw dodaj kilka wartości na pulpit — wykres rysuje to, co tam wybierzesz.</string>
     <string name="charts_waiting_title">Czekam na dane</string>
     <string name="charts_waiting_message">Linia zacznie się rysować, gdy tylko adapter poda pierwszy odczyt.</string>
-    <string name="charts_recordings">Nagrania (%1$d)</string>
 
     <!-- Nagrania przejazdów -->
-    <string name="recordings_title">Nagrania</string>
     <string name="recordings_empty_title">Brak nagrań</string>
     <string name="recordings_empty_message">Dotknij „Nagraj” podczas jazdy, aby zapisać wszystkie odczyty do pliku CSV, który możesz udostępnić.</string>
-    <string name="recordings_details">%1$s · %2$s</string>
     <string name="recordings_delete_title">Usunąć to nagranie?</string>
     <string name="recordings_delete_message">Plik %1$s zniknie z tego telefonu. To, co już udostępniłeś, zostaje tam, gdzie zostało wysłane.</string>
 
@@ -97,7 +89,6 @@
     <string name="dtc_status_unknown">Stan nieznany</string>
     <string name="dtc_status_mil_on">Kontrolka silnika świeci</string>
     <string name="dtc_status_mil_off">Kontrolka silnika nie świeci</string>
-    <string name="dtc_reported_by">Zgłoszone przez %1$s</string>
     <string name="dtc_clear_title">Skasować wszystkie błędy?</string>
     <string name="dtc_clear_warning">To wymaże zapisane kody razem z zamrożoną ramką danych i wyzeruje wszystkie testy gotowości. Auto nie przejdzie badania emisji, dopóki nie przejedziesz pełnego cyklu jezdnego. Jeśli usterka nadal istnieje, kod wróci.</string>
 
@@ -216,9 +207,7 @@
     <string name="metric_pid_63">Moment referencyjny</string>
     <string name="metric_pid_a6">Przebieg</string>
     <string name="unit_rpm">rpm</string>
-    <string name="dashboard_subtitle">Wartości na żywo z auta</string>
     <string name="dashboard_redline">Odcięcie %1$d rpm</string>
-    <string name="chart_window_summary">Ostatnie %1$s · na żywo</string>
     <string name="chart_now">teraz</string>
     <string name="chart_add_parameter">+ parametr</string>
     <string name="chart_mode_bands">Osobno</string>
@@ -235,8 +224,6 @@
     <string name="charts_recording_meta">%1$s · zapis do CSV</string>
     <string name="dtc_never_read">Jeszcze nieodczytane</string>
     <string name="dtc_clear_caveat">Kasowanie gasi kontrolkę, ale nie naprawia usterki — kod wróci, jeśli przyczyna nie zniknie.</string>
-    <string name="dtc_hint_frame">Dotknij · zamrożona ramka ECU</string>
-    <string name="dtc_hint_no_frame">Dotknij, aby zobaczyć szczegóły</string>
     <string name="dtc_no_frame_message">Sterownik nie zapisał zamrożonej ramki dla tego kodu.</string>
     <string name="dtc_frame_parameter">Parametr</string>
     <string name="dtc_frame_at_fault">W błędzie</string>
@@ -266,4 +253,96 @@
     <string name="unit_value_rpm">%1$d obr/min</string>
     <string name="alert_edit_above">Ostrzegaj, gdy wartość przekroczy ten próg.</string>
     <string name="alert_edit_below">Ostrzegaj, gdy wartość spadnie poniżej tego progu.</string>
+
+    <!-- Pulpit -->
+    <string name="dashboard_vehicle_unknown">Pojazd</string>
+    <string name="dashboard_session_max">maks. w tej sesji %1$s</string>
+    <string name="dashboard_gear_drive">D</string>
+    <string name="dashboard_gear_unknown">bieg</string>
+    <string name="dashboard_units_metric">km/h · °C</string>
+    <string name="dashboard_units_imperial">mph · °C</string>
+    <string name="dashboard_metric_high">%1$s · wysoka</string>
+    <string name="dashboard_recording_active">Nagrywa · %1$s</string>
+    <string name="dashboard_recording_idle">Nagrywanie wyłączone</string>
+    <string name="unit_kmh">km/h</string>
+    <string name="unit_mph">mph</string>
+    <string name="action_move_up">Przesuń w górę</string>
+
+    <!-- Arkusz parametru -->
+    <string name="metric_sheet_subtitle">Ostatnie 60 sekund</string>
+    <string name="metric_sheet_band">Zakres normy %1$s</string>
+    <string name="metric_sheet_now">Teraz</string>
+    <string name="metric_sheet_min">Min</string>
+    <string name="metric_sheet_max">Maks</string>
+    <string name="metric_band_below">poniżej %1$s</string>
+    <string name="metric_band_above">powyżej %1$s</string>
+    <string name="metric_group_engine">Silnik</string>
+    <string name="metric_group_temperature">Temperatury</string>
+    <string name="metric_group_mixture">Mieszanka</string>
+    <string name="metric_group_vehicle">Pojazd</string>
+
+    <!-- Okna wykresu i wybór parametrów -->
+    <string name="chart_window_30s_long">Ostatnie 30 sekund</string>
+    <string name="chart_window_60s">60 s</string>
+    <string name="chart_window_60s_long">Ostatnie 60 sekund</string>
+    <string name="chart_window_5min">5 min</string>
+    <string name="chart_window_5min_long">Ostatnie 5 minut</string>
+    <string name="chart_window_rate">%1$s · %2$d próbek/s</string>
+    <string name="chart_picker_title">Parametry na wykresie</string>
+    <string name="chart_picker_subtitle">Do %1$d naraz · kolejność wyboru ustala kolory</string>
+    <string name="charts_recording_hint">Zapis do CSV, widoczny w Przejazdach</string>
+    <plurals name="chart_picker_done">
+        <item quantity="one">Gotowe · %1$d parametr</item>
+        <item quantity="few">Gotowe · %1$d parametry</item>
+        <item quantity="many">Gotowe · %1$d parametrów</item>
+        <item quantity="other">Gotowe · %1$d parametrów</item>
+    </plurals>
+
+    <!-- Przejazdy -->
+    <string name="nav_trips">Przejazdy</string>
+    <string name="trips_subtitle">%1$d zapisanych · %2$s km</string>
+    <string name="trips_subtitle_empty">Nic jeszcze nie nagrano</string>
+    <string name="trip_meta_distance">%1$s km</string>
+    <string name="trip_meta_duration">%1$s min</string>
+    <string name="trip_meta_fuel">śr. %1$s L/100 km</string>
+    <string name="trip_events">Zdarzenia</string>
+    <string name="trip_export">Eksportuj CSV</string>
+    <string name="trip_loading">Wczytuję nagranie…</string>
+    <string name="trip_stat_max">Maks. %1$s</string>
+    <string name="trip_stat_fuel">Śr. spalanie</string>
+    <string name="trip_event_breach">%1$s %2$s %3$s</string>
+    <string name="trip_event_at">o %1$s</string>
+    <string name="trip_event_at_repeated">o %1$s · %2$d×</string>
+    <string name="trip_event_range">%1$s → %2$s · %3$d s</string>
+    <plurals name="trip_event_redline">
+        <item quantity="one">Odcięcie %2$s rpm</item>
+        <item quantity="few">Odcięcie %2$s rpm ×%1$d</item>
+        <item quantity="many">Odcięcie %2$s rpm ×%1$d</item>
+        <item quantity="other">Odcięcie %2$s rpm ×%1$d</item>
+    </plurals>
+
+    <!-- Szczegóły błędu -->
+    <string name="dtc_hint_recorded">Dotknij · ±30 s z nagrania aplikacji</string>
+    <string name="dtc_hint_frame_only">Dotknij · tylko zamrożona ramka ECU</string>
+    <string name="fault_when_last">Wystąpił</string>
+    <string name="fault_when_first">Pierwszy raz</string>
+    <string name="fault_when_count">Liczba wystąpień</string>
+    <string name="fault_when_ecu">Zgłoszony przez</string>
+    <string name="fault_when_unknown">Auto nie podaje, kiedy kod został zapisany</string>
+    <string name="fault_related">Kody towarzyszące</string>
+    <string name="fault_related_window">±5 min wokół zdarzenia</string>
+    <string name="fault_related_none">Żaden inny kod nie pojawił się w tym oknie</string>
+    <string name="fault_related_earlier">wcześniej</string>
+    <string name="fault_related_later">później</string>
+    <string name="fault_context_timeline">±30 s wokół błędu</string>
+    <string name="fault_context_frame">Zamrożona ramka ECU</string>
+    <string name="fault_source_recording">z nagrania aplikacji</string>
+    <string name="fault_source_none">brak nagrania z tej chwili</string>
+    <string name="fault_column_before">przed</string>
+    <string name="fault_timeline_before">−60 s</string>
+    <string name="fault_timeline_before_centred">−30 s</string>
+    <string name="fault_timeline_at">błąd</string>
+    <string name="fault_timeline_after">+30 s</string>
+    <string name="fault_timeline_pending">teraz</string>
+    <string name="fault_report">Raport diagnostyczny</string>
 </resources>

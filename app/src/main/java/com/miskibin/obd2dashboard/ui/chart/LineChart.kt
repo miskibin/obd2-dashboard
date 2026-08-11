@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -16,9 +17,12 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
+import com.miskibin.obd2dashboard.data.NormalBand
 import com.miskibin.obd2dashboard.data.Sample
 import com.miskibin.obd2dashboard.ui.theme.BandLabelTextStyle
 import com.miskibin.obd2dashboard.ui.theme.Fog
+import com.miskibin.obd2dashboard.ui.theme.Moss
+import com.miskibin.obd2dashboard.ui.theme.Signal
 import com.miskibin.obd2dashboard.ui.theme.SlateEdge
 import com.miskibin.obd2dashboard.ui.theme.SlateFaint
 import com.miskibin.obd2dashboard.ui.theme.SlateTrack
@@ -58,6 +62,8 @@ fun LineChart(
     mode: ChartMode,
     nowLabel: String,
     modifier: Modifier = Modifier,
+    band: NormalBand? = null,
+    markerFraction: Float? = null,
 ) {
     val measurer = rememberTextMeasurer()
     val tickStyle = TickTextStyle.copy(color = Fog)
@@ -81,6 +87,18 @@ fun LineChart(
             plotWidth = plotWidth,
             plotHeight = plotHeight,
         )
+
+        // The instant the fault was set, marked before the traces so a line crossing it
+        // stays readable.
+        if (markerFraction != null) {
+            val x = leftPadding + plotWidth * markerFraction.coerceIn(0f, 1f)
+            drawLine(
+                color = Signal,
+                start = Offset(x, topPadding),
+                end = Offset(x, topPadding + plotHeight),
+                strokeWidth = MARKER_WIDTH.dp.toPx(),
+            )
+        }
 
         when (mode) {
             ChartMode.Bands -> drawBands(
@@ -125,7 +143,22 @@ fun LineChart(
             }
 
             ChartMode.Absolute -> {
-                val ticks = ChartAxis.ticksOf(series.flatMap { line -> line.samples.map(Sample::value) })
+                // A band that sits outside the readings still has to be visible, otherwise
+                // "you are well under the limit" looks identical to "there is no limit".
+                val bandValues = listOfNotNull(band?.min?.toFloat(), band?.max?.toFloat())
+                val ticks = ChartAxis.ticksOf(
+                    series.flatMap { line -> line.samples.map(Sample::value) } + bandValues,
+                )
+                if (band != null) {
+                    drawNormalBand(
+                        band = band,
+                        ticks = ticks,
+                        left = leftPadding,
+                        top = topPadding,
+                        width = plotWidth,
+                        height = plotHeight,
+                    )
+                }
                 drawGrid(
                     labels = ticks.values.map { ChartAxis.formatLabel(it, ticks.step) },
                     fractions = ticks.values.map { ticks.fraction(it).toFloat() },
@@ -221,6 +254,33 @@ private fun DrawScope.drawBands(
         start = Offset(left, top + height),
         end = Offset(left + width, top + height),
         strokeWidth = 1.dp.toPx(),
+    )
+}
+
+/**
+ * The range the value is supposed to stay inside, painted behind the trace.
+ *
+ * An open-ended band — a ceiling with no floor, which is what most warnings are — is
+ * drawn all the way to the edge of the plot rather than stopping at the lowest reading,
+ * because "anything below this is fine" is exactly what it means.
+ */
+private fun DrawScope.drawNormalBand(
+    band: NormalBand,
+    ticks: AxisTicks,
+    left: Float,
+    top: Float,
+    width: Float,
+    height: Float,
+) {
+    val lowFraction = band.min?.let { ticks.fraction(it) }?.coerceIn(0.0, 1.0) ?: 0.0
+    val highFraction = band.max?.let { ticks.fraction(it) }?.coerceIn(0.0, 1.0) ?: 1.0
+    if (highFraction <= lowFraction) return
+    val bandTop = top + height * (1f - highFraction.toFloat())
+    val bandHeight = height * (highFraction - lowFraction).toFloat()
+    drawRect(
+        color = Moss.copy(alpha = BAND_ALPHA),
+        topLeft = Offset(left, bandTop),
+        size = Size(width, bandHeight),
     )
 }
 
@@ -400,4 +460,6 @@ private const val HEAD_RADIUS = 2.6f
 private const val FILL_ALPHA = 0.18f
 private const val BAND_GAP = 6
 private const val BAND_LABEL_INSET = 11
+private const val BAND_ALPHA = 0.12f
+private const val MARKER_WIDTH = 2.5f
 private const val EPSILON = 1e-6f

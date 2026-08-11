@@ -9,15 +9,26 @@ import com.miskibin.obd2dashboard.ble.ConnectionState
 import com.miskibin.obd2dashboard.ble.DiscoveredDevice
 import com.miskibin.obd2dashboard.data.AlertRule
 import com.miskibin.obd2dashboard.data.AlertRules
+import com.miskibin.obd2dashboard.data.DtcLog
+import com.miskibin.obd2dashboard.data.DtcObservation
+import com.miskibin.obd2dashboard.data.FaultContext
+import com.miskibin.obd2dashboard.data.GearEstimator
+import com.miskibin.obd2dashboard.data.GearReading
 import com.miskibin.obd2dashboard.data.MechanicReport
 import com.miskibin.obd2dashboard.data.MechanicReportData
 import com.miskibin.obd2dashboard.data.MetricId
 import com.miskibin.obd2dashboard.data.Metrics
 import com.miskibin.obd2dashboard.data.SavedAdapter
 import com.miskibin.obd2dashboard.data.Trip
+import com.miskibin.obd2dashboard.data.TripAnalyzer
+import com.miskibin.obd2dashboard.data.TripEntry
+import com.miskibin.obd2dashboard.data.valueOf
 import com.miskibin.obd2dashboard.obd.DerivedMetrics
+import com.miskibin.obd2dashboard.obd.Dtc
 import com.miskibin.obd2dashboard.obd.Pids
 import com.miskibin.obd2dashboard.service.ObdConnectionService
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -27,6 +38,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlin.math.abs
 
 /** Whether the first-run connection screen or the dashboard should open first. */
 sealed interface Startup {
@@ -75,6 +88,13 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
     val redline: StateFlow<Int> = preferences.redline
         .stateIn(viewModelScope, SharingStarted.Eagerly, Metrics.REDLINE_DEFAULT)
 
+    val imperialUnits: StateFlow<Boolean> = preferences.imperialUnits
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    /** When each code was first and last seen, since the car will not say. */
+    val dtcLog: StateFlow<List<DtcObservation>> = preferences.dtcLog
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
     /** The ECU snapshot behind an expanded fault code, when the car had one stored. */
     val freezeFrame = connection.freezeFrame
 
@@ -91,8 +111,25 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
     private val _dtcOperation = MutableStateFlow<DtcOperation?>(null)
     val dtcOperation: StateFlow<DtcOperation?> = _dtcOperation.asStateFlow()
 
-    private val _trips = MutableStateFlow<List<Trip>>(emptyList())
-    val trips: StateFlow<List<Trip>> = _trips.asStateFlow()
+    private val _trips = MutableStateFlow<List<TripEntry>>(emptyList())
+    val trips: StateFlow<List<TripEntry>> = _trips.asStateFlow()
+
+    /**
+     * The highest revs of this connection, which is what "max today" on the dashboard
+     * means: it is reset when the adapter is, because it describes a session and not a
+     * day the app was not running for.
+     */
+    private val _sessionMaxRpm = MutableStateFlow<Double?>(null)
+    val sessionMaxRpm: StateFlow<Double?> = _sessionMaxRpm.asStateFlow()
+
+    private val gearEstimator = GearEstimator()
+
+    private val _gear = MutableStateFlow(GearReading(moving = false, gear = null, ratio = null))
+    val gear: StateFlow<GearReading> = _gear.asStateFlow()
+
+    /** What the app itself saw around each code it watched appear, this session only. */
+    private val _faultContexts = MutableStateFlow<Map<String, FaultContext>>(emptyMap())
+    val faultContexts: StateFlow<Map<String, FaultContext>> = _faultContexts.asStateFlow()
 
     /** A finished report waiting to be handed to the share sheet, or null. */
     private val _report = MutableStateFlow<String?>(null)
@@ -101,7 +138,10 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
     init {
         viewModelScope.launch {
             _tiles.value = preferences.tiles.first()
+            // An empty selection means the driver has never chosen; the chart opens on
+            // the first few values they kept on the dashboard rather than on nothing.
             _chartMetrics.value = preferences.chartMetrics.first()
+                .ifEmpty { _tiles.value.take(DEFAULT_CHART_SERIES) }
         }
         viewModelScope.launch {
             connection.state.collect { state ->
@@ -109,8 +149,84 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
                 if (state is ConnectionState.Connected && !state.demo) {
                     preferences.saveAdapter(state.device.address, state.device.name)
                 }
+                if (state is ConnectionState.Idle) {
+                    _sessionMaxRpm.value = null
+                    gearEstimator.reset()
+                }
             }
         }
+        viewModelScope.launch {
+            connection.snapshot.collect { snapshot ->
+                val rpm = snapshot.valueOf(Metrics.Rpm)
+                if (rpm != null && rpm > (_sessionMaxRpm.value ?: 0.0)) _sessionMaxRpm.value = rpm
+                _gear.value = gearEstimator.observe(rpm, snapshot.valueOf(Metrics.Speed))
+            }
+        }
+        viewModelScope.launch { watchCodes() }
+    }
+
+    // ---- fault history ----------------------------------------------------------
+
+    /**
+     * Keeps the log of when each code was seen, and grabs the context around new ones.
+     *
+     * The capture has to happen here rather than when the fault screen opens: the history
+     * it reads is a ten-minute ring buffer, so by the time somebody taps a code the
+     * seconds around it may already have scrolled out of memory.
+     */
+    private suspend fun watchCodes() {
+        var previous = emptySet<String>()
+        connection.diagnostics.collect { diagnostics ->
+            val codes = diagnostics?.all.orEmpty().map(Dtc::code).distinct()
+            if (codes.isEmpty()) {
+                previous = emptySet()
+                return@collect
+            }
+            val now = System.currentTimeMillis()
+            preferences.recordDtcSightings(codes, previous, now)
+
+            codes.filter { it !in previous && it !in _faultContexts.value }.forEach { code ->
+                _faultContexts.update { it + (code to captureContext(code, now)) }
+                // The rest of the window has not been driven yet, so it is filled in once
+                // it has been.
+                viewModelScope.launch {
+                    delay(DtcLog.TIMELINE_WINDOW_MILLIS / 2)
+                    val completed = captureContext(code, now).copy(
+                        traces = tracesAround(now + DtcLog.TIMELINE_WINDOW_MILLIS / 2),
+                        complete = true,
+                    )
+                    _faultContexts.update { contexts ->
+                        if (code in contexts) contexts + (code to completed) else contexts
+                    }
+                }
+            }
+            previous = codes.toSet()
+        }
+    }
+
+    private fun captureContext(code: String, atMillis: Long): FaultContext {
+        val snapshot = connection.snapshot.value
+        val before = DtcLog.SNAPSHOT_METRICS.mapNotNull { metric ->
+            val target = atMillis - DtcLog.BEFORE_OFFSET_MILLIS
+            val samples = history.series(metric, DtcLog.BEFORE_OFFSET_MILLIS * BEFORE_SPAN, atMillis)
+            val sample = samples.minByOrNull { abs(it.timeMillis - target) } ?: return@mapNotNull null
+            if (abs(sample.timeMillis - target) > DtcLog.BEFORE_OFFSET_MILLIS) return@mapNotNull null
+            metric to sample.value.toDouble()
+        }.toMap()
+        val at = DtcLog.SNAPSHOT_METRICS.mapNotNull { metric ->
+            snapshot.valueOf(metric)?.let { metric to it }
+        }.toMap()
+        return FaultContext(
+            code = code,
+            detectedAtMillis = atMillis,
+            traces = tracesAround(atMillis),
+            before = before,
+            at = at,
+        )
+    }
+
+    private fun tracesAround(endMillis: Long) = DtcLog.TIMELINE_METRICS.associateWith { metric ->
+        history.series(metric, DtcLog.TIMELINE_WINDOW_MILLIS, endMillis)
     }
 
     // ---- connection -------------------------------------------------------------
@@ -167,6 +283,12 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
             if (from !in current.indices || to !in current.indices) return@update current
             current.toMutableList().apply { add(to, removeAt(from)) }
         }
+        commitTiles()
+    }
+
+    fun toggleUnits() {
+        val imperial = !imperialUnits.value
+        viewModelScope.launch { preferences.setImperialUnits(imperial) }
     }
 
     fun commitTiles() {
@@ -182,8 +304,6 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
     fun removeTile(id: MetricId) {
         _tiles.update { it - id }
         commitTiles()
-        // Never leave the chart pointing at a metric the driver just removed.
-        if (id in _chartMetrics.value) toggleChartMetric(id)
     }
 
     // ---- charts -----------------------------------------------------------------
@@ -286,8 +406,24 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Lists the recordings, then reads each one back for its distance, fuel and events.
+     *
+     * The list appears first with nothing but names on it and fills in as the files are
+     * parsed, because a driver with forty recordings should not watch a spinner while the
+     * app reads forty files to tell them what it already knows: that there are forty.
+     */
     fun refreshTrips() {
-        viewModelScope.launch { _trips.value = ObdHolder.trips.list() }
+        viewModelScope.launch {
+            val files = withContext(Dispatchers.IO) { ObdHolder.trips.list() }
+            _trips.value = files.map { TripEntry(it, analysis = null) }
+            val rules = alertRules.value
+            val limit = redline.value
+            val analysed = withContext(Dispatchers.IO) {
+                files.map { trip -> TripEntry(trip, TripAnalyzer.analyze(trip.file, rules, limit)) }
+            }
+            _trips.value = analysed
+        }
     }
 
     fun deleteTrip(trip: Trip) {
@@ -311,5 +447,11 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
 
     companion object {
         const val MAX_CHART_SERIES = 6
+
+        /** How wide a window the "before" reading may be picked from, in half-offsets. */
+        private const val BEFORE_SPAN = 2
+
+        /** How many of the driver's tiles the chart starts with. */
+        private const val DEFAULT_CHART_SERIES = 3
     }
 }
