@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">OBD2 Dashboard</string>
+
+    <string name="status_disconnected">No adapter connected</string>
+    <string name="status_connecting">Connecting…</string>
+    <string name="status_connected">Connected</string>
+
+    <string name="action_connect">Connect</string>
+    <string name="action_disconnect">Disconnect</string>
+    <string name="action_scan">Scan for adapters</string>
+    <string name="action_settings">Settings</string>
+
+    <string name="permission_bluetooth_rationale">Bluetooth access is needed to find and talk to your OBD-II adapter.</string>
+    <string name="error_connection_failed">Could not connect to the adapter.</string>
+</resources>

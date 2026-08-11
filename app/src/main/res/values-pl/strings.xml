@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">OBD2 Dashboard</string>
+
+    <string name="status_disconnected">Brak połączenia z adapterem</string>
+    <string name="status_connecting">Łączenie…</string>
+    <string name="status_connected">Połączono</string>
+
+    <string name="action_connect">Połącz</string>
+    <string name="action_disconnect">Rozłącz</string>
+    <string name="action_scan">Szukaj adapterów</string>
+    <string name="action_settings">Ustawienia</string>
+
+    <string name="permission_bluetooth_rationale">Dostęp do Bluetooth jest potrzebny, aby znaleźć adapter OBD-II i się z nim połączyć.</string>
+    <string name="error_connection_failed">Nie udało się połączyć z adapterem.</string>
+</resources>
