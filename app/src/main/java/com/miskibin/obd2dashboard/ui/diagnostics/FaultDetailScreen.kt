@@ -558,5 +558,10 @@ private val TIMESTAMP_FORMAT: DateTimeFormatter =
 
 private const val COLLAPSED_ROWS = 6
 private const val COLUMN_WIDTH = 62
-private const val TIMELINE_HEIGHT = 140
+/**
+ * The trace is why this screen exists, so it gets the height of a chart rather than of a
+ * thumbnail: half a minute of four parameters in 140 points was a texture, not something a
+ * mechanic could read a dip out of.
+ */
+private const val TIMELINE_HEIGHT = 180
 private const val MARKER_CENTRE = 0.5f

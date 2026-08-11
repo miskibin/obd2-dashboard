@@ -435,7 +435,11 @@ private fun MetricId.traceColor(): Color = when (this) {
 /** Hairline traces: thicker lines blur together wherever four of them cross. */
 private fun MetricId.traceWidth(): Float = if (this == Metrics.Rpm) 1.5f else 1.2f
 
-private const val PLOT_HEIGHT = 190
+/**
+ * The chart is the trip, and a trip with no events is otherwise three cards and a lot of
+ * shell, so it takes the height back.
+ */
+private const val PLOT_HEIGHT = 240
 private const val PLOT_INSET = 0.86f
 private const val PLOT_MARGIN = 0.07f
 private const val EVENT_ALPHA = 0.14f

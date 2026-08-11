@@ -210,9 +210,6 @@
     <string name="chart_mode_bands">Separate</string>
     <string name="chart_mode_relative">Shared %%</string>
     <string name="chart_mode_absolute">Shared abs.</string>
-    <string name="chart_mode_bands_hint">Every parameter keeps its own scale.</string>
-    <string name="chart_mode_relative_hint">One axis, 0–100 %% of each parameter\'s own range.</string>
-    <string name="chart_mode_absolute_hint">One axis, in %1$s.</string>
     <string name="chart_mode_absolute_mixed">Careful: mixed units (%1$s).</string>
     <string name="chart_record_start">Record</string>
     <string name="chart_record_stop">Stop</string>
@@ -280,7 +277,7 @@
     <string name="chart_window_60s_long">Last 60 seconds</string>
     <string name="chart_window_5min">5 min</string>
     <string name="chart_window_5min_long">Last 5 minutes</string>
-    <string name="chart_window_rate">%1$s · %2$d samples/s</string>
+    <string name="chart_window_rate">%1$d samples/s</string>
     <string name="chart_picker_title">Parameters on the chart</string>
     <string name="chart_picker_subtitle">Up to %1$d at once · the order sets the colours</string>
     <plurals name="chart_picker_done">

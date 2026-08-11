@@ -194,18 +194,15 @@ private fun Obd2Shell(viewModel: ObdViewModel, hasSavedAdapter: Boolean) {
     ) { innerPadding ->
         Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             // The dashboard states the connection in its own header, and the trip screens
-            // are about a drive that is already over; everywhere else the pill is the only
-            // answer to "is it still talking to the car?".
+            // are about a drive that is already over; everywhere else the strip is the only
+            // answer to "is it still talking to the car?". It is flush with the top edge
+            // and full-bleed, so it reads as the window's own chrome rather than as the
+            // screen's first card.
             if (route in PILL_ROUTES) {
                 ConnectionPill(
                     state = connectionState,
                     label = connectionState.label(),
                     onClick = { navController.navigate(Routes.CONNECT) },
-                    modifier = Modifier.padding(
-                        start = ScreenPadding,
-                        end = ScreenPadding,
-                        top = 6.dp,
-                    ),
                 )
             }
             AppNavHost(

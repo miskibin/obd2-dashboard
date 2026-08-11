@@ -56,6 +56,7 @@ import com.miskibin.obd2dashboard.ui.theme.ControlCorner
 import com.miskibin.obd2dashboard.ui.theme.Dimens
 import com.miskibin.obd2dashboard.ui.theme.Fog
 import com.miskibin.obd2dashboard.ui.theme.Graphite
+import com.miskibin.obd2dashboard.ui.theme.InkRaised
 import com.miskibin.obd2dashboard.ui.theme.LocalSkin
 import com.miskibin.obd2dashboard.ui.theme.PanelCorner
 import com.miskibin.obd2dashboard.ui.theme.PillCorner
@@ -66,6 +67,7 @@ import com.miskibin.obd2dashboard.ui.theme.SignalText
 import com.miskibin.obd2dashboard.ui.theme.Slate
 import com.miskibin.obd2dashboard.ui.theme.SlateBorder
 import com.miskibin.obd2dashboard.ui.theme.SlateEdge
+import com.miskibin.obd2dashboard.ui.theme.SlateLine
 import com.miskibin.obd2dashboard.ui.theme.Smoke
 import com.miskibin.obd2dashboard.ui.theme.Steel
 import com.miskibin.obd2dashboard.ui.theme.SteelBorder
@@ -133,13 +135,13 @@ fun ScreenHeader(
         modifier = modifier
             .fillMaxWidth()
             .padding(
-                start = Dimens.screenEdge + 2.dp,
-                end = Dimens.screenEdge + 2.dp,
+                start = Dimens.screenEdge,
+                end = Dimens.screenEdge,
                 top = Dimens.headerTop,
                 bottom = Dimens.headerBottom,
             ),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         leading?.invoke()
         if (onBack != null) {
@@ -409,11 +411,18 @@ private fun ActionButton(
 }
 
 /**
- * The persistent connection indicator.
+ * The persistent connection indicator: a strip along the top edge, not a card.
  *
- * It is one line high and always in the same place, because in a car the answer to "is
- * it talking to the adapter?" has to be readable without looking for it. Tapping it goes
- * to the connection screen from anywhere.
+ * The answer to "is it still talking to the adapter?" has to be readable without looking
+ * for it, which is why it is always in the same place — but it is status, not content, and
+ * as a full-width card with a border and two lines of padding it was spending a tenth of
+ * the chart screen to say "demo mode". Here it is one line of small text on a ground a
+ * shade off the shell, run edge to edge and closed with a hairline so it reads as part of
+ * the top of the window rather than as the first thing on it.
+ *
+ * It stays a single full-width target: [Dimens.statusStrip] is under the usual thumb floor,
+ * but a band the width of the screen is not something anybody misses, and making it taller
+ * is exactly what this change is undoing.
  */
 @Composable
 fun ConnectionPill(
@@ -436,32 +445,35 @@ fun ConnectionPill(
         1f
     }
 
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .heightIn(min = 44.dp)
-            .clip(PanelCorner)
-            .background(Slate)
-            .border(1.dp, SlateBorder, PanelCorner)
-            .clickable(onClick = onClick)
-            .padding(horizontal = Dimens.rowPaddingH, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Box(
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(
             modifier = Modifier
-                .size(9.dp)
-                .alpha(pulse)
-                .clip(CircleShape)
-                .background(accent),
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall,
-            color = AshDim,
-            modifier = Modifier.weight(1f),
-        )
-        Text(text = "›", style = MaterialTheme.typography.bodyLarge, color = Fog)
+                .fillMaxWidth()
+                .heightIn(min = Dimens.statusStrip)
+                .background(InkRaised)
+                .clickable(onClick = onClick)
+                .padding(horizontal = Dimens.screenEdge, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(9.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(7.dp)
+                    .alpha(pulse)
+                    .clip(CircleShape)
+                    .background(accent),
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = Smoke,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            Text(text = "›", style = MaterialTheme.typography.labelMedium, color = Fog)
+        }
+        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(SlateLine))
     }
 }
 

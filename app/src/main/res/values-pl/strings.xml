@@ -214,9 +214,6 @@
     <string name="chart_mode_bands">Osobno</string>
     <string name="chart_mode_relative">Wspólna %%</string>
     <string name="chart_mode_absolute">Wspólna abs.</string>
-    <string name="chart_mode_bands_hint">Każdy parametr ma własną skalę.</string>
-    <string name="chart_mode_relative_hint">Jedna oś 0–100 %% własnego zakresu.</string>
-    <string name="chart_mode_absolute_hint">Jedna oś w jednostkach (%1$s).</string>
     <string name="chart_mode_absolute_mixed">Uwaga: różne jednostki (%1$s).</string>
     <string name="chart_record_start">Nagrywaj</string>
     <string name="chart_record_stop">Zatrzymaj</string>
@@ -286,7 +283,7 @@
     <string name="chart_window_60s_long">Ostatnie 60 sekund</string>
     <string name="chart_window_5min">5 min</string>
     <string name="chart_window_5min_long">Ostatnie 5 minut</string>
-    <string name="chart_window_rate">%1$s · %2$d próbek/s</string>
+    <string name="chart_window_rate">%1$d próbek/s</string>
     <string name="chart_picker_title">Parametry na wykresie</string>
     <string name="chart_picker_subtitle">Do %1$d naraz · kolejność wyboru ustala kolory</string>
     <plurals name="chart_picker_done">

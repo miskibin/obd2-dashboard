@@ -147,21 +147,18 @@ fun SettingsScreen(
                 }
             }
 
-            Group(title = stringResource(R.string.settings_language)) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Slate)
-                        .padding(10.dp),
-                ) {
-                    SegmentedControl(
-                        segments = AppLanguage.entries.map { option ->
-                            Segment(stringResource(option.labelRes())) { onLanguageChange(option) }
-                        },
-                        selectedIndex = AppLanguage.entries.indexOf(language),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
+            // No group box around this one: a segmented control already draws its own
+            // recessed track, and wrapping it in a card gave the language picker three
+            // borders to say what one row of three words says.
+            Column {
+                SectionHeader(text = stringResource(R.string.settings_language))
+                SegmentedControl(
+                    segments = AppLanguage.entries.map { option ->
+                        Segment(stringResource(option.labelRes())) { onLanguageChange(option) }
+                    },
+                    selectedIndex = AppLanguage.entries.indexOf(language),
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
 
             Group(title = stringResource(R.string.settings_polling)) {

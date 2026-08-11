@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
@@ -37,9 +38,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.miskibin.obd2dashboard.R
 import com.miskibin.obd2dashboard.data.MetricHistory
@@ -51,16 +55,15 @@ import com.miskibin.obd2dashboard.data.valueOf
 import com.miskibin.obd2dashboard.obd.VehicleSnapshot
 import com.miskibin.obd2dashboard.ui.AppIcons
 import com.miskibin.obd2dashboard.ui.components.EmptyState
-import com.miskibin.obd2dashboard.ui.components.GroupedList
 import com.miskibin.obd2dashboard.ui.components.ScreenHeader
 import com.miskibin.obd2dashboard.ui.components.ScreenPadding
 import com.miskibin.obd2dashboard.ui.components.Segment
 import com.miskibin.obd2dashboard.ui.components.SegmentedControl
 import com.miskibin.obd2dashboard.ui.components.formatReading
+import com.miskibin.obd2dashboard.ui.theme.AmberText
 import com.miskibin.obd2dashboard.ui.theme.AshDim
 import com.miskibin.obd2dashboard.ui.theme.CardCorner
 import com.miskibin.obd2dashboard.ui.theme.Dimens
-import com.miskibin.obd2dashboard.ui.theme.Fog
 import com.miskibin.obd2dashboard.ui.theme.Graphite
 import com.miskibin.obd2dashboard.ui.theme.PillCorner
 import com.miskibin.obd2dashboard.ui.theme.SeriesColors
@@ -71,6 +74,7 @@ import com.miskibin.obd2dashboard.ui.theme.SignalText
 import com.miskibin.obd2dashboard.ui.theme.Slate
 import com.miskibin.obd2dashboard.ui.theme.SlateBorder
 import com.miskibin.obd2dashboard.ui.theme.SlateEdge
+import com.miskibin.obd2dashboard.ui.theme.SlateLine
 import com.miskibin.obd2dashboard.ui.theme.Smoke
 import com.miskibin.obd2dashboard.ui.theme.SmokeDim
 import kotlinx.coroutines.delay
@@ -139,12 +143,16 @@ fun ChartsScreen(
     val hasData = series.any { it.samples.isNotEmpty() }
     val units = remember(series) { series.map(ChartSeries::unit).filter(String::isNotBlank).distinct() }
     val rate = remember(series, window) { sampleRateOf(series, window) }
+    val windowHeight = LocalWindowInfo.current.containerSize.height
+    val statsCap = with(LocalDensity.current) { (windowHeight * STATS_SHARE).toDp() }
 
     Column(modifier = modifier.fillMaxSize()) {
         ScreenHeader(
             title = vehicleLabel,
+            // The window is already named by the control on the right of this very row, so
+            // restating it here only bought an ellipsis in the middle of the sample rate.
             subtitle = if (rate > 0) {
-                stringResource(R.string.chart_window_rate, stringResource(window.summaryRes), rate)
+                stringResource(R.string.chart_window_rate, rate)
             } else {
                 stringResource(window.summaryRes)
             },
@@ -166,12 +174,18 @@ fun ChartsScreen(
             },
         )
 
+        // Nothing here scrolls and nothing here is a fixed height: the plot is the screen,
+        // so it takes whatever the controls and the readings leave, which on a phone in
+        // portrait is most of it. The readings are the only part that could grow without
+        // limit — six series is six rows — so they are capped at [STATS_SHARE] of what
+        // there is and scroll among themselves past that, which is what stops a full
+        // legend from squeezing the plot into a strip.
         Column(
             modifier = Modifier
                 .weight(1f)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = ScreenPadding),
-            verticalArrangement = Arrangement.spacedBy(9.dp),
+                .padding(horizontal = ScreenPadding)
+                .padding(bottom = Dimens.listBottom),
+            verticalArrangement = Arrangement.spacedBy(Dimens.cardGap),
         ) {
             SegmentedControl(
                 segments = ChartMode.entries.map { option ->
@@ -181,16 +195,6 @@ fun ChartsScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            // One line, always: a hint that wraps to two pushes the plot down every time
-            // the driver switches mode, which reads as the layout jumping.
-            Text(
-                text = mode.hint(units),
-                style = MaterialTheme.typography.labelMedium,
-                color = Fog,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-
             SeriesChips(
                 series = series,
                 metrics = plotted,
@@ -198,13 +202,31 @@ fun ChartsScreen(
                 onAdd = { picking = true },
             )
 
+            // All that survives of the row of mode hints: the one thing a driver could not
+            // work out from the mode's own name, which is that an absolute axis is a lie
+            // when the series are not in the same units. It costs a line only when it is
+            // true, and the plot absorbs the difference rather than the layout jumping.
+            if (mode == ChartMode.Absolute && units.size > 1) {
+                Text(
+                    text = stringResource(
+                        R.string.chart_mode_absolute_mixed,
+                        units.joinToString(", "),
+                    ),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = AmberText,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .weight(1f)
                     .clip(CardCorner)
                     .background(Slate)
                     .border(1.dp, SlateBorder, CardCorner)
-                    .padding(start = 11.dp, end = 11.dp, top = 11.dp, bottom = 8.dp),
+                    .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 8.dp),
             ) {
                 if (hasData) {
                     LineChart(
@@ -213,24 +235,28 @@ fun ChartsScreen(
                         nowMillis = now,
                         mode = mode,
                         nowLabel = stringResource(R.string.chart_now),
-                        modifier = Modifier.fillMaxWidth().height(PLOT_HEIGHT.dp),
+                        modifier = Modifier.fillMaxSize(),
                     )
                 } else {
                     EmptyState(
                         icon = AppIcons.Timeline,
                         title = stringResource(R.string.charts_waiting_title),
                         message = stringResource(R.string.charts_waiting_message),
-                        modifier = Modifier.height(PLOT_HEIGHT.dp),
+                        modifier = Modifier.align(Alignment.Center),
                     )
                 }
             }
 
             // Whatever the mode does to the axes, this row always states the real value in
             // real units — without it, "relative" would be a chart of nothing in
-            // particular.
-            SeriesStats(series = series, metrics = plotted, snapshot = snapshot)
-
-            Box(modifier = Modifier.height(2.dp))
+            // particular. Plain rows: the plot above already carries a border, and a second
+            // box around six lines of text was one frame too many.
+            SeriesStats(
+                series = series,
+                metrics = plotted,
+                snapshot = snapshot,
+                maxHeight = statsCap,
+            )
         }
     }
 
@@ -298,23 +324,40 @@ private fun SeriesChips(
     }
 }
 
-/** What each line did over the window, and what it reads right now. */
+/**
+ * What each line did over the window, and what it reads right now.
+ *
+ * No card and no border: these are a caption for the plot directly above them, and wrapping
+ * them in their own panel made the screen read as two competing things. Hairlines between
+ * the rows are enough to keep the columns lined up.
+ *
+ * [maxHeight] is for the six-series case only — the plot has first claim on the screen, and
+ * rather than let a full legend crush it, the readings scroll among themselves.
+ */
 @Composable
 private fun SeriesStats(
     series: List<ChartSeries>,
     metrics: List<MetricId>,
     snapshot: VehicleSnapshot,
+    maxHeight: Dp,
 ) {
     if (series.isEmpty()) return
-    GroupedList(modifier = Modifier.fillMaxWidth()) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(max = maxHeight)
+            .verticalScroll(rememberScrollState()),
+    ) {
         series.forEachIndexed { index, line ->
             val id = metrics.getOrNull(index)
             val values = line.samples.map(Sample::value)
+            if (index > 0) {
+                Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(SlateLine))
+            }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Slate)
-                    .padding(horizontal = 13.dp, vertical = Dimens.rowPaddingV),
+                    .padding(vertical = Dimens.rowPaddingV),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
@@ -424,16 +467,6 @@ private fun ChartMode.labelRes(): Int = when (this) {
     ChartMode.Absolute -> R.string.chart_mode_absolute
 }
 
-@Composable
-private fun ChartMode.hint(units: List<String>): String = when (this) {
-    ChartMode.Bands -> stringResource(R.string.chart_mode_bands_hint)
-    ChartMode.Relative -> stringResource(R.string.chart_mode_relative_hint)
-    ChartMode.Absolute -> when {
-        units.size > 1 -> stringResource(R.string.chart_mode_absolute_mixed, units.joinToString(", "))
-        else -> stringResource(R.string.chart_mode_absolute_hint, units.firstOrNull().orEmpty())
-    }
-}
-
 /** `m:ss` up to an hour, then `h:mm:ss`. */
 fun formatDuration(totalSeconds: Long): String {
     val seconds = totalSeconds.coerceAtLeast(0)
@@ -448,4 +481,12 @@ fun formatDuration(totalSeconds: Long): String {
 }
 
 private const val REFRESH_MILLIS = 200L
-private const val PLOT_HEIGHT = 220
+
+/**
+ * How much of the screen the readings under the plot may take before they start scrolling.
+ *
+ * The plot has the rest, and the point of the whole layout is that "the rest" is a large
+ * number: two series leave it about four fifths of the screen, and six cannot take more
+ * than this.
+ */
+private const val STATS_SHARE = 0.22f

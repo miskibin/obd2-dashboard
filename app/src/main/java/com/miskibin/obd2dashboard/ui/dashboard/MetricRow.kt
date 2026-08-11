@@ -355,7 +355,7 @@ fun NormalBand?.describe(unit: String, decimals: Int): String? {
 
 private const val BAND_SWATCH_ALPHA = 0.35f
 private const val DISABLED_ALPHA = 0.35f
-private const val SHEET_PLOT_HEIGHT = 140
+private const val SHEET_PLOT_HEIGHT = 170
 private const val VALUE_ANIMATION_MILLIS = 320
 private const val DIM_ANIMATION_MILLIS = 400
 private const val STALE_ALPHA = 0.38f
