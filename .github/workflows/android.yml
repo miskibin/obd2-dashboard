@@ -39,7 +39,7 @@ jobs:
       # https://github.com/miskibin/obd2-dashboard/releases/latest
       # Tagged builds (v*) additionally get their own versioned release.
       - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/claude/new-session-w70mnx'
+        if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'latest' }}
