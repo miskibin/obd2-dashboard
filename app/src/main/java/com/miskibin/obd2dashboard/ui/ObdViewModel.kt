@@ -21,6 +21,7 @@ import com.miskibin.obd2dashboard.data.MechanicReportData
 import com.miskibin.obd2dashboard.data.MetricId
 import com.miskibin.obd2dashboard.data.Metrics
 import com.miskibin.obd2dashboard.data.SavedAdapter
+import com.miskibin.obd2dashboard.data.SessionKind
 import com.miskibin.obd2dashboard.data.Trip
 import com.miskibin.obd2dashboard.data.TripAnalyzer
 import com.miskibin.obd2dashboard.data.TripEntry
@@ -36,6 +37,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -100,8 +103,21 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
     val theme: StateFlow<AppTheme> = preferences.theme
         .stateIn(viewModelScope, SharingStarted.Eagerly, AppTheme.System)
 
-    /** When each code was first and last seen, since the car will not say. */
-    val dtcLog: StateFlow<List<DtcObservation>> = preferences.dtcLog
+    /** Which car the app is talking to; everything session-scoped is filed under it. */
+    val sessionKind: StateFlow<SessionKind> = connection.sessionKind
+
+    /**
+     * When each code was first and last seen, since the car will not say — for the car
+     * that is connected.
+     *
+     * Both logs are collected and one is chosen, rather than switching flows, so leaving
+     * demo mode swaps the screen back to the real history without a frame of the wrong one.
+     */
+    val dtcLog: StateFlow<List<DtcObservation>> = combine(
+        connection.sessionKind,
+        preferences.dtcLog(SessionKind.Real),
+        preferences.dtcLog(SessionKind.Demo),
+    ) { kind, real, demo -> if (kind.demo) demo else real }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     /** The ECU snapshot behind an expanded fault code, when the car had one stored. */
@@ -177,6 +193,20 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
                 _gear.value = gearEstimator.observe(rpm, snapshot.valueOf(Metrics.Speed))
             }
         }
+        viewModelScope.launch {
+            // What the app itself saw around a code belongs to the car that set it, and
+            // so does the list of recordings: both are re-read from scratch when the car
+            // changes rather than carried across.
+            // `drop(1)` because the first value is only "this is the car we are on"; the
+            // list is loaded when the trips screen opens, and re-reading every recording
+            // at launch would be work nobody asked for.
+            connection.sessionKind.drop(1).collect {
+                _faultContexts.value = emptyMap()
+                _sessionMaxRpm.value = null
+                gearEstimator.reset()
+                refreshTrips()
+            }
+        }
         viewModelScope.launch { watchCodes() }
     }
 
@@ -198,7 +228,9 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
                 return@collect
             }
             val now = System.currentTimeMillis()
-            preferences.recordDtcSightings(codes, previous, now)
+            // Read here rather than captured: the log a sighting lands in is decided by
+            // the car that is connected at the moment of the sighting.
+            preferences.recordDtcSightings(connection.sessionKind.value, codes, previous, now)
 
             codes.filter { it !in previous && it !in _faultContexts.value }.forEach { code ->
                 _faultContexts.update { it + (code to captureContext(code, now)) }
@@ -427,7 +459,7 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
             recorder.stop()
             refreshTrips()
         } else {
-            recorder.start(connection.snapshot, recordableMetrics())
+            recorder.start(connection.snapshot, recordableMetrics(), connection.sessionKind.value)
         }
     }
 
@@ -440,7 +472,9 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun refreshTrips() {
         viewModelScope.launch {
-            val files = withContext(Dispatchers.IO) { ObdHolder.trips.list() }
+            // Demo recordings are listed only from inside demo mode; real drives always.
+            val kind = connection.sessionKind.value
+            val files = withContext(Dispatchers.IO) { ObdHolder.trips.list(kind) }
             _trips.value = files.map { TripEntry(it, analysis = null) }
             val rules = alertRules.value
             val limit = redline.value
@@ -456,7 +490,7 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
         refreshTrips()
     }
 
-    fun shareIntentFor(trip: Trip) = ObdHolder.trips.shareIntent(trip)
+    fun shareIntentFor(trip: Trip) = ObdHolder.trips.shareIntent(getApplication(), trip)
 
     /**
      * The columns a recording opens with, in the order they are written.

@@ -137,12 +137,16 @@ private fun TripCard(entry: TripEntry, onClick: () -> Unit) {
                 modifier = Modifier.padding(top = 2.dp),
             )
             val events = analysis?.events.orEmpty()
-            if (events.isNotEmpty()) {
+            val demo = entry.trip.kind.demo
+            if (events.isNotEmpty() || demo) {
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier.padding(top = 7.dp),
                 ) {
+                    // First, because it is the one badge that changes what the rest mean:
+                    // nothing in this row was driven.
+                    if (demo) DemoTag()
                     events.forEach { event -> EventTag(event) }
                 }
             }

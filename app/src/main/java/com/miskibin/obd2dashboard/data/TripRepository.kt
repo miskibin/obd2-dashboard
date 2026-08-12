@@ -16,6 +16,8 @@ data class Trip(
     val startedAtMillis: Long,
     val sizeBytes: Long,
     val durationSeconds: Double,
+    /** Which car it was recorded from; a [SessionKind.Demo] trip was never driven. */
+    val kind: SessionKind = SessionKind.Real,
 ) {
     val name: String get() = file.name
 }
@@ -23,31 +25,39 @@ data class Trip(
 /**
  * Lists, shares and deletes the CSV recordings written by [TripRecorder].
  *
+ * Real drives and the simulation get a directory each, so a demo recording can never be
+ * mistaken for a drive that happened: [list] is asked which car the app is talking to and
+ * only reaches into the demo directory while it is the simulation. Nothing is hidden from
+ * demo mode itself — a demo recording is still there, listed and openable, for as long as
+ * the driver is in the mode that made it.
+ *
  * Files live in app-private storage and are handed to other apps through a
  * [FileProvider] grant, so no storage permission is ever needed.
  */
-class TripRepository(context: Context) {
+class TripRepository(private val directoryOf: (SessionKind) -> File) {
 
-    private val appContext = context.applicationContext
+    constructor(context: Context) : this(directoriesOf(context.applicationContext))
 
-    val directory: File get() = directoryOf(appContext)
+    fun directory(kind: SessionKind): File = directoryOf(kind)
 
-    fun list(): List<Trip> =
-        directory.listFiles { file -> file.isFile && file.name.endsWith(FILE_SUFFIX) }
-            .orEmpty()
-            .map { file ->
-                Trip(
-                    file = file,
-                    startedAtMillis = startedAtOf(file),
-                    sizeBytes = file.length(),
-                    durationSeconds = durationOf(file),
-                )
-            }
+    /**
+     * The recordings a driver in [kind] should see.
+     *
+     * Real recordings are always listed — they are drives that happened, and demo mode is
+     * no reason to pretend otherwise. Demo recordings are listed only from inside demo
+     * mode.
+     */
+    fun list(kind: SessionKind = SessionKind.Real): List<Trip> {
+        val kinds = if (kind.demo) listOf(SessionKind.Real, SessionKind.Demo) else listOf(SessionKind.Real)
+        return kinds
+            .flatMap { source -> filesIn(source).map { file -> tripOf(file, source) } }
             .sortedByDescending(Trip::startedAtMillis)
+    }
 
     fun delete(trip: Trip): Boolean = trip.file.delete()
 
-    fun shareIntent(trip: Trip): Intent {
+    fun shareIntent(context: Context, trip: Trip): Intent {
+        val appContext = context.applicationContext
         val uri = FileProvider.getUriForFile(appContext, authority(appContext), trip.file)
         return Intent(Intent.ACTION_SEND).apply {
             type = MIME_TYPE
@@ -56,6 +66,20 @@ class TripRepository(context: Context) {
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
     }
+
+    /** `isFile` is what keeps the demo sub-directory out of the real listing. */
+    private fun filesIn(kind: SessionKind): List<File> =
+        directoryOf(kind).listFiles { file -> file.isFile && file.name.endsWith(FILE_SUFFIX) }
+            .orEmpty()
+            .toList()
+
+    private fun tripOf(file: File, kind: SessionKind) = Trip(
+        file = file,
+        startedAtMillis = startedAtOf(file),
+        sizeBytes = file.length(),
+        durationSeconds = durationOf(file),
+        kind = kind,
+    )
 
     /**
      * When the recording started, taken from the name [TripRecorder] gave it — the file's
@@ -100,6 +124,19 @@ class TripRepository(context: Context) {
         const val FILE_SUFFIX = ".csv"
         const val MIME_TYPE = "text/csv"
         private const val DIRECTORY_NAME = "trips"
+
+        /**
+         * A sub-directory rather than a sibling, so the recordings that were already
+         * there stay exactly where they are.
+         *
+         * Nothing is migrated on upgrade: a CSV written before this existed carries no
+         * record of which car it came from, and guessing — by VIN, by name, by anything —
+         * would quietly relabel real drives. Old recordings therefore all count as real,
+         * which is what they were unless the driver was playing with the simulation, and
+         * only new demo recordings are filed apart.
+         */
+        private const val DEMO_DIRECTORY_NAME = "demo"
+
         private const val NEWLINE: Byte = '\n'.code.toByte()
         private const val CARRIAGE_RETURN: Byte = '\r'.code.toByte()
 
@@ -107,8 +144,25 @@ class TripRepository(context: Context) {
         val NAME_FORMAT: DateTimeFormatter =
             DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss", Locale.ROOT)
 
-        fun directoryOf(context: Context): File =
-            File(context.filesDir, DIRECTORY_NAME).apply { mkdirs() }
+        fun directoryOf(context: Context, kind: SessionKind = SessionKind.Real): File =
+            directoryIn(context.filesDir, kind)
+
+        /**
+         * Where each kind's recordings live under a given files directory.
+         *
+         * Split out from [directoryOf] so the layout — and above all the fact that the
+         * real directory is still the one old installs wrote to — can be checked without
+         * an Android context.
+         */
+        fun directoryIn(filesDir: File, kind: SessionKind): File {
+            val real = File(filesDir, DIRECTORY_NAME)
+            val target = if (kind.demo) File(real, DEMO_DIRECTORY_NAME) else real
+            return target.apply { mkdirs() }
+        }
+
+        /** Held as a lambda over the application context so no screen's context leaks in. */
+        fun directoriesOf(appContext: Context): (SessionKind) -> File =
+            { kind -> directoryOf(appContext, kind) }
 
         fun authority(context: Context): String = "${context.packageName}.files"
     }

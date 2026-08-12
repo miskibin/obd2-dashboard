@@ -129,6 +129,35 @@ object DtcLog {
 
     // ---- storage ----------------------------------------------------------------
 
+    /**
+     * The preference each session kind's log lives under.
+     *
+     * Two keys rather than a flag on each entry: a flag would still put the simulation's
+     * P0420 in the same list as the car's, one `filter` away from being shown to a
+     * mechanic. Separate strings mean a demo session physically cannot write into the real
+     * history — [recordInto] is handed one log and has no way to reach the other.
+     *
+     * [SessionKind.Real] keeps the original key, so a driver upgrading keeps the history
+     * they had.
+     */
+    fun storageKey(kind: SessionKind): String = when (kind) {
+        SessionKind.Real -> "dtc_log"
+        SessionKind.Demo -> "dtc_log_demo"
+    }
+
+    /**
+     * Folds one read of the car into a stored log and hands back the log to store again.
+     *
+     * The whole round trip lives here so that the only thing the preference layer decides
+     * is *which* string to pass in.
+     */
+    fun recordInto(
+        raw: String?,
+        codes: Collection<String>,
+        previouslyPresent: Set<String>,
+        nowMillis: Long,
+    ): String = encode(merge(decode(raw), codes, previouslyPresent, nowMillis))
+
     fun encode(log: List<DtcObservation>): String = log.joinToString(SEPARATOR) {
         listOf(it.code, it.firstSeenAtMillis, it.lastSeenAtMillis, it.occurrences).joinToString(FIELD)
     }

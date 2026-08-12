@@ -2,6 +2,7 @@ package com.miskibin.obd2dashboard.ble
 
 import android.bluetooth.BluetoothManager
 import android.content.Context
+import com.miskibin.obd2dashboard.data.SessionKind
 import com.miskibin.obd2dashboard.log.LogTag
 import com.miskibin.obd2dashboard.log.ObdLog
 import com.miskibin.obd2dashboard.obd.AdapterInfo
@@ -113,6 +114,20 @@ class ConnectionManager(
     private val _supportedPids = MutableStateFlow<Set<Int>>(emptySet())
     val supportedPids: StateFlow<Set<Int>> = _supportedPids.asStateFlow()
 
+    /**
+     * Which car the app is talking to right now, and the one thing everything that
+     * persists is filed under.
+     *
+     * [ConnectionState.Connected.demo] says the same thing, but only once the session is
+     * up: a recording started while the simulation is still initialising, or a code read
+     * on the way down, would have nothing to ask. This is [SessionKind.Demo] from the
+     * moment [connectDemo] begins until that session is torn down, and [SessionKind.Real]
+     * at every other moment — including while idle, so demo artefacts stop being visible
+     * the moment the driver leaves demo mode.
+     */
+    private val _sessionKind = MutableStateFlow(SessionKind.Real)
+    val sessionKind: StateFlow<SessionKind> = _sessionKind.asStateFlow()
+
     private var scanJob: Job? = null
     private var sessionJob: Job? = null
     private var mirrorJob: Job? = null
@@ -126,6 +141,9 @@ class ConnectionManager(
     /** Remembered from the previous session so reconnects skip the protocol search. */
     var lastProtocol: ObdProtocol? = null
         private set
+
+    /** What the last session was, so a change of car can wipe what belonged to the old one. */
+    private var previousKind: SessionKind? = null
 
     private val _pollingEnabled = MutableStateFlow(true)
     val pollingEnabled: StateFlow<Boolean> = _pollingEnabled.asStateFlow()
@@ -204,7 +222,7 @@ class ConnectionManager(
             // a connectGatt issued against an unclosed client is a permanent 133.
             previous?.join()
             stopScanAndSettle()
-            guardedSession(device, demo = false)
+            guardedSession(device, SessionKind.Real)
         }
     }
 
@@ -220,7 +238,7 @@ class ConnectionManager(
         sessionJob = scope.launch {
             previous?.join()
             stopScanAndSettle()
-            guardedSession(DEMO_DEVICE, demo = true)
+            guardedSession(DEMO_DEVICE, SessionKind.Demo)
         }
     }
 
@@ -288,13 +306,42 @@ class ConnectionManager(
      * Runs a session and guarantees the radio is released afterwards, whether the session
      * ended, failed or was cancelled from the connect screen.
      */
-    private suspend fun guardedSession(device: DiscoveredDevice, demo: Boolean) {
+    private suspend fun guardedSession(device: DiscoveredDevice, kind: SessionKind) {
+        // The kind is published before anything is opened, so a recording or a code read
+        // started during initialisation is already filed under the right car.
+        if (previousKind != null && previousKind != kind) clearSessionData()
+        previousKind = kind
+        _sessionKind.value = kind
         try {
-            if (!demo && !preflight()) return
-            runSession(device, demo)
+            if (!kind.demo && !preflight()) return
+            runSession(device, kind)
         } finally {
             withContext(NonCancellable) { tearDownSession("session ended") }
+            // A demo session leaves nothing on screen. The readings, the codes and the
+            // frozen frame it produced are all fiction, and the moment the driver steps
+            // out of demo mode there is no car they describe. A real session's last
+            // readings are kept, because they do describe one.
+            if (kind.demo) clearSessionData()
+            // Back to Real while idle, so nothing demo-scoped stays visible.
+            _sessionKind.value = SessionKind.Real
         }
+    }
+
+    /**
+     * Drops everything a session read, because whatever comes next is a different car.
+     *
+     * Called on a change of kind and when a demo session ends — never on a reconnect to
+     * the same car, where the codes and the VIN already on screen still describe the car
+     * in front of the driver and wiping them would make a dropped link look like a car
+     * that had suddenly gone quiet.
+     */
+    private fun clearSessionData() {
+        ObdLog.log(LogTag.CONN, "clearing what the last car said")
+        _snapshot.value = VehicleSnapshot()
+        _diagnostics.value = null
+        _freezeFrame.value = null
+        _vin.value = null
+        _supportedPids.value = emptySet()
     }
 
     /** The two conditions that make a connect pointless before it is attempted. */
@@ -337,11 +384,11 @@ class ConnectionManager(
         delay(SCAN_SETTLE_MILLIS)
     }
 
-    private suspend fun runSession(device: DiscoveredDevice, demo: Boolean) {
+    private suspend fun runSession(device: DiscoveredDevice, kind: SessionKind) {
         var attempt = 0
         while (currentlyActive()) {
             try {
-                openAndPoll(device, demo, attempt + 1)
+                openAndPoll(device, kind, attempt + 1)
                 return
             } catch (error: Exception) {
                 // A `withTimeout` that expires throws a CancellationException. Treating
@@ -371,7 +418,8 @@ class ConnectionManager(
         }
     }
 
-    private suspend fun openAndPoll(device: DiscoveredDevice, demo: Boolean, attempt: Int) {
+    private suspend fun openAndPoll(device: DiscoveredDevice, kind: SessionKind, attempt: Int) {
+        val demo = kind.demo
         setState(ConnectionState.Connecting(device, attempt))
 
         val newTransport = (if (demo) DemoElmTransport() else transportFor(device))

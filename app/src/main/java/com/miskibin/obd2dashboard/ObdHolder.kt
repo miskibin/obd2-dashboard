@@ -20,6 +20,7 @@ import com.miskibin.obd2dashboard.service.AlertMonitor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -68,6 +69,16 @@ object ObdHolder {
 
         scope.launch { connection.snapshot.collect(history::record) }
         scope.launch { preferences.pollingEnabled.collect(connection::setPollingEnabled) }
+        // Changing cars ends the recording and drops the traces the old one left behind:
+        // the simulation's last ten minutes must not appear on the chart of a real drive,
+        // and a recording started in demo mode must not go on collecting real values.
+        scope.launch {
+            // Only actual changes: the first value is the car the app started on.
+            connection.sessionKind.drop(1).collect { kind ->
+                recorder.stopIfCarChanged(kind)
+                history.clear()
+            }
+        }
         alerts.start()
     }
 
