@@ -18,6 +18,7 @@ import com.miskibin.obd2dashboard.data.TripEntry
 import com.miskibin.obd2dashboard.data.TripEvent
 import com.miskibin.obd2dashboard.data.TripEventKind
 import com.miskibin.obd2dashboard.ui.components.formatReading
+import com.miskibin.obd2dashboard.ui.label
 import com.miskibin.obd2dashboard.ui.theme.AmberLight
 import com.miskibin.obd2dashboard.ui.theme.AmberSurfaceStrong
 import com.miskibin.obd2dashboard.ui.theme.Ash
@@ -66,7 +67,7 @@ fun eventLabel(event: TripEvent): String {
         )
     }
     val metric = Metrics[event.metric]
-    val name = metric?.let { stringResource(it.nameRes) }.orEmpty()
+    val name = metric?.let { it.label() }.orEmpty()
     val value = formatReading(event.peak, metric?.decimals ?: 0)
     return stringResource(R.string.trip_event_breach, name, value, metric?.unit.orEmpty()).trim()
 }
@@ -129,7 +130,7 @@ fun tripMeta(entry: TripEntry): String {
 /** The label for a trip maximum, e.g. "Max oil". */
 @Composable
 fun maximumLabel(metric: MetricId): String {
-    val name = Metrics[metric]?.let { stringResource(it.nameRes) }.orEmpty()
+    val name = Metrics[metric]?.let { it.label() }.orEmpty()
     return stringResource(R.string.trip_stat_max, name)
 }
 

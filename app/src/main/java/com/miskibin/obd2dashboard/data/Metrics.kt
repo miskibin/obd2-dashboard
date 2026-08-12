@@ -5,6 +5,8 @@ import com.miskibin.obd2dashboard.R
 import com.miskibin.obd2dashboard.obd.DerivedMetrics
 import com.miskibin.obd2dashboard.obd.Pids
 import com.miskibin.obd2dashboard.obd.VehicleSnapshot
+import com.miskibin.obd2dashboard.obd.keyPid
+import com.miskibin.obd2dashboard.obd.sensorKey
 import java.util.Locale
 
 /**
@@ -17,9 +19,24 @@ sealed interface MetricId {
 
     val storageKey: String
 
-    /** A Mode 01 PID read straight off the bus. */
-    data class Sensor(val pid: Int) : MetricId {
-        override val storageKey: String get() = PID_PREFIX + "%02X".format(Locale.ROOT, pid)
+    /**
+     * A Mode 01 PID read straight off the bus.
+     *
+     * [key] is a [sensorKey]: the PID id itself for the single-value parameters, and the
+     * PID plus a channel index for the ones that carry several numbers in one response.
+     * Channel 0 encodes to the bare PID id, so every key that was ever written to a saved
+     * tile list or a CSV header still parses to the same metric.
+     */
+    data class Sensor(val key: Int) : MetricId {
+        /** The Mode 01 PID this reading is asked for with. */
+        val pid: Int get() = keyPid(key)
+
+        override val storageKey: String
+            get() = PID_PREFIX + if (key <= 0xFF) {
+                "%02X".format(Locale.ROOT, key)
+            } else {
+                "%04X".format(Locale.ROOT, key)
+            }
     }
 
     /** A value computed from other PIDs, keyed by [com.miskibin.obd2dashboard.obd.DerivedMetric.key]. */
@@ -59,6 +76,14 @@ data class Metric(
     @param:StringRes val nameRes: Int,
     val unit: String,
     val decimals: Int,
+    /**
+     * Numbers substituted into [nameRes], for the parameters that come in families.
+     *
+     * A car can report eight oxygen sensors, six intake air temperature sensors and four
+     * exhaust gas temperature sensors per bank; naming each one with its own string would
+     * be a hundred resources that differ by a digit, in every language the app ships.
+     */
+    val nameArgs: List<Int> = emptyList(),
 ) {
     /** English, locale-independent name used for CSV headers. */
     val exportKey: String get() = id.storageKey
@@ -85,6 +110,16 @@ enum class MetricGroup { Engine, Temperature, Mixture, Vehicle }
 
 object Metrics {
 
+    /**
+     * The reading keys that carry a narrow-band or wide-range oxygen sensor voltage.
+     *
+     * Declared before [catalog], which reads it while it is being built — a property of an
+     * `object` that is initialised later is still null at that point.
+     */
+    private val O2_VOLTAGE_KEYS: Set<Int> =
+        (0x14..0x1B).map { sensorKey(it, 0) }.toSet() +
+            (0x24..0x2B).map { sensorKey(it, 1) }.toSet()
+
     val Rpm = MetricId.Sensor(Pids.ENGINE_RPM)
     val Speed = MetricId.Sensor(Pids.VEHICLE_SPEED)
     val CoolantTemp = MetricId.Sensor(Pids.COOLANT_TEMP)
@@ -106,14 +141,19 @@ object Metrics {
 
     val catalog: List<Metric> = buildList {
         Pids.entries.forEach { pid ->
-            add(
-                Metric(
-                    id = MetricId.Sensor(pid.id),
-                    nameRes = nameResFor(pid.id),
-                    unit = pid.unit,
-                    decimals = decimalsFor(pid.unit),
-                ),
-            )
+            pid.channels.forEach { channel ->
+                val key = sensorKey(pid.id, channel.index)
+                val (nameRes, args) = nameOf(pid.id, channel.index)
+                add(
+                    Metric(
+                        id = MetricId.Sensor(key),
+                        nameRes = nameRes,
+                        unit = channel.unit,
+                        decimals = decimalsFor(key, channel.unit),
+                        nameArgs = args,
+                    ),
+                )
+            }
         }
         add(Metric(MetricId.Derived(DerivedMetrics.Boost.key), R.string.metric_boost, "kPa", 0))
         add(Metric(MetricId.Derived(DerivedMetrics.FuelRate.key), R.string.metric_fuel_rate, "L/h", 1))
@@ -195,27 +235,86 @@ object Metrics {
 
         is MetricId.Sensor -> when (id.pid) {
             Pids.COOLANT_TEMP, Pids.INTAKE_AIR_TEMP, Pids.OIL_TEMP, Pids.AMBIENT_AIR_TEMP,
-            in 0x3C..0x3F, 0x67, 0x68,
+            in 0x3C..0x3F, 0x67, 0x68, 0x6B, 0x77, 0x78, 0x79,
             -> MetricGroup.Temperature
 
             Pids.SHORT_FUEL_TRIM_1, Pids.LONG_FUEL_TRIM_1, 0x08, 0x09, Pids.MAF_RATE,
-            in 0x14..0x1B, in 0x24..0x2B, in 0x34..0x3B, 0x44, 0x2C, 0x2D, 0x2E, 0x52, 0x53,
+            in 0x14..0x1B, in 0x24..0x2B, in 0x34..0x3B, in 0x55..0x58,
+            Pids.COMMANDED_AFR, 0x2C, 0x2D, 0x2E, 0x52, 0x53, 0x54, 0x66,
             -> MetricGroup.Mixture
 
             Pids.VEHICLE_SPEED, Pids.FUEL_LEVEL, Pids.RUN_TIME, Pids.DISTANCE_WITH_MIL,
             Pids.DISTANCE_SINCE_CLEARED, Pids.CONTROL_MODULE_VOLTAGE, 0xA6, 0x4D, 0x4E, 0x49,
-            0x4A, 0x4C,
+            0x4A, 0x4B, 0x4C, Pids.FUEL_TYPE, Pids.TRANSMISSION_GEAR,
             -> MetricGroup.Vehicle
 
             else -> MetricGroup.Engine
         }
     }
 
-    private fun decimalsFor(unit: String): Int = when (unit) {
-        "rpm", "km/h", "km", "s", "min", "count", "N·m", "Pa", "kPa", "°C", "°" -> 0
-        "λ" -> 3
-        else -> 1
+    /**
+     * How many decimals reading a value at a glance deserves.
+     *
+     * Almost always a property of the unit, with one exception worth the special case: an
+     * oxygen sensor's voltage lives between 0 and 1.275 V and swings across that whole
+     * range, so a single decimal would show a probe doing its job as a flat 0.1 → 0.9.
+     */
+    private fun decimalsFor(key: Int, unit: String): Int = when {
+        key in O2_VOLTAGE_KEYS -> 3
+        else -> when (unit) {
+            "rpm", "km/h", "km", "s", "min", "count", "N·m", "Pa", "kPa", "°C", "°", "" -> 0
+            "λ" -> 3
+            "mA" -> 2
+            else -> 1
+        }
     }
+
+    /**
+     * The label for one channel, as a string resource and the numbers to fill it with.
+     *
+     * The sensor families are named from templates rather than one resource per sensor:
+     * eight oxygen sensors with four channels between them would otherwise be dozens of
+     * strings that differ only by a digit.
+     */
+    private fun nameOf(pid: Int, channel: Int): Pair<Int, List<Int>> = when (pid) {
+        in 0x14..0x1B -> {
+            val sensor = pid - 0x14 + 1
+            val res = if (channel == 0) R.string.metric_o2_voltage else R.string.metric_o2_trim
+            res to listOf(sensor)
+        }
+
+        in 0x24..0x2B -> {
+            val sensor = pid - 0x24 + 1
+            val res = if (channel == 0) R.string.metric_o2_lambda else R.string.metric_o2_voltage
+            res to listOf(sensor)
+        }
+
+        in 0x34..0x3B -> {
+            val sensor = pid - 0x34 + 1
+            val res = if (channel == 0) R.string.metric_o2_lambda else R.string.metric_o2_current
+            res to listOf(sensor)
+        }
+
+        // 0155/0157 are the short term trims and 0156/0158 the long term ones; each
+        // carries two banks, and which two depends on the PID.
+        0x55, 0x57 -> R.string.metric_secondary_trim_short to listOf(secondaryBank(pid, channel))
+        0x56, 0x58 -> R.string.metric_secondary_trim_long to listOf(secondaryBank(pid, channel))
+
+        0x66 -> R.string.metric_maf_sensor to listOf(channel + 1)
+        0x67 -> R.string.metric_ect_sensor to listOf(channel + 1)
+        0x68 -> R.string.metric_iat_sensor to listOf(channel / 3 + 1, channel % 3 + 1)
+        0x6B -> R.string.metric_egr_temp to listOf(channel / 2 + 1, channel % 2 + 1)
+        0x73 -> R.string.metric_exhaust_pressure to listOf(channel + 1)
+        0x74 -> R.string.metric_turbo_speed to listOf(channel + 1)
+        0x77 -> R.string.metric_charge_air_temp to listOf(channel / 2 + 1, channel % 2 + 1)
+        0x78 -> R.string.metric_exhaust_gas_temp to listOf(1, channel + 1)
+        0x79 -> R.string.metric_exhaust_gas_temp to listOf(2, channel + 1)
+        else -> nameResFor(pid) to emptyList()
+    }
+
+    /** `0155` and `0156` report banks 1 and 3; `0157` and `0158` report banks 2 and 4. */
+    private fun secondaryBank(pid: Int, channel: Int): Int =
+        if (pid == 0x55 || pid == 0x56) 1 + channel * 2 else 2 + channel * 2
 
     @StringRes
     private fun nameResFor(pid: Int): Int = when (pid) {
@@ -238,6 +337,7 @@ object Metrics {
         0x22 -> R.string.metric_pid_22
         0x23 -> R.string.metric_pid_23
         0x2C -> R.string.metric_pid_2c
+        0x2D -> R.string.metric_pid_2d
         0x2E -> R.string.metric_pid_2e
         0x2F -> R.string.metric_pid_2f
         0x30 -> R.string.metric_pid_30
@@ -254,13 +354,17 @@ object Metrics {
         0x45 -> R.string.metric_pid_45
         0x46 -> R.string.metric_pid_46
         0x47 -> R.string.metric_pid_47
+        0x48 -> R.string.metric_pid_48
         0x49 -> R.string.metric_pid_49
         0x4A -> R.string.metric_pid_4a
+        0x4B -> R.string.metric_pid_4b
         0x4C -> R.string.metric_pid_4c
         0x4D -> R.string.metric_pid_4d
         0x4E -> R.string.metric_pid_4e
+        0x51 -> R.string.metric_pid_51
         0x52 -> R.string.metric_pid_52
         0x53 -> R.string.metric_pid_53
+        0x54 -> R.string.metric_pid_54
         0x59 -> R.string.metric_pid_59
         0x5A -> R.string.metric_pid_5a
         0x5B -> R.string.metric_pid_5b
@@ -270,6 +374,8 @@ object Metrics {
         0x61 -> R.string.metric_pid_61
         0x62 -> R.string.metric_pid_62
         0x63 -> R.string.metric_pid_63
+        0x9E -> R.string.metric_pid_9e
+        0xA4 -> R.string.metric_pid_a4
         0xA6 -> R.string.metric_pid_a6
         else -> R.string.metric_unknown
     }
@@ -277,14 +383,14 @@ object Metrics {
 
 /** Current value of [id], or null when the car has not reported it yet. */
 fun VehicleSnapshot.valueOf(id: MetricId): Double? = when (id) {
-    is MetricId.Sensor -> readings[id.pid]?.value
+    is MetricId.Sensor -> readings[id.key]?.value
     is MetricId.Derived -> derived[id.key]
     MetricId.Battery -> batteryVoltage
 }
 
 /** When [id] was last refreshed, used to dim readings that have gone stale. */
 fun VehicleSnapshot.updatedAtOf(id: MetricId): Long = when (id) {
-    is MetricId.Sensor -> readings[id.pid]?.timestampMillis ?: 0L
+    is MetricId.Sensor -> readings[id.key]?.timestampMillis ?: 0L
     else -> updatedAtMillis
 }
 

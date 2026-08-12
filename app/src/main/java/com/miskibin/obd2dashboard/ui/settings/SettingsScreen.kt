@@ -56,6 +56,7 @@ import com.miskibin.obd2dashboard.ui.components.ScreenPadding
 import com.miskibin.obd2dashboard.ui.components.SectionHeader
 import com.miskibin.obd2dashboard.ui.components.Segment
 import com.miskibin.obd2dashboard.ui.components.SegmentedControl
+import com.miskibin.obd2dashboard.ui.label
 import com.miskibin.obd2dashboard.ui.theme.AshDim
 import com.miskibin.obd2dashboard.ui.theme.Chalk
 import com.miskibin.obd2dashboard.ui.theme.Dimens
@@ -63,11 +64,11 @@ import com.miskibin.obd2dashboard.ui.theme.Fog
 import com.miskibin.obd2dashboard.ui.theme.Graphite
 import com.miskibin.obd2dashboard.ui.theme.InkRaised
 import com.miskibin.obd2dashboard.ui.theme.PanelCorner
+import com.miskibin.obd2dashboard.ui.theme.SignalText
+import com.miskibin.obd2dashboard.ui.theme.Slate
 import com.miskibin.obd2dashboard.ui.theme.SlateBorder
 import com.miskibin.obd2dashboard.ui.theme.SlateEdge
 import com.miskibin.obd2dashboard.ui.theme.SlateTrack
-import com.miskibin.obd2dashboard.ui.theme.SignalText
-import com.miskibin.obd2dashboard.ui.theme.Slate
 import com.miskibin.obd2dashboard.ui.theme.Smoke
 import com.miskibin.obd2dashboard.ui.theme.Steel
 import com.miskibin.obd2dashboard.ui.theme.SteelDeep
@@ -392,7 +393,7 @@ private fun AlertRuleRow(rule: AlertRule, onToggle: (Boolean) -> Unit, onEdit: (
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = stringResource(metric?.nameRes ?: R.string.metric_unknown),
+                text = metric?.label() ?: stringResource(R.string.metric_unknown),
                 style = MaterialTheme.typography.bodyLarge,
                 color = Chalk,
             )
@@ -457,7 +458,7 @@ private fun ThresholdSheet(rule: AlertRule, onDismiss: () -> Unit, onConfirm: (D
     ) {
         Column(modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 20.dp)) {
             Text(
-                text = stringResource(metric?.nameRes ?: R.string.metric_unknown),
+                text = metric?.label() ?: stringResource(R.string.metric_unknown),
                 style = MaterialTheme.typography.titleMedium,
                 color = Chalk,
             )

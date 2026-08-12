@@ -2,7 +2,24 @@ package com.miskibin.obd2dashboard.obd
 
 /** Outcome of a single Mode 01 read. */
 sealed interface PidRead {
-    data class Value(val pid: Pid, val value: Double, val lineCount: Int) : PidRead
+    /**
+     * [data] is the response's raw data bytes, kept alongside the decoded [value] because
+     * a PID can carry more than one number and only the caller knows which of them it
+     * wants; [value] is the primary channel, which for most PIDs is all there is.
+     */
+    data class Value(val pid: Pid, val data: IntArray, val lineCount: Int) : PidRead {
+        val value: Double get() = pid.decode(data)
+
+        // IntArray is compared by identity, which would make two reads of the same bytes
+        // unequal; the generated equals/hashCode are overridden so the data class behaves.
+        override fun equals(other: Any?): Boolean = this === other ||
+            (other is Value && pid == other.pid && data.contentEquals(other.data) &&
+                lineCount == other.lineCount)
+
+        override fun hashCode(): Int =
+            (pid.hashCode() * 31 + data.contentHashCode()) * 31 + lineCount
+    }
+
     data object Unsupported : PidRead
     data class Failed(val error: ElmError) : PidRead
 }
@@ -39,11 +56,16 @@ class Obd2Client(
             ?: return PidRead.Failed(ElmError.DataError)
         if (data.size < pid.bytes) return PidRead.Failed(ElmError.DataError)
         if (hint == null && lines.isNotEmpty()) lineCounts[pid.id] = lines.size
-        return PidRead.Value(pid, pid.decode(data), lines.size)
+        return PidRead.Value(pid, data, lines.size)
     }
 
-    /** Up to six PIDs in one Mode 01 request; CAN only, and only after [probeBatching]. */
-    suspend fun readBatch(pids: List<Pid>): Map<Int, Double> {
+    /**
+     * Up to six PIDs in one Mode 01 request; CAN only, and only after [probeBatching].
+     *
+     * Returns the raw data bytes per PID rather than decoded values, so a caller that
+     * wants every channel of a multi-value PID can have them.
+     */
+    suspend fun readBatch(pids: List<Pid>): Map<Int, IntArray> {
         if (pids.isEmpty()) return emptyMap()
         val command = "%02X".format(MODE_CURRENT_DATA) + pids.joinToString("") { "%02X".format(it.id) }
         val response = session.request(command, PID_TIMEOUT_MILLIS)
@@ -52,7 +74,7 @@ class Obd2Client(
         val raw = ObdResponseParser.values(frames, MODE_CURRENT_DATA, pids.map(Pid::id))
         return raw.mapNotNull { (id, bytes) ->
             val pid = Pids[id] ?: return@mapNotNull null
-            if (bytes.size < pid.bytes) null else id to pid.decode(bytes)
+            if (bytes.size < pid.bytes) null else id to bytes
         }.toMap()
     }
 

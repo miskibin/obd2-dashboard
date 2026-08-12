@@ -566,9 +566,11 @@ private fun AppNavHost(
 
         composable(Routes.PICKER) {
             val supported by viewModel.supportedPids.collectAsStateWithLifecycle()
+            val undecoded by viewModel.undecodedPids.collectAsStateWithLifecycle()
             PidPickerScreen(
                 selected = tiles,
                 supportedPids = supported,
+                undecodedPids = undecoded,
                 onToggle = { id ->
                     if (id in tiles) viewModel.removeTile(id) else viewModel.addTile(id)
                 },

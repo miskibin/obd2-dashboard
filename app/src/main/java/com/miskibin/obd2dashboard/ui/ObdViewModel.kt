@@ -29,6 +29,7 @@ import com.miskibin.obd2dashboard.data.valueOf
 import com.miskibin.obd2dashboard.obd.DerivedMetrics
 import com.miskibin.obd2dashboard.obd.Dtc
 import com.miskibin.obd2dashboard.obd.Pids
+import com.miskibin.obd2dashboard.obd.sensorKey
 import com.miskibin.obd2dashboard.service.ObdConnectionService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -36,6 +37,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -73,6 +75,7 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
     val snapshot = connection.snapshot
     val diagnostics = connection.diagnostics
     val supportedPids: StateFlow<Set<Int>> = connection.supportedPids
+    val undecodedPids: StateFlow<Set<Int>> = connection.undecodedPids
     val vin: StateFlow<String?> = connection.vin
     val recording = recorder.state
     val alertEvents = ObdHolder.alerts.events
@@ -178,6 +181,16 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         viewModelScope.launch { watchCodes() }
+        // Whatever is on a tile or a chart line gets polled every cycle; see
+        // ConnectionManager.prioritize.
+        viewModelScope.launch {
+            combine(_tiles, _chartMetrics) { tiles, charted -> tiles + charted }
+                .collect { shown ->
+                    connection.prioritize(
+                        shown.filterIsInstance<MetricId.Sensor>().map(MetricId.Sensor::key).toSet(),
+                    )
+                }
+        }
     }
 
     // ---- fault history ----------------------------------------------------------
@@ -473,7 +486,11 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
         addAll(_tiles.value)
         addAll(_chartMetrics.value)
         addAll(connection.snapshot.value.presentMetrics())
-        addAll(supportedPids.value.filter { Pids[it] != null }.map(MetricId::Sensor))
+        // Every channel of every supported PID, not just the first: a car that reports
+        // four oxygen sensors should record four, and recording the PID would record one.
+        supportedPids.value.forEach { pid ->
+            Pids[pid]?.channels?.forEach { add(MetricId.Sensor(sensorKey(pid, it.index))) }
+        }
         addAll(DerivedMetrics.all.map { MetricId.Derived(it.key) })
         add(MetricId.Battery)
     }.distinct()

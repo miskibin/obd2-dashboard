@@ -122,7 +122,7 @@ class TripRecorderTest {
     private fun snapshot(vararg values: Pair<Int, Double>): VehicleSnapshot {
         val readings = values.associate { (pid, value) ->
             pid to Reading(
-                pid = pid,
+                key = pid,
                 name = Pids[pid]?.name.orEmpty(),
                 unit = Pids[pid]?.unit.orEmpty(),
                 value = value,

@@ -34,6 +34,7 @@ import com.miskibin.obd2dashboard.data.MetricId
 import com.miskibin.obd2dashboard.data.Metrics
 import com.miskibin.obd2dashboard.ui.components.AccentButton
 import com.miskibin.obd2dashboard.ui.components.DesignSheet
+import com.miskibin.obd2dashboard.ui.label
 import com.miskibin.obd2dashboard.ui.theme.AshDim
 import com.miskibin.obd2dashboard.ui.theme.Chalk
 import com.miskibin.obd2dashboard.ui.theme.Fog
@@ -68,7 +69,7 @@ fun ParameterSheet(
             group to Metrics.catalog
                 .filter { Metrics.groupOf(it.id) == group }
                 .filter { it.id in selected || it.isAvailable(supportedPids, supportKnown) }
-                .sortedBy { context.getString(it.nameRes) }
+                .sortedBy { it.label(context) }
         }.filter { (_, items) -> items.isNotEmpty() }
     }
 
@@ -149,7 +150,7 @@ private fun ParameterRow(metric: Metric, selected: Boolean, onToggle: () -> Unit
             }
         }
         Text(
-            text = stringResource(metric.nameRes),
+            text = metric.label(),
             style = MaterialTheme.typography.bodyMedium,
             color = if (selected) Chalk else AshDim,
             maxLines = 1,

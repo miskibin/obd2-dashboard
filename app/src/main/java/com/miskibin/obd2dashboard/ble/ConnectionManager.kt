@@ -17,6 +17,7 @@ import com.miskibin.obd2dashboard.obd.FreezeFrame
 import com.miskibin.obd2dashboard.obd.InitOutcome
 import com.miskibin.obd2dashboard.obd.Obd2Client
 import com.miskibin.obd2dashboard.obd.ObdProtocol
+import com.miskibin.obd2dashboard.obd.ObdResponseParser
 import com.miskibin.obd2dashboard.obd.PidScheduler
 import com.miskibin.obd2dashboard.obd.PidTier
 import com.miskibin.obd2dashboard.obd.Pids
@@ -28,9 +29,12 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -113,6 +117,22 @@ class ConnectionManager(
     private val _supportedPids = MutableStateFlow<Set<Int>>(emptySet())
     val supportedPids: StateFlow<Set<Int>> = _supportedPids.asStateFlow()
 
+    /**
+     * The PIDs the car offers that this app has no decoder for.
+     *
+     * Worth keeping and showing rather than discarding: a support scan that finds sixty
+     * parameters and a dashboard that can draw forty of them is a gap the owner should be
+     * able to see, and it is the only honest answer to "does this app read everything my
+     * car reports". The support-block markers (`0120`, `0140`, …) are not parameters and
+     * are excluded.
+     */
+    val undecodedPids: StateFlow<Set<Int>> = _supportedPids
+        .map { supported ->
+            supported.filter { Pids[it] == null && it % ObdResponseParser.SUPPORT_BLOCK_SIZE != 0 }
+                .toSortedSet()
+        }
+        .stateIn(scope, SharingStarted.Eagerly, emptySet())
+
     private var scanJob: Job? = null
     private var sessionJob: Job? = null
     private var mirrorJob: Job? = null
@@ -129,6 +149,21 @@ class ConnectionManager(
 
     private val _pollingEnabled = MutableStateFlow(true)
     val pollingEnabled: StateFlow<Boolean> = _pollingEnabled.asStateFlow()
+
+    /** Survives reconnects, so the tiles keep their fast refresh across a dropped link. */
+    private var priorityKeys: Set<Int> = emptySet()
+
+    /**
+     * The reading keys currently on a tile or a chart line.
+     *
+     * They are polled every cycle rather than at their tier's pace: a slow-tier parameter
+     * the driver has put on the dashboard is being watched, and one that updates every
+     * twenty seconds looks broken next to one that updates ten times a second.
+     */
+    fun prioritize(keys: Set<Int>) {
+        priorityKeys = keys
+        scheduler?.prioritize(keys)
+    }
 
     fun startScan() {
         if (scanJob?.isActive == true) return
@@ -404,6 +439,7 @@ class ConnectionManager(
             pollingEnabled = { _pollingEnabled.value },
         ).also { scheduler = it }
         newScheduler.configure(supported)
+        newScheduler.prioritize(priorityKeys)
         mirrorJob = scope.launch { newScheduler.snapshot.collect { _snapshot.value = it } }
 
         setState(ConnectionState.Connected(device, info, demo))

@@ -10,8 +10,12 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
+/**
+ * One published number. [key] is a [sensorKey] — the PID for single-value parameters, the
+ * PID plus a channel index for the ones that carry several.
+ */
 data class Reading(
-    val pid: Int,
+    val key: Int,
     val name: String,
     val unit: String,
     val value: Double,
@@ -33,10 +37,17 @@ data class VehicleSnapshot(
  * Priority polling loop.
  *
  * The fast tier goes out every cycle, the medium tier every fifth and the slow tier is
- * walked round-robin a couple of PIDs at a time every twentieth, which keeps the gauges
- * that move fast smooth on a link that only sustains ~10 requests per second. PIDs that
- * answer `NO DATA` repeatedly are dropped, because every miss costs a full `AT ST`
- * timeout.
+ * walked round-robin a few PIDs at a time every twentieth, which keeps the gauges that move
+ * fast smooth on a link that only sustains ~10 requests per second. On top of the tiers sits
+ * whatever the driver is actually looking at: a parameter on a tile or on the chart is asked
+ * for every cycle whichever tier it belongs to, because a value nobody can see does not need
+ * to be fresh and a value somebody is watching does. An oxygen sensor swinging once a second
+ * is unreadable at the slow tier's pace and fine at the fast one's.
+ *
+ * PIDs that answer `NO DATA` repeatedly are rested rather than dropped, because every miss
+ * costs a full `AT ST` timeout but a miss is not proof of absence: a car sitting at
+ * ignition-on answers `NO DATA` to oil temperature and fuel rate and then answers both
+ * perfectly once the engine is running.
  */
 class PidScheduler(
     private val client: Obd2Client,
@@ -49,8 +60,11 @@ class PidScheduler(
 
     private val gate = Mutex()
     private val misses = mutableMapOf<Int, Int>()
-    private val disabled = mutableSetOf<Int>()
+
+    /** PID id to the cycle it was rested on; see [isActive]. */
+    private val rested = mutableMapOf<Int, Long>()
     private var supported: Set<Int> = emptySet()
+    private var priority: Set<Int> = emptySet()
     private var slowCursor = 0
     private var cycle = 0L
 
@@ -58,7 +72,17 @@ class PidScheduler(
     fun configure(supportedPids: Set<Int>) {
         supported = supportedPids
         misses.clear()
-        disabled.clear()
+        rested.clear()
+    }
+
+    /**
+     * The PIDs behind whatever is currently on screen, which are polled every cycle.
+     *
+     * Takes reading keys rather than PID ids so a caller can hand over the metrics it is
+     * displaying without having to know which of them share a PID.
+     */
+    fun prioritize(keys: Set<Int>) {
+        priority = keys.map(::keyPid).toSet()
     }
 
     /** Lets a user-initiated request (DTC read, VIN, clear) cut in between cycles. */
@@ -81,9 +105,10 @@ class PidScheduler(
 
     fun plan(forCycle: Long): List<Pid> = buildList {
         addAll(Pids.tier(PidTier.Fast))
+        addAll(Pids.entries.filter { it.tier != PidTier.Fast && it.id in priority })
         if (forCycle % MEDIUM_EVERY == 0L) addAll(Pids.tier(PidTier.Medium))
         if (forCycle % SLOW_EVERY == 0L) addAll(nextSlowSlice())
-    }.filter { isActive(it.id) }
+    }.filter { isActive(it.id) }.distinctBy(Pid::id)
 
     private suspend fun pollCycle() {
         val due = plan(cycle)
@@ -98,8 +123,13 @@ class PidScheduler(
         for (chunk in due.chunked(MAX_BATCH_SIZE)) {
             val answered = client.readBatch(chunk)
             chunk.forEach { pid ->
-                val value = answered[pid.id]
-                if (value == null) missing += pid else publish(pid, value)
+                val data = answered[pid.id]
+                if (data == null) {
+                    missing += pid
+                } else {
+                    misses.remove(pid.id)
+                    publish(pid, data)
+                }
             }
         }
         return missing
@@ -109,23 +139,37 @@ class PidScheduler(
         when (val read = client.readPid(pid)) {
             is PidRead.Value -> {
                 misses.remove(pid.id)
-                publish(pid, read.value)
+                rested.remove(pid.id)
+                publish(pid, read.data)
             }
 
             PidRead.Unsupported -> {
                 val count = (misses[pid.id] ?: 0) + 1
                 misses[pid.id] = count
-                if (count >= MAX_MISSES) disabled += pid.id
+                if (count >= MAX_MISSES) rested[pid.id] = cycle
             }
 
             is PidRead.Failed -> if (read.error.requiresReinit) throw ElmFatalException(read.error)
         }
     }
 
-    private fun publish(pid: Pid, value: Double) {
+    /**
+     * Publishes every channel the response carries.
+     *
+     * A channel that decodes to a non-finite value is the standard's way of saying the
+     * sensor is not fitted, so it is dropped rather than published as a reading of nothing.
+     */
+    private fun publish(pid: Pid, data: IntArray) {
         val now = clock()
+        val fresh = pid.channels.mapNotNull { channel ->
+            val value = channel.decode(data)
+            if (!value.isFinite()) return@mapNotNull null
+            val key = sensorKey(pid.id, channel.index)
+            key to Reading(key, channel.name, channel.unit, value, now)
+        }
+        if (fresh.isEmpty()) return
         _snapshot.update { current ->
-            val readings = current.readings + (pid.id to Reading(pid.id, pid.name, pid.unit, value, now))
+            val readings = current.readings + fresh
             current.copy(
                 readings = readings,
                 derived = DerivedMetrics.compute(readings.mapValues { it.value.value }),
@@ -147,16 +191,34 @@ class PidScheduler(
         return slice
     }
 
-    private fun isActive(pid: Int): Boolean =
-        pid !in disabled && (supported.isEmpty() || pid in supported)
+    /**
+     * A PID is polled while the car lists it as supported and it is not resting.
+     *
+     * Resting is a pause, not a verdict. A PID that answered `NO DATA` [MAX_MISSES] times
+     * is left alone for [REST_CYCLES] and then tried once more, which costs one timeout
+     * every couple of minutes and is the difference between a car connected at
+     * ignition-on losing oil temperature for the rest of the drive and picking it up as
+     * soon as the engine runs.
+     */
+    private fun isActive(pid: Int): Boolean {
+        if (supported.isNotEmpty() && pid !in supported) return false
+        val restedAt = rested[pid] ?: return true
+        if (cycle - restedAt < REST_CYCLES) return false
+        rested.remove(pid)
+        misses.remove(pid)
+        return true
+    }
 
     companion object {
         const val MEDIUM_EVERY = 5L
         const val SLOW_EVERY = 20L
-        const val SLOW_PER_CYCLE = 2
+        const val SLOW_PER_CYCLE = 4
         const val MAX_MISSES = 3
         const val MAX_BATCH_SIZE = 6
         const val DEFAULT_CYCLE_DELAY_MILLIS = 0L
         const val PAUSED_POLL_MILLIS = 250L
+
+        /** How long a PID that kept answering `NO DATA` is left alone before one retry. */
+        const val REST_CYCLES = 1_200L
     }
 }
