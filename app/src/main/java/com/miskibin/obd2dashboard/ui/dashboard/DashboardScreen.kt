@@ -45,9 +45,10 @@ import com.miskibin.obd2dashboard.data.AlertRule
 import com.miskibin.obd2dashboard.data.GearReading
 import com.miskibin.obd2dashboard.data.MetricHistory
 import com.miskibin.obd2dashboard.data.MetricId
+import com.miskibin.obd2dashboard.data.MetricStatus
 import com.miskibin.obd2dashboard.data.Metrics
 import com.miskibin.obd2dashboard.data.RecordingState
-import com.miskibin.obd2dashboard.data.isBreached
+import com.miskibin.obd2dashboard.data.statusOf
 import com.miskibin.obd2dashboard.data.updatedAtOf
 import com.miskibin.obd2dashboard.data.valueOf
 import com.miskibin.obd2dashboard.obd.VehicleSnapshot
@@ -59,9 +60,9 @@ import com.miskibin.obd2dashboard.ui.components.ScreenHeader
 import com.miskibin.obd2dashboard.ui.components.ScreenPadding
 import com.miskibin.obd2dashboard.ui.components.dashedBorder
 import com.miskibin.obd2dashboard.ui.label
-import com.miskibin.obd2dashboard.ui.theme.AmberText
 import com.miskibin.obd2dashboard.ui.theme.Dimens
 import com.miskibin.obd2dashboard.ui.theme.Fog
+import com.miskibin.obd2dashboard.ui.theme.InkRaised
 import com.miskibin.obd2dashboard.ui.theme.PanelCorner
 import com.miskibin.obd2dashboard.ui.theme.PanelRadius
 import com.miskibin.obd2dashboard.ui.theme.PillCorner
@@ -130,54 +131,51 @@ fun DashboardScreen(
     }
     LaunchedEffect(cells.size) { if (cells.isEmpty()) editing = false }
 
-    val breached = remember(snapshot, alertRules) {
-        alertRules.filter { rule ->
-            val value = snapshot.valueOf(rule.metric)
-            rule.enabled && value != null && rule.isBreached(value)
-        }.map(AlertRule::metric).toSet()
+    // The controls the screen carries wherever its title happens to be: while there are
+    // tiles that is inside the hero card, and while there are none it is the plain header
+    // over the invitation to connect.
+    val controls: @Composable () -> Unit = {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            // Only while the grid is being pruned: the way out of a mode belongs
+            // to the mode, not to the screen.
+            AnimatedVisibility(visible = editing) {
+                Text(
+                    text = stringResource(R.string.action_done),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = SteelLight,
+                    modifier = Modifier
+                        .clip(PillCorner)
+                        .background(InkRaised)
+                        .border(1.dp, SlateEdge, PillCorner)
+                        .clickable { editing = false }
+                        .padding(horizontal = 11.dp, vertical = 7.dp),
+                )
+            }
+            DashboardMenu(
+                imperial = imperial,
+                editing = editing,
+                onAddTile = {
+                    editing = true
+                    onAddTile()
+                },
+                onToggleEditing = { editing = !editing },
+                onToggleUnits = onToggleUnits,
+                onOpenSettings = onOpenSettings,
+            )
+        }
     }
 
     Column(modifier = modifier.fillMaxSize()) {
-        ScreenHeader(
-            title = vehicleName,
-            subtitle = connectionLabel,
-            modifier = Modifier.clickable(onClick = onOpenConnection),
-            trailing = {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    // Only while the grid is being pruned: the way out of a mode belongs
-                    // to the mode, not to the screen.
-                    AnimatedVisibility(visible = editing) {
-                        Text(
-                            text = stringResource(R.string.action_done),
-                            style = MaterialTheme.typography.labelLarge,
-                            color = SteelLight,
-                            modifier = Modifier
-                                .clip(PillCorner)
-                                .background(Slate)
-                                .border(1.dp, SlateBorder, PillCorner)
-                                .clickable { editing = false }
-                                .padding(horizontal = 11.dp, vertical = 7.dp),
-                        )
-                    }
-                    DashboardMenu(
-                        imperial = imperial,
-                        editing = editing,
-                        onAddTile = {
-                            editing = true
-                            onAddTile()
-                        },
-                        onToggleEditing = { editing = !editing },
-                        onToggleUnits = onToggleUnits,
-                        onOpenSettings = onOpenSettings,
-                    )
-                }
-            },
-        )
-
         if (showEmptyState) {
+            ScreenHeader(
+                title = vehicleName,
+                subtitle = connectionLabel,
+                modifier = Modifier.clickable(onClick = onOpenConnection),
+                trailing = controls,
+            )
             EmptyState(
                 icon = AppIcons.Bluetooth,
                 title = stringResource(R.string.dashboard_empty_title),
@@ -196,7 +194,7 @@ fun DashboardScreen(
                 .padding(
                     start = ScreenPadding,
                     end = ScreenPadding,
-                    top = 2.dp,
+                    top = Dimens.headerTop,
                     bottom = Dimens.listBottom,
                 ),
             verticalArrangement = Arrangement.spacedBy(Dimens.cardGap),
@@ -214,7 +212,22 @@ fun DashboardScreen(
                     gear = gear,
                     stale = now - snapshot.updatedAtOf(Metrics.Rpm) > STALE_AFTER_MILLIS,
                 ),
+                title = vehicleName,
+                subtitle = connectionLabel,
+                onOpenConnection = onOpenConnection,
+                trailing = controls,
             )
+
+            // The car between the hero and the grid: the same readings, placed where they
+            // are taken. A tile says what the number is, the drawing says what it is *of*.
+            if (hasCarZones(snapshot)) {
+                CarDiagram(
+                    snapshot = snapshot,
+                    alertRules = alertRules,
+                    onOpenMetric = { openMetric = it },
+                    modifier = Modifier.padding(horizontal = CAR_INSET),
+                )
+            }
 
             // Two across, and the pair measured together: tiles side by side that end at
             // different heights read as two lists rather than as one grid, so the row
@@ -239,15 +252,17 @@ fun DashboardScreen(
                             )
                         } else if (metric != null) {
                             val index = cells.indexOf(id)
+                            val value = snapshot.valueOf(id)
+                            val band = Metrics.bandFor(id, alertRules)
                             MetricTile(
                                 metric = metric,
-                                value = snapshot.valueOf(id),
-                                band = Metrics.bandFor(id, alertRules),
+                                value = value,
+                                band = band,
                                 accent = metricAccent(id),
                                 samples = remember(historyRevision, id, now) {
                                     history.series(id, METRIC_SHEET_WINDOW_MILLIS, now)
                                 },
-                                warn = id in breached,
+                                status = band.statusOf(value) ?: MetricStatus.Normal,
                                 stale = now - snapshot.updatedAtOf(id) > STALE_AFTER_MILLIS,
                                 editing = editing,
                                 canMoveUp = index > 0,
@@ -298,12 +313,14 @@ fun DashboardScreen(
         val samples = remember(historyRevision, metricId, now) {
             history.series(metricId, METRIC_SHEET_WINDOW_MILLIS, now)
         }
+        val band = Metrics.bandFor(metricId, alertRules)
+        val status = band.statusOf(snapshot.valueOf(metricId)) ?: MetricStatus.Normal
         MetricSheet(
             metric = metric,
             label = metric.label(),
             samples = samples,
-            band = Metrics.bandFor(metricId, alertRules),
-            accent = if (metricId in breached) AmberText else metricAccent(metricId),
+            band = band,
+            accent = if (status.breached) statusColor(status) else metricAccent(metricId),
             windowMillis = METRIC_SHEET_WINDOW_MILLIS,
             nowMillis = now,
             onDismiss = { openMetric = null },
@@ -414,6 +431,14 @@ private fun DashedRow(
         Text(text = trailing, style = MaterialTheme.typography.bodyLarge, color = Fog)
     }
 }
+
+/**
+ * How far the car diagram is inset from the cards either side of it.
+ *
+ * The drawing has no card of its own, and a line-art car that ran to the same edge as the
+ * panels above and below it would read as a third panel with its border missing.
+ */
+private val CAR_INSET = 4.dp
 
 /** How much of a minute the metric sheet plots, and the tile strip measures itself over. */
 const val METRIC_SHEET_WINDOW_MILLIS = 60_000L

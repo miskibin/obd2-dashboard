@@ -1,6 +1,5 @@
 package com.miskibin.obd2dashboard.ui.dashboard
 
-import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -54,9 +53,11 @@ import com.miskibin.obd2dashboard.R
 import com.miskibin.obd2dashboard.data.Metric
 import com.miskibin.obd2dashboard.data.MetricGroup
 import com.miskibin.obd2dashboard.data.MetricId
+import com.miskibin.obd2dashboard.data.MetricStatus
 import com.miskibin.obd2dashboard.data.Metrics
 import com.miskibin.obd2dashboard.data.NormalBand
 import com.miskibin.obd2dashboard.data.Sample
+import com.miskibin.obd2dashboard.data.statusOf
 import com.miskibin.obd2dashboard.obd.DerivedMetrics
 import com.miskibin.obd2dashboard.obd.Pids
 import com.miskibin.obd2dashboard.ui.AppIcons
@@ -67,7 +68,6 @@ import com.miskibin.obd2dashboard.ui.label
 import com.miskibin.obd2dashboard.ui.theme.AmberBorder
 import com.miskibin.obd2dashboard.ui.theme.AmberLight
 import com.miskibin.obd2dashboard.ui.theme.AmberSurface
-import com.miskibin.obd2dashboard.ui.theme.AmberSurfaceStrong
 import com.miskibin.obd2dashboard.ui.theme.AmberText
 import com.miskibin.obd2dashboard.ui.theme.AshDim
 import com.miskibin.obd2dashboard.ui.theme.Chalk
@@ -80,6 +80,7 @@ import com.miskibin.obd2dashboard.ui.theme.PanelCorner
 import com.miskibin.obd2dashboard.ui.theme.PanelRadius
 import com.miskibin.obd2dashboard.ui.theme.SeriesColors
 import com.miskibin.obd2dashboard.ui.theme.SignalBorder
+import com.miskibin.obd2dashboard.ui.theme.SignalLight
 import com.miskibin.obd2dashboard.ui.theme.SignalSurface
 import com.miskibin.obd2dashboard.ui.theme.SignalText
 import com.miskibin.obd2dashboard.ui.theme.Slate
@@ -87,6 +88,7 @@ import com.miskibin.obd2dashboard.ui.theme.SlateBorder
 import com.miskibin.obd2dashboard.ui.theme.SlateEdge
 import com.miskibin.obd2dashboard.ui.theme.SlateTrack
 import com.miskibin.obd2dashboard.ui.theme.Smoke
+import com.miskibin.obd2dashboard.ui.theme.Steel
 import com.miskibin.obd2dashboard.ui.theme.SteelLight
 import kotlin.math.abs
 
@@ -101,8 +103,9 @@ import kotlin.math.abs
  * where it is. "104" becomes "still inside normal, near the top of it" without a number
  * being read twice.
  *
- * A tile whose alert rule is being broken tints amber whole — card, edge, name and value —
- * because a coloured rule down one side is exactly what is missed in peripheral vision.
+ * A tile whose value has left its band tints whole — card, edge, name and value — because a
+ * coloured rule down one side is exactly what is missed in peripheral vision. Amber says
+ * outside; the signal red is kept for readings far enough outside to be worth stopping for.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -112,7 +115,7 @@ fun MetricTile(
     band: NormalBand?,
     accent: Color,
     samples: List<Sample>,
-    warn: Boolean,
+    status: MetricStatus,
     stale: Boolean,
     editing: Boolean,
     canMoveUp: Boolean,
@@ -132,20 +135,22 @@ fun MetricTile(
         animationSpec = tween(durationMillis = DIM_ANIMATION_MILLIS),
         label = "tile-dim",
     )
-    // The colour crosses over on the same curve the value fades on, so a rule breaking
+    // The colour crosses over on the same curve the value fades on, so a band being left
     // reads as the tile changing state rather than as a flash.
     val mark by animateColorAsState(
-        targetValue = if (warn) AmberText else accent,
+        targetValue = statusColor(status),
         animationSpec = tween(durationMillis = DIM_ANIMATION_MILLIS),
-        label = "tile-accent",
+        label = "tile-status",
     )
+    val (surface, edge) = statusSurface(status)
+    val warn = status.breached
 
     Column(
         modifier = modifier
             .fillMaxWidth()
             .clip(PanelCorner)
-            .background(if (warn) AmberSurface else Slate)
-            .border(1.dp, if (warn) AmberBorder else SlateBorder, PanelCorner)
+            .background(surface)
+            .border(1.dp, edge, PanelCorner)
             .combinedClickable(
                 onClick = { if (!editing) onClick() },
                 onLongClick = onLongClick,
@@ -157,14 +162,16 @@ fun MetricTile(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            // The glyph keeps the family's own colour whatever the state is doing: it says
+            // what kind of reading this is, which does not change when the number does.
             Box(
                 modifier = Modifier
                     .size(GLYPH_BOX.dp)
                     .clip(CircleShape)
-                    .background(if (warn) AmberSurfaceStrong else mark.copy(alpha = GLYPH_FILL))
+                    .background(accent.copy(alpha = GLYPH_FILL))
                     .border(
                         width = 1.dp,
-                        color = if (warn) AmberBorder else mark.copy(alpha = GLYPH_EDGE),
+                        color = accent.copy(alpha = GLYPH_EDGE),
                         shape = CircleShape,
                     )
                     .alpha(dim),
@@ -173,14 +180,14 @@ fun MetricTile(
                 Icon(
                     imageVector = metricGlyph(metric.id),
                     contentDescription = null,
-                    tint = mark,
+                    tint = accent,
                     modifier = Modifier.size(GLYPH.dp),
                 )
             }
             Text(
                 text = metric.label(),
                 style = MaterialTheme.typography.bodySmall,
-                color = if (warn) AmberText else AshDim,
+                color = if (warn) mark else AshDim,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f).alpha(dim),
@@ -237,7 +244,7 @@ fun MetricTile(
                 text = if (value == null) NO_VALUE
                 else formatReading(animated.toDouble(), metric.decimals),
                 style = TileValueTextStyle,
-                color = if (warn) AmberText else Chalk,
+                color = if (warn) mark else Chalk,
                 maxLines = 1,
                 modifier = Modifier.alignByBaseline().alpha(dim),
             )
@@ -250,12 +257,16 @@ fun MetricTile(
             )
             // The verdict takes whatever the number leaves, so a long one never pushes it
             // off the card — on the narrowest phone it ellipsises instead of disappearing.
-            val state = band.stateOf(value)
+            val state = band.statusOf(value)
             if (state != null) {
                 Text(
                     text = stringResource(state.labelRes),
                     style = MaterialTheme.typography.labelMedium,
-                    color = if (state == BandState.Inside) Graphite else AmberLight,
+                    color = when {
+                        state.severe -> SignalLight
+                        state.breached -> AmberLight
+                        else -> Graphite
+                    },
                     textAlign = TextAlign.End,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -456,26 +467,30 @@ private fun rangeScaleOf(samples: List<Sample>, value: Double?, band: NormalBand
     )
 }
 
-/** What a tile says about the value in one word: inside the range, over it, or under it. */
-enum class BandState(@param:StringRes val labelRes: Int) {
-    Inside(R.string.metric_state_normal),
-    Above(R.string.metric_state_above),
-    Below(R.string.metric_state_below),
+/**
+ * The colour a reading's *state* is drawn in, wherever that state is shown.
+ *
+ * Steel while everything is where it should be, amber once a value is outside its band,
+ * and the signal red only when it is far enough outside to be worth stopping for. The
+ * metric's own family colour is not in here on purpose: it tints the glyph and nothing
+ * else, so a card that has gone amber cannot be mistaken for a card that is simply an
+ * amber-coloured family.
+ */
+@Composable
+@ReadOnlyComposable
+fun statusColor(status: MetricStatus): Color = when {
+    status.severe -> SignalText
+    status.breached -> AmberText
+    else -> Steel
 }
 
-/**
- * Where [value] sits against this band, or null when there is nothing to say.
- *
- * A metric with no published band gets no verdict: "normal" about a range nobody defined
- * would be the app inventing a reassurance it cannot back.
- */
-fun NormalBand?.stateOf(value: Double?): BandState? {
-    if (this == null || isEmpty || value == null || !value.isFinite()) return null
-    return when {
-        max != null && value > max -> BandState.Above
-        min != null && value < min -> BandState.Below
-        else -> BandState.Inside
-    }
+/** The card a reading of this state sits on, and its edge. */
+@Composable
+@ReadOnlyComposable
+private fun statusSurface(status: MetricStatus): Pair<Color, Color> = when {
+    status.severe -> SignalSurface to SignalBorder
+    status.breached -> AmberSurface to AmberBorder
+    else -> Slate to SlateBorder
 }
 
 /**

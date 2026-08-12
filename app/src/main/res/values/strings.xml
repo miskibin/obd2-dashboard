@@ -403,6 +403,12 @@
     <string name="metric_state_normal">normal</string>
     <string name="metric_state_above">above normal</string>
     <string name="metric_state_below">below normal</string>
+    <string name="metric_state_far_above">far above normal</string>
+    <string name="metric_state_far_below">far below normal</string>
+
+    <!-- The car diagram: each reading drawn where it is measured -->
+    <string name="dashboard_car_description">The car from the side, with each reading where it is measured</string>
+    <string name="dashboard_car_zone">%1$s: %2$s %3$s</string>
 
     <!-- Metric detail sheet -->
     <string name="metric_sheet_subtitle">Last 60 seconds</string>

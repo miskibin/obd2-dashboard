@@ -5,6 +5,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,6 +31,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -44,6 +46,7 @@ import com.miskibin.obd2dashboard.ui.theme.Fog
 import com.miskibin.obd2dashboard.ui.theme.Graphite
 import com.miskibin.obd2dashboard.ui.theme.InkRaised
 import com.miskibin.obd2dashboard.ui.theme.NumberTextStyle
+import com.miskibin.obd2dashboard.ui.theme.PillCorner
 import com.miskibin.obd2dashboard.ui.theme.Signal
 import com.miskibin.obd2dashboard.ui.theme.Slate
 import com.miskibin.obd2dashboard.ui.theme.SlateBorder
@@ -75,12 +78,23 @@ data class HeroState(
  * has been read — and the gear chips turn the estimate into something scannable without
  * reading a number at all.
  *
+ * The card also carries the screen's own title — which car this is and whether it is still
+ * talking — because a title bar above it was a strip of chrome the width of the screen
+ * saying two quiet things, and the dashboard needs that height for the car below.
+ *
  * Everything here is a flat fill. An earlier version washed the accent down from the top
  * edge and graded the rev bar towards its head; both were decoration on the one card whose
  * job is to be read in half a second, and neither survived the redesign.
  */
 @Composable
-fun HeroCard(state: HeroState, modifier: Modifier = Modifier) {
+fun HeroCard(
+    state: HeroState,
+    title: String,
+    subtitle: String,
+    onOpenConnection: () -> Unit,
+    trailing: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val animatedRpm by animateFloatAsState(
         targetValue = state.rpm?.toFloat()?.takeIf { it.isFinite() } ?: 0f,
         animationSpec = tween(durationMillis = VALUE_ANIMATION_MILLIS),
@@ -106,11 +120,46 @@ fun HeroCard(state: HeroState, modifier: Modifier = Modifier) {
             .clip(CardCorner)
             .background(Slate)
             .border(1.dp, SlateBorder, CardCorner)
-            .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 14.dp)
-            .alpha(dim),
+            .padding(start = 16.dp, end = 16.dp, top = 13.dp, bottom = 14.dp),
     ) {
+        // The identity line: which car, and whether the adapter is still answering. It
+        // stays at full strength while the readings under it dim, because a stale reading
+        // is exactly when what the connection is doing matters most.
         Row(
             modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(PillCorner)
+                    .clickable(onClick = onOpenConnection)
+                    .padding(vertical = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.Bottom,
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = Chalk,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Graphite,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            trailing()
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 12.dp).alpha(dim),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.Bottom,
         ) {
@@ -146,7 +195,7 @@ fun HeroCard(state: HeroState, modifier: Modifier = Modifier) {
             }
         }
 
-        Column(modifier = Modifier.fillMaxWidth().padding(top = 18.dp)) {
+        Column(modifier = Modifier.fillMaxWidth().padding(top = 18.dp).alpha(dim)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,

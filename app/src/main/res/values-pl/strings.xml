@@ -409,6 +409,12 @@
     <string name="metric_state_normal">w normie</string>
     <string name="metric_state_above">powyżej normy</string>
     <string name="metric_state_below">poniżej normy</string>
+    <string name="metric_state_far_above">znacznie powyżej normy</string>
+    <string name="metric_state_far_below">znacznie poniżej normy</string>
+
+    <!-- Schemat auta: każdy odczyt tam, gdzie jest mierzony -->
+    <string name="dashboard_car_description">Auto z boku, a na nim każdy odczyt tam, gdzie jest mierzony</string>
+    <string name="dashboard_car_zone">%1$s: %2$s %3$s</string>
 
     <!-- Arkusz parametru -->
     <string name="metric_sheet_subtitle">Ostatnie 60 sekund</string>

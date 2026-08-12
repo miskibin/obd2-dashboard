@@ -103,6 +103,59 @@ data class Metric(
  */
 data class NormalBand(val min: Double?, val max: Double?) {
     val isEmpty: Boolean get() = min == null && max == null
+
+    /** The width of the band, when both ends are stated. */
+    val span: Double? get() = if (min != null && max != null) max - min else null
+}
+
+/**
+ * How far outside normal a reading is, in the three steps the dashboard colours for.
+ *
+ * Two steps rather than one because "over" is not one thing: a coolant temperature a
+ * degree past ninety-eight is a car that has just been asked to climb a hill, and one
+ * fifteen degrees past it is a car to stop. The threshold between them is a fraction of
+ * the band's own width, so it means the same on a five-degree band as on a fifty-degree
+ * one; where only one end of normal is published there is no width to measure against,
+ * and the reading can only be said to be out, not how far.
+ */
+enum class MetricStatus(@param:StringRes val labelRes: Int, val level: Int) {
+    Normal(R.string.metric_state_normal, 0),
+    Above(R.string.metric_state_above, 1),
+    Below(R.string.metric_state_below, 1),
+    FarAbove(R.string.metric_state_far_above, 2),
+    FarBelow(R.string.metric_state_far_below, 2),
+    ;
+
+    /** Outside the band at all — the tile tints, the zone lights up. */
+    val breached: Boolean get() = level > 0
+
+    /** Far enough outside to be told in the loudest colour the app has. */
+    val severe: Boolean get() = level > 1
+}
+
+/** How far past a band's end a value goes before it counts as far out, as a fraction. */
+private const val FAR_FRACTION = 0.18
+
+/**
+ * Where [value] sits against this band, or null when there is nothing to say.
+ *
+ * A metric with no published band gets no verdict: "normal" about a range nobody defined
+ * would be the app inventing a reassurance it cannot back.
+ */
+fun NormalBand?.statusOf(value: Double?): MetricStatus? {
+    if (this == null || isEmpty || value == null || !value.isFinite()) return null
+    val width = span?.takeIf { it > 0.0 }
+    val over = max?.let { value - it }?.takeIf { it > 0.0 }
+    if (over != null) {
+        return if (width != null && over / width > FAR_FRACTION) MetricStatus.FarAbove
+        else MetricStatus.Above
+    }
+    val under = min?.let { it - value }?.takeIf { it > 0.0 }
+    if (under != null) {
+        return if (width != null && under / width > FAR_FRACTION) MetricStatus.FarBelow
+        else MetricStatus.Below
+    }
+    return MetricStatus.Normal
 }
 
 /**

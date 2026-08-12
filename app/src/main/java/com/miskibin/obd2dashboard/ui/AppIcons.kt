@@ -254,6 +254,32 @@ object AppIcons {
         }
     }
 
+    /** Moving air: what the intake side of the engine measures. */
+    val Airflow: ImageVector by lazy {
+        lineIcon("Airflow") {
+            moveTo(3f, 8.5f)
+            horizontalLineToRelative(10.5f)
+            arcTo(3f, 3f, 0f, true, false, 10.5f, 5f)
+            moveTo(3f, 13f)
+            horizontalLineToRelative(8f)
+            arcTo(2.6f, 2.6f, 0f, true, true, 8.4f, 15.6f)
+            moveTo(3f, 17.5f)
+            horizontalLineToRelative(5.5f)
+        }
+    }
+
+    /** A butterfly valve seen edge on: the throttle, and anything that opens like it. */
+    val Valve: ImageVector by lazy {
+        lineIcon("Valve") {
+            moveTo(12f, 3.6f)
+            arcToRelative(8.4f, 8.4f, 0f, true, false, 0f, 16.8f)
+            arcToRelative(8.4f, 8.4f, 0f, false, false, 0f, -16.8f)
+            close()
+            moveTo(6f, 18f)
+            lineTo(18f, 6f)
+        }
+    }
+
     /** A chevron for rows that lead somewhere. */
     val ChevronRight: ImageVector by lazy {
         icon("ChevronRight") {
