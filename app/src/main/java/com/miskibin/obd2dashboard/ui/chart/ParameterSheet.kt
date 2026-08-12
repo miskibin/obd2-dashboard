@@ -43,6 +43,7 @@ import com.miskibin.obd2dashboard.ui.theme.InkRaised
 import com.miskibin.obd2dashboard.ui.theme.PanelCorner
 import com.miskibin.obd2dashboard.ui.theme.SlateBorder
 import com.miskibin.obd2dashboard.ui.theme.SlateEdge
+import com.miskibin.obd2dashboard.ui.theme.Smoke
 import com.miskibin.obd2dashboard.ui.theme.Steel
 
 /**
@@ -104,7 +105,8 @@ fun ParameterSheet(
                     ) {
                         items.forEach { metric ->
                             ParameterRow(
-                                metric = metric,
+                                label = metric.label(),
+                                unit = metric.unit,
                                 selected = metric.id in selected,
                                 onToggle = { onToggle(metric.id) },
                             )
@@ -126,8 +128,22 @@ fun ParameterSheet(
     }
 }
 
+/**
+ * One parameter, ticked or not.
+ *
+ * Takes the label rather than the [Metric] because the trip screen picks from what a
+ * recording happens to carry, which can include a column this build of the app no longer
+ * has a definition for — and a row that vanishes because the catalogue moved on is worse
+ * than a row named by its storage key.
+ */
 @Composable
-private fun ParameterRow(metric: Metric, selected: Boolean, onToggle: () -> Unit) {
+fun ParameterRow(
+    label: String,
+    unit: String,
+    selected: Boolean,
+    onToggle: () -> Unit,
+    detail: String? = null,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -150,16 +166,24 @@ private fun ParameterRow(metric: Metric, selected: Boolean, onToggle: () -> Unit
             }
         }
         Text(
-            text = metric.label(),
+            text = label,
             style = MaterialTheme.typography.bodyMedium,
             color = if (selected) Chalk else AshDim,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
-        if (metric.unit.isNotBlank()) {
+        if (detail != null) {
             Text(
-                text = metric.unit,
+                text = detail,
+                style = MaterialTheme.typography.labelMedium,
+                color = Smoke,
+                maxLines = 1,
+            )
+        }
+        if (unit.isNotBlank()) {
+            Text(
+                text = unit,
                 style = MaterialTheme.typography.labelMedium,
                 color = Fog,
             )

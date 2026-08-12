@@ -534,12 +534,6 @@ private fun sampleRateOf(series: List<ChartSeries>, window: ChartWindow): Int {
     return (densest / seconds).toInt()
 }
 
-private fun ChartMode.labelRes(): Int = when (this) {
-    ChartMode.Bands -> R.string.chart_mode_bands
-    ChartMode.Relative -> R.string.chart_mode_relative
-    ChartMode.Absolute -> R.string.chart_mode_absolute
-}
-
 /** `m:ss` up to an hour, then `h:mm:ss`. */
 fun formatDuration(totalSeconds: Long): String {
     val seconds = totalSeconds.coerceAtLeast(0)

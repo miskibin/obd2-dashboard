@@ -16,9 +16,12 @@ import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.miskibin.obd2dashboard.R
 import com.miskibin.obd2dashboard.data.NormalBand
 import com.miskibin.obd2dashboard.data.Sample
+import com.miskibin.obd2dashboard.ui.theme.Amber
 import com.miskibin.obd2dashboard.ui.theme.BandLabelTextStyle
 import com.miskibin.obd2dashboard.ui.theme.Fog
 import com.miskibin.obd2dashboard.ui.theme.Moss
@@ -47,6 +50,34 @@ data class ChartSeries(
  */
 enum class ChartMode { Bands, Relative, Absolute }
 
+/** What a mode is called, wherever the choice is offered. */
+fun ChartMode.labelRes(): Int = when (this) {
+    ChartMode.Bands -> R.string.chart_mode_bands
+    ChartMode.Relative -> R.string.chart_mode_relative
+    ChartMode.Absolute -> R.string.chart_mode_absolute
+}
+
+/**
+ * The gutter the value labels take on the left of the plot, and the air on its right.
+ *
+ * Anything drawn alongside the chart — a strip saying where the window is, a touch being
+ * turned back into a moment — has to skip the same margins, or a tap at the left edge
+ * lands a quarter of an inch from where it looks like it landed.
+ */
+fun chartLeftInset(mode: ChartMode): Dp = if (mode == ChartMode.Bands) 0.dp else LEFT_PADDING.dp
+
+fun chartRightInset(): Dp = RIGHT_PADDING.dp
+
+/**
+ * A stretch of the time axis shaded behind the traces, in fractions of the window.
+ *
+ * The live chart never has one — it is drawing the last minute, and nothing about the
+ * last minute is already an episode. A recording is full of them: the forty seconds the
+ * oil was over its limit is the reason the trip screen exists, and it has to be findable
+ * on the plot without reading the list underneath it.
+ */
+data class ChartSpan(val start: Float, val end: Float)
+
 /**
  * Everything the plot paints with that is not a series colour.
  *
@@ -61,6 +92,7 @@ private data class ChartInk(
     val gridStrong: Color,
     val gridFaint: Color,
     val band: Color,
+    val span: Color,
     val label: Color,
 )
 
@@ -70,6 +102,12 @@ private data class ChartInk(
  * Everything a charting library would bring — axes, ticks, smoothing, fills — is a few
  * dozen lines here, and drawing it directly is what lets the axis stay honest about
  * degenerate data instead of collapsing or auto-hiding.
+ *
+ * It also draws a recording, which is the same picture with the clock stopped: pass the
+ * window being looked at as [windowMillis] ending at [nowMillis], the episodes worth
+ * marking as [spans], and [axisLabels] for a time axis that counts into the drive rather
+ * than back from now. [trailingDot] is the head of a live trace and belongs to "now"
+ * only — on a recording the right-hand edge is wherever the driver dragged to.
  */
 @Composable
 fun LineChart(
@@ -81,6 +119,9 @@ fun LineChart(
     modifier: Modifier = Modifier,
     band: NormalBand? = null,
     markerFraction: Float? = null,
+    spans: List<ChartSpan> = emptyList(),
+    axisLabels: List<String>? = null,
+    trailingDot: Boolean = true,
 ) {
     val measurer = rememberTextMeasurer()
     val tickStyle = TickTextStyle.copy(color = Fog)
@@ -90,6 +131,7 @@ fun LineChart(
         gridStrong = SlateTrack,
         gridFaint = SlateFaint,
         band = Moss.copy(alpha = BAND_ALPHA),
+        span = Amber.copy(alpha = SPAN_ALPHA),
         label = Fog,
     )
 
@@ -105,6 +147,7 @@ fun LineChart(
         drawTimeAxis(
             windowMillis = windowMillis,
             nowLabel = nowLabel,
+            labels = axisLabels,
             measurer = measurer,
             labelStyle = tickStyle,
             leftPadding = leftPadding,
@@ -112,6 +155,21 @@ fun LineChart(
             plotWidth = plotWidth,
             plotHeight = plotHeight,
         )
+
+        // The episodes, painted first: everything else on the plot has to stay readable
+        // on top of them, which is why they are a tint rather than a fill.
+        spans.forEach { span ->
+            val start = span.start.coerceIn(0f, 1f)
+            val end = span.end.coerceIn(start, 1f)
+            drawRect(
+                color = ink.span,
+                topLeft = Offset(leftPadding + plotWidth * start, topPadding),
+                size = Size(
+                    width = (plotWidth * (end - start)).coerceAtLeast(MIN_SPAN_WIDTH.dp.toPx()),
+                    height = plotHeight,
+                ),
+            )
+        }
 
         // The instant the fault was set, marked before the traces so a line crossing it
         // stays readable.
@@ -136,6 +194,7 @@ fun LineChart(
                 top = topPadding,
                 width = plotWidth,
                 height = plotHeight,
+                trailingDot = trailingDot,
             )
 
             ChartMode.Relative -> {
@@ -165,6 +224,7 @@ fun LineChart(
                         low = low,
                         high = high,
                         fill = series.size == 1,
+                        trailingDot = trailingDot,
                     )
                 }
             }
@@ -210,6 +270,7 @@ fun LineChart(
                         low = ticks.min.toFloat(),
                         high = ticks.max.toFloat(),
                         fill = series.size == 1,
+                        trailingDot = trailingDot,
                     )
                 }
             }
@@ -234,6 +295,7 @@ private fun DrawScope.drawBands(
     top: Float,
     width: Float,
     height: Float,
+    trailingDot: Boolean,
 ) {
     if (series.isEmpty()) return
     val gap = BAND_GAP.dp.toPx()
@@ -265,6 +327,7 @@ private fun DrawScope.drawBands(
             low = low,
             high = high,
             fill = false,
+            trailingDot = trailingDot,
         )
 
         val name = measurer.measure(line.label, BandLabelTextStyle.copy(color = line.color))
@@ -326,6 +389,7 @@ private fun DrawScope.drawTrace(
     low: Float,
     high: Float,
     fill: Boolean,
+    trailingDot: Boolean = true,
 ) {
     val span = (high - low).takeIf { it > EPSILON }
     val startMillis = nowMillis - windowMillis
@@ -340,7 +404,7 @@ private fun DrawScope.drawTrace(
             y = top + height * (1f - fraction.coerceIn(0f, 1f)),
         )
     }
-    drawSeries(line.color, points, fill, top + height)
+    drawSeries(line.color, points, fill, top + height, trailingDot)
 }
 
 private fun DrawScope.drawSeries(
@@ -348,6 +412,7 @@ private fun DrawScope.drawSeries(
     points: List<Offset>,
     fill: Boolean,
     baseline: Float,
+    trailingDot: Boolean,
 ) {
     when {
         points.isEmpty() -> return
@@ -383,7 +448,9 @@ private fun DrawScope.drawSeries(
                 ),
             )
             // The head of the trace, so "now" is findable when six lines overlap.
-            drawCircle(color, radius = HEAD_RADIUS.dp.toPx(), center = points.last())
+            if (trailingDot) {
+                drawCircle(color, radius = HEAD_RADIUS.dp.toPx(), center = points.last())
+            }
         }
     }
 }
@@ -426,6 +493,7 @@ private fun DrawScope.drawGrid(
 private fun DrawScope.drawTimeAxis(
     windowMillis: Long,
     nowLabel: String,
+    labels: List<String>?,
     measurer: TextMeasurer,
     labelStyle: TextStyle,
     leftPadding: Float,
@@ -434,9 +502,10 @@ private fun DrawScope.drawTimeAxis(
     plotHeight: Float,
 ) {
     val baseline = topPadding + plotHeight
-    listOf(0f, 0.5f, 1f).forEach { fraction ->
+    listOf(0f, 0.5f, 1f).forEachIndexed { index, fraction ->
         val secondsAgo = ((1f - fraction) * windowMillis / 1000f).toInt()
-        val text = if (secondsAgo == 0) nowLabel else "−${formatSeconds(secondsAgo)}"
+        val text = labels?.getOrNull(index)
+            ?: if (secondsAgo == 0) nowLabel else "−${formatSeconds(secondsAgo)}"
         val label = measurer.measure(text, labelStyle)
         val x = leftPadding + plotWidth * fraction - label.size.width * fraction
         drawText(
@@ -502,4 +571,11 @@ private const val BAND_GAP = 6
 private const val BAND_LABEL_INSET = 11
 private const val BAND_ALPHA = 0.12f
 private const val MARKER_WIDTH = 1.5f
+
+/** Enough tint to find the episode, little enough that a trace still reads across it. */
+private const val SPAN_ALPHA = 0.14f
+
+/** An episode that lasted a second is still a column, not a hairline nobody can see. */
+private const val MIN_SPAN_WIDTH = 2
+
 private const val EPSILON = 1e-6f

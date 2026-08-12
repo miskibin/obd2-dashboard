@@ -458,6 +458,14 @@
         <item quantity="one">Redline %2$s rpm</item>
         <item quantity="other">Redline %2$s rpm ×%1$d</item>
     </plurals>
+    <string name="trip_event_focus">Show this moment on the chart</string>
+    <string name="trip_stats_full">Whole trip</string>
+    <string name="trip_stats_window">In the visible range</string>
+    <string name="trip_menu_zoom">Zoom</string>
+    <string name="trip_zoom_whole">Whole trip</string>
+    <string name="trip_chart_none">Pick a parameter to plot it</string>
+    <string name="trip_picker_title">Parameters in this recording</string>
+    <string name="trip_picker_subtitle">%1$d recorded · pinch the chart to zoom in</string>
 
     <!-- Fault detail -->
     <string name="dtc_hint_recorded">±30 s from the app\'s recording</string>

@@ -468,6 +468,14 @@
         <item quantity="many">Odcięcie %2$s rpm ×%1$d</item>
         <item quantity="other">Odcięcie %2$s rpm ×%1$d</item>
     </plurals>
+    <string name="trip_event_focus">Pokaż ten moment na wykresie</string>
+    <string name="trip_stats_full">Cały przejazd</string>
+    <string name="trip_stats_window">W widocznym zakresie</string>
+    <string name="trip_menu_zoom">Powiększenie</string>
+    <string name="trip_zoom_whole">Cały przejazd</string>
+    <string name="trip_chart_none">Wybierz parametr, żeby go narysować</string>
+    <string name="trip_picker_title">Parametry w tym nagraniu</string>
+    <string name="trip_picker_subtitle">%1$d zapisanych · zbliż wykres, żeby powiększyć</string>
 
     <!-- Szczegóły błędu -->
     <string name="dtc_hint_recorded">±30 s z nagrania aplikacji</string>
