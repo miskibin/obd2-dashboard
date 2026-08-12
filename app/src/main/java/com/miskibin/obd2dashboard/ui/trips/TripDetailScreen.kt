@@ -61,11 +61,11 @@ import com.miskibin.obd2dashboard.ui.theme.Chalk
 import com.miskibin.obd2dashboard.ui.theme.Dimens
 import com.miskibin.obd2dashboard.ui.theme.Fog
 import com.miskibin.obd2dashboard.ui.theme.PanelCorner
+import com.miskibin.obd2dashboard.ui.theme.SeriesColors
 import com.miskibin.obd2dashboard.ui.theme.Slate
 import com.miskibin.obd2dashboard.ui.theme.SlateBorder
 import com.miskibin.obd2dashboard.ui.theme.SlateTrack
 import com.miskibin.obd2dashboard.ui.theme.Smoke
-import com.miskibin.obd2dashboard.ui.theme.Steel
 
 /**
  * One drive, opened.
@@ -115,7 +115,10 @@ fun TripDetailScreen(
                 }
             }
 
-            val traces = analysis?.traces.orEmpty()
+            // A recording now carries every parameter that was being polled, which is more
+            // lines than one plot can say anything with; the leading ones are drawn and the
+            // rest stay in the file for whoever opens it in a spreadsheet.
+            val traces = analysis?.traces.orEmpty().take(MAX_TRACES)
             if (traces.isNotEmpty()) {
                 item(key = "chart") {
                     Column(
@@ -329,25 +332,40 @@ private fun eventTiming(event: TripEvent, startedAtMillis: Long): String {
     )
 }
 
+/**
+ * Names every trace on the plot, wrapped rather than truncated.
+ *
+ * With up to six parameters on one chart a single row runs off the screen and the last
+ * names — which are exactly the ones the driver added themselves — would be the ones lost.
+ */
 @Composable
 private fun TraceLegend(traces: List<TripTrace>, modifier: Modifier = Modifier) {
-    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        traces.forEach { trace ->
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(width = 10.dp, height = 2.dp)
-                        .background(trace.metric.traceColor()),
-                )
-                Text(
-                    text = Metrics[trace.metric]?.let { stringResource(it.nameRes) }.orEmpty(),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = Smoke,
-                    maxLines = 1,
-                )
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        traces.withIndex().chunked(LEGEND_COLUMNS).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                row.forEach { (index, trace) ->
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(width = 10.dp, height = 2.dp)
+                                .background(traceColor(index)),
+                        )
+                        Text(
+                            text = Metrics[trace.metric]?.let { stringResource(it.nameRes) }
+                                .orEmpty(),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = Smoke,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+                // Keeps a short last row aligned with the one above it.
+                repeat(LEGEND_COLUMNS - row.size) { Box(modifier = Modifier.weight(1f)) }
             }
         }
     }
@@ -391,11 +409,11 @@ private fun TripChart(
             )
         }
 
-        traces.forEach { trace ->
+        traces.forEachIndexed { index, trace ->
             drawTrace(
                 points = trace.points,
                 durationSeconds = durationSeconds,
-                color = trace.metric.traceColor(),
+                color = traceColor(index),
                 strokeWidth = trace.metric.traceWidth().dp.toPx(),
             )
         }
@@ -426,13 +444,8 @@ private fun DrawScope.drawTrace(
     )
 }
 
-/** Engine speed leads, the temperatures follow, road speed is context. */
-private fun MetricId.traceColor(): Color = when (this) {
-    Metrics.Rpm -> Steel
-    Metrics.OilTemp -> Amber
-    Metrics.CoolantTemp -> Amber.copy(alpha = 0.55f)
-    else -> Smoke
-}
+/** The same palette the live chart uses, so a trace keeps its colour between the two. */
+private fun traceColor(index: Int): Color = SeriesColors[index % SeriesColors.size]
 
 /** Hairline traces: thicker lines blur together wherever four of them cross. */
 private fun MetricId.traceWidth(): Float = if (this == Metrics.Rpm) 1.5f else 1.2f
@@ -442,6 +455,11 @@ private fun MetricId.traceWidth(): Float = if (this == Metrics.Rpm) 1.5f else 1.
  * shell, so it takes the height back.
  */
 private const val PLOT_HEIGHT = 240
+
+/** As many traces as the palette has distinct colours, and as many as a plot can carry. */
+private const val MAX_TRACES = 6
+
+private const val LEGEND_COLUMNS = 3
 private const val PLOT_INSET = 0.86f
 private const val PLOT_MARGIN = 0.07f
 private const val EVENT_ALPHA = 0.14f

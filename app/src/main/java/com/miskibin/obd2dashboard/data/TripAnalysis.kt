@@ -71,7 +71,13 @@ data class TripAnalysis(
  */
 object TripAnalyzer {
 
-    /** Which parameters the trip screen plots, in drawing order. */
+    /**
+     * The parameters that lead the trip chart when the recording has them.
+     *
+     * Everything else in the file follows in the order it was recorded — a recording is
+     * whatever the driver was watching, and pinning the trace list to four metrics is how
+     * a drive spent charting a dozen came back looking like the defaults.
+     */
     val TRACE_METRICS: List<MetricId> = listOf(
         Metrics.Speed,
         Metrics.OilTemp,
@@ -97,7 +103,10 @@ object TripAnalyzer {
         var sawSpeed = false
         var sawFuelRate = false
         val maxima = HashMap<MetricId, Double>()
-        val traceValues = TRACE_METRICS.associateWith { ArrayList<TripPoint>() }
+        // Every column gets a trace, so the buffers are decimated as they fill rather
+        // than held whole: a long drive with forty parameters on it would otherwise be
+        // a million points in memory before anything got thinned.
+        val traceValues = LinkedHashMap<MetricId, TraceBuffer>()
         val breachTracker = BreachTracker(alertRules, redline)
 
         file.bufferedReader().useLines { lines ->
@@ -118,7 +127,7 @@ object TripAnalyzer {
 
                     val current = maxima[metric]
                     if (current == null || value > current) maxima[metric] = value
-                    traceValues[metric]?.add(TripPoint(elapsed, value))
+                    traceValues.getOrPut(metric) { TraceBuffer() }.add(TripPoint(elapsed, value))
                     breachTracker.observe(metric, value, elapsed)
 
                     when (metric) {
@@ -150,9 +159,18 @@ object TripAnalyzer {
             },
             maxima = maxima,
             events = breachTracker.finish(elapsed),
-            traces = traceValues.map { (metric, points) -> TripTrace(metric, thin(points)) }
-                .filter { it.points.isNotEmpty() },
+            traces = tracesOf(traceValues),
         )
+    }
+
+    /** The leading metrics first, then every other column in the order it was recorded. */
+    private fun tracesOf(buffers: Map<MetricId, TraceBuffer>): List<TripTrace> {
+        val order = TRACE_METRICS.filter(buffers::containsKey) +
+            buffers.keys.filterNot(TRACE_METRICS::contains)
+        return order.mapNotNull { metric ->
+            val points = thin(buffers.getValue(metric).points())
+            if (points.isEmpty()) null else TripTrace(metric, points)
+        }
     }
 
     /** Maps the header's `pid:0C (rpm)` columns onto metric ids, ignoring the rest. */
@@ -179,6 +197,9 @@ object TripAnalyzer {
             points.last()
     }
 
+    /** How many points a buffer holds before it halves itself; see [TraceBuffer]. */
+    internal const val TRACE_BUFFER_LIMIT = TRACE_RESOLUTION * 2
+
     private val FUEL_RATE = MetricId.Derived(DerivedMetrics.FuelRate.key)
 
     private const val ELAPSED_FIELD = 1
@@ -190,6 +211,52 @@ object TripAnalyzer {
     private const val MAX_STEP_SECONDS = 5.0
 
     private const val MIN_DISTANCE_KM = 0.1
+}
+
+/**
+ * A trace under construction, kept to a fixed size however long the drive was.
+ *
+ * Every recorded parameter now gets a trace, so the parse can no longer afford to hold
+ * every sample of every column until the end. When a buffer fills it drops every second
+ * point and starts taking every second sample instead — the same decimation the finished
+ * trace gets, applied early, so memory is bounded by the number of columns rather than by
+ * the length of the drive. The most recent point is always kept so a trace still ends
+ * where the recording did.
+ */
+private class TraceBuffer(private val limit: Int = TripAnalyzer.TRACE_BUFFER_LIMIT) {
+
+    private val kept = ArrayList<TripPoint>()
+    private var stride = 1
+    private var skipped = 0
+    private var last: TripPoint? = null
+
+    fun add(point: TripPoint) {
+        last = point
+        if (skipped + 1 < stride) {
+            skipped++
+            return
+        }
+        skipped = 0
+        kept += point
+        if (kept.size > limit) compact()
+    }
+
+    fun points(): List<TripPoint> {
+        val tail = last ?: return emptyList()
+        return if (kept.lastOrNull() == tail) kept.toList() else kept + tail
+    }
+
+    private fun compact() {
+        var write = 0
+        var read = 0
+        while (read < kept.size) {
+            kept[write++] = kept[read]
+            read += 2
+        }
+        while (kept.size > write) kept.removeAt(kept.lastIndex)
+        stride *= 2
+        skipped = 0
+    }
 }
 
 /**

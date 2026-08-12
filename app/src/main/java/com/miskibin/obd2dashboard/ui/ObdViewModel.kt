@@ -23,6 +23,7 @@ import com.miskibin.obd2dashboard.data.SavedAdapter
 import com.miskibin.obd2dashboard.data.Trip
 import com.miskibin.obd2dashboard.data.TripAnalyzer
 import com.miskibin.obd2dashboard.data.TripEntry
+import com.miskibin.obd2dashboard.data.presentMetrics
 import com.miskibin.obd2dashboard.data.valueOf
 import com.miskibin.obd2dashboard.obd.DerivedMetrics
 import com.miskibin.obd2dashboard.obd.Dtc
@@ -449,16 +450,24 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
     fun shareIntentFor(trip: Trip) = ObdHolder.trips.shareIntent(trip)
 
     /**
-     * Every PID the car answers for *and* the app can decode, plus the values computed on
-     * top of them. Supported-but-undecodable PIDs would only add permanently empty
-     * columns to the CSV.
+     * The columns a recording opens with, in the order they are written.
+     *
+     * Everything the driver is looking at comes first — the dashboard tiles and the chart
+     * series — then every PID the car answers for *and* the app can decode, then the
+     * values computed on top of them. This is only a seed: [com.miskibin.obd2dashboard.data.TripWriter]
+     * adds any further metric the moment a snapshot carries one, so a parameter charted
+     * mid-drive is recorded from that point rather than missed. It used to fall back to
+     * the tiles alone whenever the car had not answered `0100` yet, which is how a drive
+     * spent watching a dozen parameters ended up as a file of the six default ones.
      */
-    private fun recordableMetrics(): List<MetricId> {
-        val supported = supportedPids.value.filter { Pids[it] != null }.map(MetricId::Sensor)
-        val derived = DerivedMetrics.all.map { MetricId.Derived(it.key) }
-        val columns = supported + derived + MetricId.Battery
-        return if (supported.isEmpty()) _tiles.value else columns
-    }
+    private fun recordableMetrics(): List<MetricId> = buildList {
+        addAll(_tiles.value)
+        addAll(_chartMetrics.value)
+        addAll(connection.snapshot.value.presentMetrics())
+        addAll(supportedPids.value.filter { Pids[it] != null }.map(MetricId::Sensor))
+        addAll(DerivedMetrics.all.map { MetricId.Derived(it.key) })
+        add(MetricId.Battery)
+    }.distinct()
 
     companion object {
         const val MAX_CHART_SERIES = 6

@@ -11,6 +11,7 @@ class TripAnalyzerTest {
     private val rpmKey = Metrics.Rpm.storageKey
     private val speedKey = Metrics.Speed.storageKey
     private val oilKey = Metrics.OilTemp.storageKey
+    private val boostKeyHeader = "${MetricId.Derived("boost").storageKey} (kPa)"
 
     /**
      * A minute of driving at a steady 60 km/h, with the oil over its limit for ten
@@ -81,6 +82,66 @@ class TripAnalyzerTest {
 
         assertTrue(trace.points.isNotEmpty())
         assertTrue(trace.points.size <= TripAnalyzer.TRACE_RESOLUTION + 1)
+    }
+
+    @Test
+    fun `traces every parameter the recording carries, not a fixed four`() {
+        val boostKey = MetricId.Derived("boost").storageKey
+        val header = "timestamp,elapsed_s,$rpmKey (rpm),$boostKey (kPa)"
+        val rows = (0..30).map { second -> "2026-08-14T17:42:00.000,$second,2500,${40 + second}" }
+        val file = File.createTempFile("trip-", ".csv").apply {
+            deleteOnExit()
+            writeText((listOf(header) + rows).joinToString("\n"))
+        }
+
+        val traces = TripAnalyzer.analyze(file).traces
+
+        assertEquals(listOf(Metrics.Rpm, MetricId.Derived("boost")), traces.map { it.metric })
+        assertEquals(70.0, traces.last().points.last().value, 0.001)
+    }
+
+    @Test
+    fun `the leading metrics are drawn first and the rest follow the file`() {
+        val header = "timestamp,elapsed_s,$boostKeyHeader,$rpmKey (rpm),$speedKey (km/h)"
+        val file = File.createTempFile("trip-", ".csv").apply {
+            deleteOnExit()
+            writeText("$header\n2026-08-14T17:42:00.000,0,40,2500,60\n2026-08-14T17:42:01.000,1,41,2600,61")
+        }
+
+        val order = TripAnalyzer.analyze(file).traces.map { it.metric }
+
+        assertEquals(listOf(Metrics.Speed, Metrics.Rpm, MetricId.Derived("boost")), order)
+    }
+
+    @Test
+    fun `a long recording keeps its traces bounded without losing where it ended`() {
+        val header = "timestamp,elapsed_s,$rpmKey (rpm)"
+        val rows = (0..5_000).map { tick -> "2026-08-14T17:42:00.000,${tick / 10.0},${1_000 + tick}" }
+        val file = File.createTempFile("trip-", ".csv").apply {
+            deleteOnExit()
+            writeText((listOf(header) + rows).joinToString("\n"))
+        }
+
+        val trace = TripAnalyzer.analyze(file).traces.single()
+
+        assertTrue(trace.points.size <= TripAnalyzer.TRACE_RESOLUTION + 1)
+        assertEquals(6_000.0, trace.points.last().value, 0.001)
+        assertEquals(0.0, trace.points.first().seconds, 0.001)
+    }
+
+    @Test
+    fun `a row shorter than the header is read as far as it goes`() {
+        // What a recording looks like when a parameter was added part way through it.
+        val header = "timestamp,elapsed_s,$rpmKey (rpm),$oilKey (°C)"
+        val file = File.createTempFile("trip-", ".csv").apply {
+            deleteOnExit()
+            writeText("$header\n2026-08-14T17:42:00.000,0,900\n2026-08-14T17:42:01.000,1,2500,96")
+        }
+
+        val analysis = TripAnalyzer.analyze(file)
+
+        assertEquals(2_500.0, analysis.maxima.getValue(Metrics.Rpm), 0.001)
+        assertEquals(96.0, analysis.maxima.getValue(Metrics.OilTemp), 0.001)
     }
 
     @Test

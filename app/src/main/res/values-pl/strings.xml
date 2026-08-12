@@ -204,6 +204,7 @@
     <string name="dashboard_redline">Odcięcie %1$d rpm</string>
     <string name="chart_now">teraz</string>
     <string name="chart_add_parameter">+ Dodaj parametr</string>
+    <string name="chart_series_unavailable">niedostępny w tym aucie</string>
     <string name="chart_mode_bands">Osobno</string>
     <string name="chart_mode_relative">Wspólna %%</string>
     <string name="chart_mode_absolute">Wspólna abs.</string>

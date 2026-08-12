@@ -200,6 +200,7 @@
     <string name="dashboard_redline">Redline %1$d rpm</string>
     <string name="chart_now">now</string>
     <string name="chart_add_parameter">+ Add parameter</string>
+    <string name="chart_series_unavailable">not available in this car</string>
     <string name="chart_mode_bands">Separate</string>
     <string name="chart_mode_relative">Shared %%</string>
     <string name="chart_mode_absolute">Shared abs.</string>

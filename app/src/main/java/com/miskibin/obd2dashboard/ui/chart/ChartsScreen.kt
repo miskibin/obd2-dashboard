@@ -146,7 +146,21 @@ fun ChartsScreen(
             )
         }
     }
-    val hasData = series.any { it.samples.isNotEmpty() }
+    // A series with nothing behind it is not plotted at all. Drawn anyway it becomes a
+    // straight line across the middle of the plot — a reading of exactly the average of a
+    // range it never had — which is indistinguishable from a real, perfectly steady value.
+    val drawn = remember(series) { series.filter { it.samples.isNotEmpty() } }
+    // And when the car has published its supported list, a parameter missing from it is
+    // never going to arrive, which the legend says rather than leaving a row waiting.
+    val unavailable = remember(plotted, supportedPids) {
+        if (supportedPids.isEmpty()) {
+            emptySet()
+        } else {
+            plotted.filter { Metrics[it]?.isAvailable(supportedPids, supportKnown = true) == false }
+                .toSet()
+        }
+    }
+    val hasData = drawn.isNotEmpty()
     val units = remember(series) { series.map(ChartSeries::unit).filter(String::isNotBlank).distinct() }
     val rate = remember(series, window) { sampleRateOf(series, window) }
     val windowHeight = LocalWindowInfo.current.containerSize.height
@@ -214,7 +228,7 @@ fun ChartsScreen(
             ) {
                 if (hasData) {
                     LineChart(
-                        series = series,
+                        series = drawn,
                         windowMillis = window.millis,
                         nowMillis = now,
                         mode = mode,
@@ -234,6 +248,7 @@ fun ChartsScreen(
             SeriesLegend(
                 series = series,
                 metrics = plotted,
+                unavailable = unavailable,
                 snapshot = snapshot,
                 maxHeight = legendCap,
                 onRemove = onToggleMetric,
@@ -350,6 +365,7 @@ private fun ChartConfigChip(
 private fun SeriesLegend(
     series: List<ChartSeries>,
     metrics: List<MetricId>,
+    unavailable: Set<MetricId>,
     snapshot: VehicleSnapshot,
     maxHeight: Dp,
     onRemove: (MetricId) -> Unit,
@@ -387,6 +403,14 @@ private fun SeriesLegend(
                             formatReading(values.max().toDouble(), line.decimals),
                         style = MaterialTheme.typography.labelMedium,
                         color = SmokeDim,
+                    )
+                } else if (id != null && id in unavailable) {
+                    Text(
+                        text = stringResource(R.string.chart_series_unavailable),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = SmokeDim,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
                 Text(

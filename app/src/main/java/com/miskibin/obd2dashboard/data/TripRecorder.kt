@@ -12,10 +12,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.BufferedWriter
 import java.io.File
 import java.time.Instant
 import java.time.ZoneId
+import kotlin.coroutines.CoroutineContext
 
 sealed interface RecordingState {
     data object Idle : RecordingState
@@ -25,17 +25,26 @@ sealed interface RecordingState {
 /**
  * Streams every polled value to a CSV file while the driver holds the record button on.
  *
- * The column set is fixed when recording starts — from the PIDs the car reported as
- * supported — so the file stays a rectangle even though individual PIDs come and go
- * between polling cycles.
+ * The recording follows the car rather than a list decided in advance: [TripWriter] takes
+ * its columns from what each snapshot actually carries, so a parameter added to the chart
+ * mid-drive, or one the car only starts answering for once it is warm, lands in the file
+ * from the moment it appears. The [start] metrics are only a seed — they fix the order of
+ * the columns the app already expects and put them in the header from the first row.
  */
 class TripRecorder(
-    context: Context,
+    private val directory: () -> File,
     private val scope: CoroutineScope,
     private val clock: () -> Long = System::currentTimeMillis,
+    /** Where the file is written; only ever anything but [Dispatchers.IO] under test. */
+    private val dispatcher: CoroutineContext = Dispatchers.IO,
 ) {
 
-    private val appContext = context.applicationContext
+    constructor(
+        context: Context,
+        scope: CoroutineScope,
+        clock: () -> Long = System::currentTimeMillis,
+    ) : this(directoryOf(context.applicationContext), scope, clock)
+
     private val _state = MutableStateFlow<RecordingState>(RecordingState.Idle)
     val state: StateFlow<RecordingState> = _state.asStateFlow()
 
@@ -43,15 +52,15 @@ class TripRecorder(
 
     val isRecording: Boolean get() = _state.value is RecordingState.Active
 
-    fun start(source: Flow<VehicleSnapshot>, metrics: List<MetricId>) {
+    fun start(source: Flow<VehicleSnapshot>, metrics: List<MetricId> = emptyList()) {
         if (isRecording) return
-        val columns = metrics.distinct().ifEmpty { Metrics.defaultTiles }
+        val seed = metrics.distinct()
         val startedAt = clock()
-        val file = File(TripRepository.directoryOf(appContext), fileNameFor(startedAt))
+        val file = File(directory(), fileNameFor(startedAt))
         // Published before the writer coroutine gets scheduled so a second tap on the
         // record button cannot start a second file.
         _state.value = RecordingState.Active(file, startedAt, rows = 0)
-        job = scope.launch(Dispatchers.IO) { record(source, columns, file, startedAt) }
+        job = scope.launch(dispatcher) { record(source, seed, file, startedAt) }
     }
 
     fun stop() {
@@ -62,47 +71,36 @@ class TripRecorder(
 
     private suspend fun record(
         source: Flow<VehicleSnapshot>,
-        columns: List<MetricId>,
+        seed: List<MetricId>,
         file: File,
         startedAtMillis: Long,
     ) {
-        file.parentFile?.mkdirs()
-        val csvColumns = columns.map { CsvColumn(it.storageKey, Metrics[it]?.unit.orEmpty()) }
-        var rows = 0
+        val writer = TripWriter(file, startedAtMillis)
         var lastWriteMillis = 0L
-        var writer: BufferedWriter? = null
         try {
-            writer = file.bufferedWriter().also {
-                it.appendLine(CsvFormat.header(csvColumns))
-                it.flush()
-            }
+            writer.open(seed)
             source.collect { snapshot ->
+                // Every session opens on an empty snapshot, and a row carrying nothing but
+                // a timestamp is not a sample of anything.
+                if (snapshot.presentMetrics().isEmpty()) return@collect
                 val now = clock()
                 if (now - lastWriteMillis < MIN_ROW_INTERVAL_MILLIS) return@collect
                 lastWriteMillis = now
-                writer.appendLine(
-                    CsvFormat.row(now, startedAtMillis, columns.map(snapshot::valueOf)),
-                )
-                rows++
-                if (rows % FLUSH_EVERY_ROWS == 0) writer.flush()
-                _state.value = RecordingState.Active(file, startedAtMillis, rows)
+                writer.append(snapshot, now)
+                _state.value = RecordingState.Active(file, startedAtMillis, writer.rows)
             }
         } finally {
             // Stopping cancels this coroutine, so closing the file has to survive
-            // cancellation or the last buffered rows would be lost.
-            withContext(NonCancellable) {
-                runCatching {
-                    writer?.flush()
-                    writer?.close()
-                }
-                if (rows == 0) file.delete()
-            }
+            // cancellation or the last buffered rows — and the final header — would be lost.
+            withContext(NonCancellable) { runCatching { writer.close() } }
         }
     }
 
     private companion object {
         const val MIN_ROW_INTERVAL_MILLIS = 250L
-        const val FLUSH_EVERY_ROWS = 20
+
+        /** Held as a lambda over the application context so no screen's context leaks in. */
+        fun directoryOf(appContext: Context): () -> File = { TripRepository.directoryOf(appContext) }
 
         fun fileNameFor(startedAtMillis: Long): String {
             val stamp = TripRepository.NAME_FORMAT.format(
