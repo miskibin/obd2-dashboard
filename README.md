@@ -54,5 +54,8 @@ over an older one without uninstalling.
 
 - `docs/research-obd2-protocol.md` — ELM327 AT layer, iCar2 BLE GATT
   profiles, mode 01 PID formulas, DTC decoding, throughput engineering
+- `docs/research-vehicle-metadata.md` — what the app can know about the car
+  beyond the OBD port: VIN decoding offline vs. online, the CEPiK and EEA open
+  datasets, and the per-car constants that make the live numbers mean something
 - `docs/research-android-stack.md` — stack choice rationale, Android Auto
   reality check, CI/signing setup, prior art (ObdGraphs, AndrOBD, …)
