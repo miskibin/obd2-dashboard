@@ -280,6 +280,55 @@ object AppIcons {
         }
     }
 
+    /** A spark: the ignition side of the engine, and the misfires counted there. */
+    val Spark: ImageVector by lazy {
+        lineIcon("Spark") {
+            moveTo(13.6f, 2.8f)
+            lineTo(6.4f, 13.2f)
+            horizontalLineToRelative(4.4f)
+            lineToRelative(-1.4f, 8f)
+            lineToRelative(7.2f, -10.4f)
+            horizontalLineToRelative(-4.4f)
+            close()
+        }
+    }
+
+    /** A cog: the gearbox, and anything geared. */
+    val Cog: ImageVector by lazy {
+        lineIcon("Cog") {
+            moveTo(12f, 5.4f)
+            arcToRelative(6.6f, 6.6f, 0f, true, false, 0f, 13.2f)
+            arcToRelative(6.6f, 6.6f, 0f, false, false, 0f, -13.2f)
+            close()
+            moveTo(12f, 9.4f)
+            arcToRelative(2.6f, 2.6f, 0f, true, false, 0f, 5.2f)
+            arcToRelative(2.6f, 2.6f, 0f, false, false, 0f, -5.2f)
+            close()
+            moveTo(12f, 5.4f)
+            verticalLineTo(2.6f)
+            moveTo(12f, 18.6f)
+            verticalLineTo(21.4f)
+            moveTo(5.4f, 12f)
+            horizontalLineTo(2.6f)
+            moveTo(18.6f, 12f)
+            horizontalLineTo(21.4f)
+        }
+    }
+
+    /** A tyre seen from the side: the wheel positions a pressure belongs to. */
+    val Tyre: ImageVector by lazy {
+        lineIcon("Tyre") {
+            moveTo(12f, 3.6f)
+            arcToRelative(8.4f, 8.4f, 0f, true, false, 0f, 16.8f)
+            arcToRelative(8.4f, 8.4f, 0f, false, false, 0f, -16.8f)
+            close()
+            moveTo(12f, 8.6f)
+            arcToRelative(3.4f, 3.4f, 0f, true, false, 0f, 6.8f)
+            arcToRelative(3.4f, 3.4f, 0f, false, false, 0f, -6.8f)
+            close()
+        }
+    }
+
     /** A chevron for rows that lead somewhere. */
     val ChevronRight: ImageVector by lazy {
         icon("ChevronRight") {

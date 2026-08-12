@@ -11,6 +11,7 @@ import com.miskibin.obd2dashboard.ble.DiscoveredDevice
 import com.miskibin.obd2dashboard.data.AlertRule
 import com.miskibin.obd2dashboard.data.AlertRules
 import com.miskibin.obd2dashboard.data.AppTheme
+import com.miskibin.obd2dashboard.data.CarZone
 import com.miskibin.obd2dashboard.data.DtcLog
 import com.miskibin.obd2dashboard.data.DtcObservation
 import com.miskibin.obd2dashboard.data.FaultContext
@@ -21,6 +22,7 @@ import com.miskibin.obd2dashboard.data.MechanicReport
 import com.miskibin.obd2dashboard.data.MechanicReportData
 import com.miskibin.obd2dashboard.data.MetricId
 import com.miskibin.obd2dashboard.data.Metrics
+import com.miskibin.obd2dashboard.data.MisfireReading
 import com.miskibin.obd2dashboard.data.SavedAdapter
 import com.miskibin.obd2dashboard.data.SessionKind
 import com.miskibin.obd2dashboard.data.Trip
@@ -31,6 +33,7 @@ import com.miskibin.obd2dashboard.data.VinDecoder
 import com.miskibin.obd2dashboard.data.VinFacts
 import com.miskibin.obd2dashboard.data.presentMetrics
 import com.miskibin.obd2dashboard.data.valueOf
+import com.miskibin.obd2dashboard.data.worstMisfire
 import com.miskibin.obd2dashboard.obd.DerivedMetrics
 import com.miskibin.obd2dashboard.obd.Dtc
 import com.miskibin.obd2dashboard.obd.MonitorTests
@@ -88,6 +91,17 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
     /** The on-board self-test results read when this session opened; see mode 06. */
     val monitors: StateFlow<MonitorTests?> = connection.monitors
 
+    /**
+     * The worst per-cylinder misfire count of that read, with the ECU's own verdict.
+     *
+     * Kept here rather than worked out on the dashboard because it is the one number the
+     * car diagram shows that is not a live PID: Mode 06 is read once, when the session
+     * opens, and nothing below this has any business knowing that.
+     */
+    val misfire: StateFlow<MisfireReading?> = connection.monitors
+        .map { it.worstMisfire() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
     /** How often each of those self-tests has actually run; see mode 09 `0908`. */
     val performance: StateFlow<PerformanceTracking?> = connection.performance
 
@@ -120,6 +134,10 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
 
     val imperialUnits: StateFlow<Boolean> = preferences.imperialUnits
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    /** Which parts of the car the diagram draws readings on. */
+    val carZones: StateFlow<Set<CarZone>> = preferences.carZones
+        .stateIn(viewModelScope, SharingStarted.Eagerly, CarZone.DEFAULTS)
 
     /** Which ground the app is drawn on, as chosen in Settings. */
     val theme: StateFlow<AppTheme> = preferences.theme
@@ -420,6 +438,17 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
     fun removeTile(id: MetricId) {
         _tiles.update { it - id }
         commitTiles()
+    }
+
+    /**
+     * Ticks a place on the car diagram on or off.
+     *
+     * Written straight through to storage rather than held in memory the way the tile
+     * order is: a tick is one event, not a gesture that fires every frame.
+     */
+    fun toggleCarZone(zone: CarZone) {
+        val zones = carZones.value.let { if (zone in it) it - zone else it + zone }
+        viewModelScope.launch { preferences.setCarZones(zones) }
     }
 
     // ---- charts -----------------------------------------------------------------

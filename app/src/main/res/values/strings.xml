@@ -408,8 +408,28 @@
     <string name="metric_state_far_below">far below normal</string>
 
     <!-- The car diagram: each reading drawn where it is measured -->
-    <string name="dashboard_car_description">The car from the side, with each reading where it is measured</string>
+    <string name="dashboard_car_description">The car from above, with each reading on the part it is measured from</string>
     <string name="dashboard_car_zone">%1$s: %2$s %3$s</string>
+
+    <!-- The places on the car diagram, and the picker that chooses them -->
+    <string name="car_zones_title">Readings on the car</string>
+    <string name="car_zones_subtitle">Tick a part to draw its reading where it is measured</string>
+    <string name="car_zone_unavailable">not in this car</string>
+    <string name="car_zone_misfires">Misfires, worst cylinder</string>
+    <string name="car_zone_engine">Engine</string>
+    <string name="car_zone_throttle">Throttle body</string>
+    <string name="car_zone_fuel">Fuel rail</string>
+    <string name="car_zone_ignition">Ignition coils</string>
+    <string name="car_zone_intake">Air intake</string>
+    <string name="car_zone_coolant">Radiator</string>
+    <string name="car_zone_battery">Battery</string>
+    <string name="car_zone_oil">Oil</string>
+    <string name="car_zone_transmission">Transmission</string>
+    <string name="car_zone_exhaust">Exhaust</string>
+    <string name="car_zone_tyre_fl">Tyre, front left</string>
+    <string name="car_zone_tyre_fr">Tyre, front right</string>
+    <string name="car_zone_tyre_rl">Tyre, rear left</string>
+    <string name="car_zone_tyre_rr">Tyre, rear right</string>
 
     <!-- Metric detail sheet -->
     <string name="metric_sheet_subtitle">Last 60 seconds</string>

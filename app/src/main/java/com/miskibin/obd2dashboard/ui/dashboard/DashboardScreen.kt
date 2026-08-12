@@ -42,12 +42,15 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.miskibin.obd2dashboard.R
 import com.miskibin.obd2dashboard.data.AlertRule
+import com.miskibin.obd2dashboard.data.CarZone
 import com.miskibin.obd2dashboard.data.GearReading
 import com.miskibin.obd2dashboard.data.MetricHistory
 import com.miskibin.obd2dashboard.data.MetricId
 import com.miskibin.obd2dashboard.data.MetricStatus
 import com.miskibin.obd2dashboard.data.Metrics
+import com.miskibin.obd2dashboard.data.MisfireReading
 import com.miskibin.obd2dashboard.data.RecordingState
+import com.miskibin.obd2dashboard.data.carZoneBindings
 import com.miskibin.obd2dashboard.data.statusOf
 import com.miskibin.obd2dashboard.data.updatedAtOf
 import com.miskibin.obd2dashboard.data.valueOf
@@ -101,17 +104,24 @@ fun DashboardScreen(
     imperial: Boolean,
     alertRules: List<AlertRule>,
     recording: RecordingState,
+    carZones: Set<CarZone>,
+    supportedPids: Set<Int>,
+    supportedExtended: Set<String>,
+    misfire: MisfireReading?,
     onMove: (from: Int, to: Int) -> Unit,
     onRemove: (MetricId) -> Unit,
     onAddTile: () -> Unit,
     onToggleUnits: () -> Unit,
+    onToggleCarZone: (CarZone) -> Unit,
     onOpenSettings: () -> Unit,
     onOpenCharts: () -> Unit,
+    onOpenMonitors: () -> Unit,
     onOpenConnection: () -> Unit,
     onConnect: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var editing by remember { mutableStateOf(false) }
+    var editingZones by remember { mutableStateOf(false) }
     var openMetric by remember { mutableStateOf<MetricId?>(null) }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     val haptics = LocalHapticFeedback.current
@@ -163,6 +173,7 @@ fun DashboardScreen(
                 },
                 onToggleEditing = { editing = !editing },
                 onToggleUnits = onToggleUnits,
+                onEditCarZones = { editingZones = true },
                 onOpenSettings = onOpenSettings,
             )
         }
@@ -220,11 +231,20 @@ fun DashboardScreen(
 
             // The car between the hero and the grid: the same readings, placed where they
             // are taken. A tile says what the number is, the drawing says what it is *of*.
-            if (hasCarZones(snapshot)) {
+            // A car that can fill none of the places the driver ticked gets no drawing at
+            // all rather than an empty outline with nothing on it.
+            val bindings = remember(carZones, snapshot, supportedPids, supportedExtended, misfire) {
+                carZoneBindings(carZones, snapshot, supportedPids, supportedExtended, misfire)
+            }
+            if (bindings.isNotEmpty()) {
                 CarDiagram(
+                    bindings = bindings,
                     snapshot = snapshot,
                     alertRules = alertRules,
+                    misfire = misfire,
                     onOpenMetric = { openMetric = it },
+                    onOpenMonitors = onOpenMonitors,
+                    onEditZones = { editingZones = true },
                     modifier = Modifier.padding(horizontal = CAR_INSET),
                 )
             }
@@ -307,6 +327,18 @@ fun DashboardScreen(
         }
     }
 
+    if (editingZones) {
+        CarZoneSheet(
+            selected = carZones,
+            snapshot = snapshot,
+            supportedPids = supportedPids,
+            supportedExtended = supportedExtended,
+            misfire = misfire,
+            onToggle = onToggleCarZone,
+            onDismiss = { editingZones = false },
+        )
+    }
+
     val metricId = openMetric
     val metric = metricId?.let { Metrics[it] }
     if (metricId != null && metric != null) {
@@ -343,6 +375,7 @@ private fun DashboardMenu(
     onAddTile: () -> Unit,
     onToggleEditing: () -> Unit,
     onToggleUnits: () -> Unit,
+    onEditCarZones: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
@@ -376,6 +409,16 @@ private fun DashboardMenu(
                 onClick = {
                     open = false
                     onToggleEditing()
+                },
+            )
+            // The only way back to the drawing once every zone has been ticked off and the
+            // card has collapsed: an affordance that lives on the thing it edits is no
+            // affordance at all when the thing is gone.
+            MenuChoice(
+                label = stringResource(R.string.car_zones_title),
+                onClick = {
+                    open = false
+                    onEditCarZones()
                 },
             )
             MenuChoice(

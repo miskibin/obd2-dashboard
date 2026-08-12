@@ -25,6 +25,16 @@ import androidx.compose.ui.graphics.Color
  */
 data class Palette(
 
+    /**
+     * Which of the two grounds this is.
+     *
+     * Almost nothing needs to ask — a screen names a role and gets the right answer either
+     * way. Artwork does: a drawing whose fills and strokes swap places between grounds
+     * cannot be expressed as one role each, and the alternative is a hidden identity check
+     * against [DarkPalette] somewhere in a canvas.
+     */
+    val dark: Boolean,
+
     // ---- grounds ---------------------------------------------------------------------
 
     /** The shell behind every screen. */
@@ -124,6 +134,8 @@ data class Palette(
  * edges visible at night.
  */
 val DarkPalette = Palette(
+    dark = true,
+
     ink = Color(0xFF1A1B1C),
     inkRaised = Color(0xFF1F2123),
     slate = Color(0xFF232527),
@@ -190,6 +202,8 @@ val DarkPalette = Palette(
  * icons and disabled glyphs, which are held to the 3:1 graphics floor instead.
  */
 val LightPalette = Palette(
+    dark = false,
+
     ink = Color(0xFFF0EFEB),
     inkRaised = Color(0xFFF7F6F3),
     slate = Color(0xFFFDFCFA),

@@ -414,8 +414,28 @@
     <string name="metric_state_far_below">znacznie poniżej normy</string>
 
     <!-- Schemat auta: każdy odczyt tam, gdzie jest mierzony -->
-    <string name="dashboard_car_description">Auto z boku, a na nim każdy odczyt tam, gdzie jest mierzony</string>
+    <string name="dashboard_car_description">Auto z góry, a na nim każdy odczyt na części, z której pochodzi</string>
     <string name="dashboard_car_zone">%1$s: %2$s %3$s</string>
+
+    <!-- Miejsca na rysunku auta i wybór tego, co na nim widać -->
+    <string name="car_zones_title">Odczyty na aucie</string>
+    <string name="car_zones_subtitle">Zaznacz część, aby jej odczyt stanął tam, gdzie jest mierzony</string>
+    <string name="car_zone_unavailable">nie w tym aucie</string>
+    <string name="car_zone_misfires">Wypadanie zapłonu, najgorszy cylinder</string>
+    <string name="car_zone_engine">Silnik</string>
+    <string name="car_zone_throttle">Przepustnica</string>
+    <string name="car_zone_fuel">Listwa paliwowa</string>
+    <string name="car_zone_ignition">Cewki zapłonowe</string>
+    <string name="car_zone_intake">Dolot powietrza</string>
+    <string name="car_zone_coolant">Chłodnica</string>
+    <string name="car_zone_battery">Akumulator</string>
+    <string name="car_zone_oil">Olej</string>
+    <string name="car_zone_transmission">Skrzynia biegów</string>
+    <string name="car_zone_exhaust">Wydech</string>
+    <string name="car_zone_tyre_fl">Opona, przód lewy</string>
+    <string name="car_zone_tyre_fr">Opona, przód prawy</string>
+    <string name="car_zone_tyre_rl">Opona, tył lewy</string>
+    <string name="car_zone_tyre_rr">Opona, tył prawy</string>
 
     <!-- Arkusz parametru -->
     <string name="metric_sheet_subtitle">Ostatnie 60 sekund</string>

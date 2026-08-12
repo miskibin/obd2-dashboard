@@ -349,6 +349,10 @@ private fun AppNavHost(
             val gear by viewModel.gear.collectAsStateWithLifecycle()
             val imperial by viewModel.imperialUnits.collectAsStateWithLifecycle()
             val recording by viewModel.recording.collectAsStateWithLifecycle()
+            val carZones by viewModel.carZones.collectAsStateWithLifecycle()
+            val supported by viewModel.supportedPids.collectAsStateWithLifecycle()
+            val supportedExtended by viewModel.supportedExtended.collectAsStateWithLifecycle()
+            val misfire by viewModel.misfire.collectAsStateWithLifecycle()
             DashboardScreen(
                 vehicleName = savedAdapter?.name?.takeIf(String::isNotBlank)
                     ?: stringResource(R.string.dashboard_vehicle_unknown),
@@ -364,12 +368,20 @@ private fun AppNavHost(
                 imperial = imperial,
                 alertRules = alertRules,
                 recording = recording,
+                carZones = carZones,
+                supportedPids = supported,
+                supportedExtended = supportedExtended,
+                misfire = misfire,
                 onMove = viewModel::moveTile,
                 onRemove = viewModel::removeTile,
                 onAddTile = { navController.navigate(Routes.PICKER) },
                 onToggleUnits = viewModel::toggleUnits,
+                onToggleCarZone = viewModel::toggleCarZone,
                 onOpenSettings = { navController.navigate(Routes.SETTINGS) },
                 onOpenCharts = { navController.switchTo(Routes.CHARTS) },
+                // The misfire count has no sheet of its own — it is the ECU's own
+                // self-test result — so its chip goes where those are read.
+                onOpenMonitors = { navController.switchTo(Routes.DIAGNOSTICS) },
                 onOpenConnection = { navController.navigate(Routes.CONNECT) },
                 onConnect = { navController.navigate(Routes.CONNECT) },
             )
