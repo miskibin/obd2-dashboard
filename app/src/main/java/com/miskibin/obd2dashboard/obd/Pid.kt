@@ -538,10 +538,12 @@ object DerivedMetrics {
     private fun estimateFuelRate(values: Map<Int, Double>): Double? {
         val maf = values[Pids.MAF_RATE] ?: return null
         val fuel = fuelProfileOf(values) ?: return null
+        // A commanded ratio of zero is what an engine running open loop reports, and it
+        // means "not commanding a ratio" rather than "commanding no fuel"; taking it
+        // literally would divide the estimate away instead of falling back on λ=1.
         val lambda = measuredLambda(values)
-            ?: values[Pids.COMMANDED_AFR]
+            ?: values[Pids.COMMANDED_AFR]?.takeIf { it > 0.0 }
             ?: if (fuel.assumeClosedLoop) 1.0 else return null
-        if (lambda <= 0.0) return null
 
         val fuelGramsPerSecond = maf / (lambda * fuel.stoichiometricAfr)
         return fuelGramsPerSecond * SECONDS_PER_HOUR / fuel.densityGramsPerLitre
@@ -560,7 +562,13 @@ object DerivedMetrics {
     /** Petrol when the car does not say, which is what all but the diesels are. */
     private fun fuelProfileOf(values: Map<Int, Double>): FuelProfile? {
         val code = values[Pids.FUEL_TYPE]?.toInt() ?: return PETROL
-        // An electric or otherwise non-liquid drivetrain has no litres per hour to report.
+        // Code 0 is the standard's "not available": the car carries the PID and has
+        // nothing to put in it, which says no more than not carrying it at all.
+        if (code == FUEL_TYPE_NOT_AVAILABLE) return PETROL
+        // A gaseous or electric drivetrain has no litres per hour to report, so it gets
+        // no estimate rather than one in a unit that does not describe it.
         return fuelProfiles[code]
     }
+
+    private const val FUEL_TYPE_NOT_AVAILABLE = 0
 }

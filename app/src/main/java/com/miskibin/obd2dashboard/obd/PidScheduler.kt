@@ -64,6 +64,9 @@ class PidScheduler(
     /** PID id to the cycle it was rested on; see [isActive]. */
     private val rested = mutableMapOf<Int, Long>()
     private var supported: Set<Int> = emptySet()
+
+    /** Written from whichever thread the UI collects on, read by the polling loop. */
+    @Volatile
     private var priority: Set<Int> = emptySet()
     private var slowCursor = 0
     private var cycle = 0L
@@ -143,14 +146,23 @@ class PidScheduler(
                 publish(pid, read.data)
             }
 
-            PidRead.Unsupported -> {
-                val count = (misses[pid.id] ?: 0) + 1
-                misses[pid.id] = count
-                if (count >= MAX_MISSES) rested[pid.id] = cycle
-            }
+            PidRead.Unsupported -> noteMiss(pid.id)
 
-            is PidRead.Failed -> if (read.error.requiresReinit) throw ElmFatalException(read.error)
+            is PidRead.Failed -> {
+                if (read.error.requiresReinit) throw ElmFatalException(read.error)
+                // An answer too short to decode is as useless as no answer, and asking
+                // again every cycle spends a timeout each time to learn the same thing.
+                // Cars do truncate the longer parameters — the catalogue now declares
+                // payloads of five to nine bytes — so this has to rest like a miss.
+                noteMiss(pid.id)
+            }
         }
+    }
+
+    private fun noteMiss(pid: Int) {
+        val count = (misses[pid] ?: 0) + 1
+        misses[pid] = count
+        if (count >= MAX_MISSES) rested[pid] = cycle
     }
 
     /**

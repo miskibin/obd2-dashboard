@@ -150,7 +150,11 @@ class ConnectionManager(
     private val _pollingEnabled = MutableStateFlow(true)
     val pollingEnabled: StateFlow<Boolean> = _pollingEnabled.asStateFlow()
 
-    /** Survives reconnects, so the tiles keep their fast refresh across a dropped link. */
+    /**
+     * Survives reconnects, so the tiles keep their fast refresh across a dropped link.
+     * Written from the UI's collector and read by the connection coroutine.
+     */
+    @Volatile
     private var priorityKeys: Set<Int> = emptySet()
 
     /**

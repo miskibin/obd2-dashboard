@@ -188,6 +188,23 @@ class PidSchedulerTest {
         assertTrue(sensorKey(0x14, 1) !in readings)
     }
 
+    @Test
+    fun `a PID that keeps answering too few bytes to decode is rested too`() = runTest {
+        // 0110 declares two data bytes and this car sends one, so every read fails to
+        // decode. Without resting it, the truncated answer costs a timeout every cycle
+        // for the whole session and never becomes a reading.
+        val transport = FakeElmTransport.scripted(
+            script = mapOf("0110" to "7E8 03 41 10 05", "ATRV" to "12.6V"),
+        )
+        val client = Obd2Client(ElmSession(transport, backgroundScope), ObdProtocol.Can11Bit500)
+        val scheduler = PidScheduler(client, clock = { 0L }, cycleDelayMillis = CYCLE_MILLIS)
+        scheduler.configure(setOf(Pids.MAF_RATE))
+
+        withTimeoutOrNull(CYCLE_MILLIS * 10) { scheduler.run() }
+
+        assertEquals(PidScheduler.MAX_MISSES, transport.countOf("0110"))
+    }
+
     private companion object {
         const val CYCLE_MILLIS = 100L
     }

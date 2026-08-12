@@ -261,6 +261,9 @@ object Metrics {
      */
     private fun decimalsFor(key: Int, unit: String): Int = when {
         key in O2_VOLTAGE_KEYS -> 3
+        // A gear ratio is unitless but not an integer: rounded to none, an overdrive
+        // ratio of 0.72 reads as 1 and a first gear of 3.55 reads as 4.
+        keyPid(key) == Pids.TRANSMISSION_GEAR -> 2
         else -> when (unit) {
             "rpm", "km/h", "km", "s", "min", "count", "N·m", "Pa", "kPa", "°C", "°", "" -> 0
             "λ" -> 3

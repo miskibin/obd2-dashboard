@@ -319,4 +319,25 @@ class PidDecodingTest {
 
         assertNull(DerivedMetrics.compute(electric)[DerivedMetrics.FuelRate.key])
     }
+
+    @Test
+    fun `a car that carries the fuel type PID but leaves it empty is still estimated`() {
+        // Code 0 is "not available", which says no more than not having the PID at all.
+        val unstated = DerivedMetrics.compute(mapOf(0x10 to 5.0, Pids.FUEL_TYPE to 0.0))
+        val absent = DerivedMetrics.compute(mapOf(0x10 to 5.0))
+
+        assertEquals(
+            absent.getValue(DerivedMetrics.FuelRate.key),
+            unstated.getValue(DerivedMetrics.FuelRate.key),
+            0.001,
+        )
+    }
+
+    @Test
+    fun `an open loop engine commanding no ratio falls back on stoichiometric`() {
+        // 0144 reads zero in open loop; taken literally it would divide the estimate away.
+        val openLoop = DerivedMetrics.compute(mapOf(0x10 to 5.0, Pids.COMMANDED_AFR to 0.0))
+
+        assertEquals(1.6436, openLoop.getValue(DerivedMetrics.FuelRate.key), 0.001)
+    }
 }
