@@ -308,14 +308,46 @@ class Obd2Client(
     val canAddressModules: Boolean
         get() = protocol.isCan && protocol.headerChars == CAN_11_BIT_HEADER_CHARS
 
-    suspend fun <T> withModule(header: String, receiveHeader: String?, block: suspend () -> T): T {
+    /**
+     * [flowControl] configures the adapter to answer a long response's first frame itself.
+     *
+     * A reading forty bytes into a chassis module's answer arrives as a first frame and a
+     * string of consecutive ones, and the ECU sends the rest only after somebody replies to
+     * the first with a flow-control frame. Left to itself an ELM327 does that inconsistently
+     * across clones — many return six bytes and stop — so where the table says the answer is
+     * long the flow control is spelled out: the frame goes back on the request's own header,
+     * with no block limit and no separation time. `ATFCSM0` in the `finally` puts the
+     * adapter back to deciding for itself, which is what every Mode 01 request wants.
+     *
+     * An adapter that cannot do it answers something other than `OK` and the reads that
+     * needed it come back short, which the decoder treats as no answer — a missing reading
+     * rather than a wrong one.
+     */
+    suspend fun <T> withModule(
+        header: String,
+        receiveHeader: String?,
+        flowControl: Boolean = false,
+        block: suspend () -> T,
+    ): T {
         session.request(SET_HEADER + header, ElmSession.AT_TIMEOUT_MILLIS)
         if (receiveHeader != null) {
             session.request(SET_RECEIVE_FILTER + receiveHeader, ElmSession.AT_TIMEOUT_MILLIS)
         }
+        if (flowControl) {
+            val at = ElmSession.AT_TIMEOUT_MILLIS
+            session.request(FLOW_CONTROL_HEADER + header, at)
+            session.request(FLOW_CONTROL_DATA + FLOW_CONTROL_CONTINUOUS, at)
+            session.request(FLOW_CONTROL_MODE + FLOW_CONTROL_CONFIGURED, at)
+        }
         try {
             return block()
         } finally {
+            if (flowControl) {
+                session.request(
+                    FLOW_CONTROL_MODE + FLOW_CONTROL_AUTOMATIC,
+                    ElmSession.AT_TIMEOUT_MILLIS,
+                )
+            }
             if (receiveHeader != null) {
                 session.request(SET_RECEIVE_FILTER, ElmSession.AT_TIMEOUT_MILLIS)
             }
@@ -370,6 +402,19 @@ class Obd2Client(
 
         /** `ATCRA<addr>` narrows the receive filter; `ATCRA` alone clears it again. */
         const val SET_RECEIVE_FILTER = "ATCRA"
+
+        /** The flow-control triple: which address to answer on, what to say, and to say it. */
+        const val FLOW_CONTROL_HEADER = "ATFCSH"
+        const val FLOW_CONTROL_DATA = "ATFCSD"
+        const val FLOW_CONTROL_MODE = "ATFCSM"
+
+        /** Clear to send, no block size, no separation time: send the whole answer. */
+        const val FLOW_CONTROL_CONTINUOUS = "300000"
+
+        const val FLOW_CONTROL_CONFIGURED = "1"
+
+        /** The default, where the adapter decides for itself what to answer with. */
+        const val FLOW_CONTROL_AUTOMATIC = "0"
 
         const val PID_TIMEOUT_MILLIS = 1_500L
 

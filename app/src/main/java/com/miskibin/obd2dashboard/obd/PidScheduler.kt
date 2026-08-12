@@ -206,7 +206,7 @@ class PidScheduler(
         val due = planExtended(cycle)
         if (due.isEmpty()) return
         val module = due.first()
-        client.withModule(module.header, module.receiveHeader) {
+        client.withModule(module.header, module.receiveHeader, due.any { it.flowControl }) {
             due.forEach { pid ->
                 extendedReadAt[pid.id] = clock()
                 val read = client.readExtended(pid)

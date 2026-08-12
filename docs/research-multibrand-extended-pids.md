@@ -955,6 +955,72 @@ parked only. Never blind-scan while driving.
 
 ---
 
+## 16. Shipped, and where the implementation departs from the notes above
+
+Build order 1–5 and 8 are in. Item 6 (BMW) and item 7 (FCA) are not, for the reason
+below, and neither is anything behind `10 03`.
+
+**88 entries across eight new marques, 35 new readings**, on top of the 19 Mazda entries
+already shipped (107 entries, 46 distinct readings in all). One file per marque in
+`app/src/main/java/com/miskibin/obd2dashboard/obd/`, one gate per entry, and
+`ExtendedBrandPidTest` decodes a worked example from the tables above for every one.
+
+| Brand | Shipped | Skipped, and why |
+|---|---|---|
+| **VW Group** (§4) | **26** — cluster oil temp (`202F`) + odometer (`2203`); oil level `11BA`, boost `1057`; four injector corrections (diesel); the whole `710` battery block (SoC, temperature, voltage, resistance, **both** `2A09` current decodings); DSG `2104`; seven DPF rows (`1ABE`, `2609`, `1ABD`, `1ABA`, `1AC9`, `11B2`, `10F9`, diesel); four `70B` tyre pressures | Every `din: "03"` row (`114E`, `114F`, `1044`, `14F5`, `1156`, `1153`) — session switch, out of scope. `179C`/`20A1`/`11BC` oil-temp variants and `11C4`/`11C5` oil marks — a second entry for a reading another entry already fills. `1821` TPMS bitfields, `17FC00xx` (29-bit, `dbg`), gear/consumption rows — no decodable meaning without an enum table |
+| **Toyota/Lexus** (§6) | **7** — `21 51` oil temp, `21 82` gearbox pan temp, `22 1002` twelve-volt (MY2016+), hybrid `1F5B`/`1F9A`×2/`10B2` | `22 1074` oil pressure: two published scalings 12.8× apart, both landing in a plausible range — nothing distinguishes them. `1F5C`/`107B`/`1627`: duplicate readings of the `21` rows. TPMS (`750` + eax `2A`) — extended addressing, see below. Cell voltages, motor torque, `21 C3` block — one request per number is too dear for the value |
+| **Ford EU** (§5) | **12** — the Mazda identifiers on a Ford gate (`0415`, `1310` gated, `1E1C` in *sixteenths*), `0461`, `0334`, `0462`, `033E`, `4029`, four `2813`–`2816` tyre pressures | `22 4028` battery SoC — percent-of-255 against plain percent, both plausible, no way to tell. `0579`/`057B` DPF — single forum source. `03DC`/`0548` fuel pressures, misfire counters, `61A5` lamp — thin value against another module switch. `7DF` rows rewritten to `7E0` as the trap says, then dropped as duplicates |
+| **Hyundai/Kia** (§7) | **17** — oil temp under **both** services split by year (`22 E001` ≥2014, `21 01` ≤2013), boost `E021`, `E004` SoC + SoH, `21 A0` gearbox, `B002` cluster voltage, `0101` HV charge, **eight** `C00B` tyre pressures (two year-gated layouts), `21 03` distance since regen (diesel) | Tyre *temperatures* and the sensor battery enum. `E002` injection durations — four more readings for a number that is not a correction. `21 06`/`21 1B` DPF state and pressure — a bit and a raw count with no unit |
+| **Renault/Dacia** (§10) | **7** — `2007` (modelled) oil temp, `2401` boost, `2004` torque, `2005` supply voltage, `2057` alternator, `222A` refrigerant, `4B06` odometer | `111F` — the same reading from a second identifier; it ships on Nissan instead, where nothing else covers it. CVT temperature and the R9M configs need `10 C0`. `748` Duster rows would fill `battery_voltage` twice. `2001`/`240B`/`FD81` duplicate standard PIDs |
+| **Opel GM** (`W0L`) (§11.1) | **5** — `3039`, `20F4`, `20F8`, `1152`, `1543`, all diesel-gated | `336A` soot % — published both as `A*100/255` and as plain `A`, both inside 0–100, so a wrong pick understates soot by 2.55×. `AA 0118` streaming — not a mode this app speaks. `0023`/`0034` duplicate standard PIDs |
+| **Opel PSA** (`W0V`) (§11.2) | **5** — `D410`, `D815`, `D860`, `D865`, `D49C` on `6B4`→`694` | `D810` (duplicate of `D410`), cell min/max, `D402` speed (standard PID). Nothing at all for the PSA-era combustion cars: none is published |
+| **Nissan** (§12.2) | **8** — four `0201`–`0204` tyre pressures, `1103` twelve-volt, `21 01` HV charge, `21 61` HV health, `111F` oil temp (diesel) | `743` Leaf tyre rows (duplicate), `1183`/`1156` — a current and a gear enum |
+| **Mercedes** (§9) | **1** — `7E1 22 2130` gearbox temperature, range-gated | Everything else: the only captured Mercedes data is a G-Class's stability sensors, which are not this app's subject. Engine oil temperature is tried as standard PID `01 5C`, which the app already asks every car for |
+| **BMW/MINI** (§8) | **0** | Every BMW identifier needs tester `6F1` with an extended address byte *prepended to the request data*. The adapter layer here sets a header and a receive filter and restores `ATSH 7DF`; it has no notion of a request prefix, and half-supporting one addressing mode is worse than not having it |
+| **Honda** (§12.1), **FCA** (§13) | **0** | 29-bit `18DA<tt>F1`, which means a protocol switch (`ATSP7`) and a way back. On top of that, *every* Jeep Renegade engine identifier is `din: "03"`; the Honda and FCA rows that are not would be a protocol switch for a gearbox temperature |
+| **Volvo** (§12.3), **PSA** (§13) | **0** | One unverified single-source row for Volvo, nothing at all for Peugeot/Citroën/DS. Exactly as §15 says |
+
+### Departures from the notes above
+
+- **Service `21` is implemented; extended addressing and 29-bit are not.** A one-byte
+  local identifier was a small, testable change to the request shape and it is what makes
+  Toyota and the older Hyundais readable at all. BMW's `eax` prefix and the Honda/FCA
+  protocol switch are each a different thing — a change to *addressing* — and the rule
+  was not to half-support one. They are absent, not stubbed.
+- **Flow control is configured per module, not per request.** `ATFCSH`/`ATFCSD 300000`/
+  `ATFCSM1` go out with the module switch when any parameter on that module needs them and
+  `ATFCSM0` comes back in the `finally`, next to the header restore. An adapter that cannot
+  do it answers something other than `OK`, the long reads come back short, and a short read
+  is treated as no answer — a missing reading rather than a wrong one.
+- **One request per reading.** §6 is right that `21 51` is a bargain — one request, many
+  signals — and this implementation does not take it: the scheduler's unit of work is a
+  parameter, so two readings out of one block cost two requests. That is why only two
+  readings are taken from each Toyota block rather than the six that are in there.
+- **No `10 03`, and therefore no §14.1.** The recommendation to allow an extended session
+  while parked, behind an opt-in, is not implemented. Every identifier that needs one is
+  absent, and a test asserts the table contains none of them by number.
+- **The diesel gate is the driver's profile, not the VIN.** Nothing in a European VIN says
+  which engine was fitted, so the filter and injector rows are offered only once the
+  vehicle profile says "diesel". An unfilled profile is not treated as petrol: it is
+  treated as not knowing, and the diesel rows are not asked for.
+- **`VNV` is claimed by nobody.** §10 gives it to Renault and §12.2 to Nissan — Maubeuge
+  builds for both. A VIN that could be either settles nothing, so it matches no marque.
+- **Conflicting decodings ship only where the car can settle it.** Two entries with one
+  name are allowed when they are rival decodings of *one* request and a plausibility range
+  tells them apart — VAG `2A09`'s 24-bit and 32-bit currents, where the wrong reading comes
+  out in the thousands of amps. Where both readings are plausible (Ford `4028`, Opel
+  `336A`, Toyota `1074`) neither ships. Where one scaling is borrowed rather than captured
+  (Ford `1310` from Mazda, Mercedes `2130`'s byte offset) it ships behind a range gate, so
+  a car that turns out to answer differently shows nothing rather than something wrong.
+- **Reading names are marque-neutral.** The Mazda entries' ids lost their `mazda_` prefix
+  (`ext_oil_pressure`, `ext_tyre_pressure_fl`, …) so that a Ford, a Golf and a Mazda fill
+  the same tile with the same reading. Nothing had shipped under the old ids.
+- **Multi-frame answers are read but not chased.** `22 C00B` and the other long block reads
+  are decoded out of the reassembled response, and where the reading sits past the first
+  frame the flow-control configuration above is what gets the rest of it.
+
+---
+
 ## Sources
 
 **Primary (captured ECU responses):**

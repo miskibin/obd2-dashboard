@@ -134,6 +134,36 @@ class ExtendedSchedulingTest {
     }
 
     @Test
+    fun `a cycle that reads a long answer configures flow control once, around the reads`() =
+        runTest {
+            val chassis = extended("chassis", "7A0", 0xC00B, receiveHeader = "7A8")
+                .copy(flowControl = true)
+            val alsoChassis = extended("chassis_b", "7A0", 0xC00C, receiveHeader = "7A8")
+            val (scheduler, transport) = scheduler(
+                backgroundScope,
+                mapOf(
+                    "22C00B" to "7A8 04 62 C0 0B 20",
+                    "22C00C" to "7A8 04 62 C0 0C 21",
+                    "ATRV" to "12.6V",
+                ),
+            )
+            // Two parameters on one module, only one of which needs the flow control: the
+            // configuration belongs to the module switch, not to the parameter.
+            scheduler.configureExtended(listOf(chassis, alsoChassis))
+
+            withTimeoutOrNull(CYCLE_MILLIS / 2) { scheduler.run() }
+
+            assertEquals(
+                listOf(
+                    "ATSH7A0", "ATCRA7A8", "ATFCSH7A0", "ATFCSD300000", "ATFCSM1",
+                    "22C00B", "22C00C",
+                    "ATFCSM0", "ATCRA", "ATSH7DF", "ATRV",
+                ),
+                transport.commands,
+            )
+        }
+
+    @Test
     fun `a car with no extended parameters sends no extended traffic`() = runTest {
         val (scheduler, transport) = scheduler(backgroundScope, mapOf("ATRV" to "12.6V"))
 

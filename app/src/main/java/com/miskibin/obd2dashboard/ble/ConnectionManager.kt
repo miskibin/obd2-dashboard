@@ -257,8 +257,15 @@ class ConnectionManager(
         scheduler?.prioritize(keys)
     }
 
-    /** What the vehicle profile says is in the tank; see [com.miskibin.obd2dashboard.data.Vehicle]. */
-    private val _fuel = MutableStateFlow(FuelType.Default)
+    /**
+     * What the vehicle profile says is in the tank; see [com.miskibin.obd2dashboard.data.Vehicle].
+     *
+     * Null when the driver has not said, which is not the same as petrol. The fuel maths
+     * falls back to [FuelType.Default] and always has; the extended table does not, because
+     * a particulate filter identifier sent to a petrol engine is a request spent on a
+     * refusal and an injector correction offered on one is a row that will never fill in.
+     */
+    private val _fuel = MutableStateFlow<FuelType?>(null)
 
     fun startScan() {
         if (scanJob?.isActive == true) return
@@ -382,7 +389,7 @@ class ConnectionManager(
         _pollingEnabled.value = enabled
     }
 
-    fun setFuelType(fuel: FuelType) {
+    fun setFuelType(fuel: FuelType?) {
         _fuel.value = fuel
     }
 
@@ -571,7 +578,7 @@ class ConnectionManager(
         val newScheduler = PidScheduler(
             client = newClient,
             pollingEnabled = { _pollingEnabled.value },
-            fuel = { _fuel.value },
+            fuel = { _fuel.value ?: FuelType.Default },
         ).also { scheduler = it }
         newScheduler.configure(supported)
         newScheduler.prioritize(priorityKeys)
@@ -669,7 +676,7 @@ class ConnectionManager(
         // Addressing one module means replacing the broadcast header and putting it back,
         // and `7DF` is only the right thing to put back on eleven-bit CAN.
         if (!active.canAddressModules) return
-        val vehicle = ExtendedVehicle(vin = vin, modelYear = modelYear(vin))
+        val vehicle = ExtendedVehicle(vin = vin, modelYear = modelYear(vin), fuel = _fuel.value)
         val candidates = ExtendedPids.candidatesFor(vehicle)
         if (candidates.isEmpty()) return
 
@@ -683,7 +690,11 @@ class ConnectionManager(
 
         unknown.groupBy(ExtendedPid::header).forEach { (header, group) ->
             owner.exclusive {
-                active.withModule(header, group.first().receiveHeader) {
+                active.withModule(
+                    header,
+                    group.first().receiveHeader,
+                    group.any(ExtendedPid::flowControl),
+                ) {
                     group.forEach { pid ->
                         val probe = active.probeExtended(pid)
                         if (probe == ExtendedProbe.Supported) supported += pid.id

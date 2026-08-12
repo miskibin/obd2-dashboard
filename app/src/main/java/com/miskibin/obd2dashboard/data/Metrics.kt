@@ -211,6 +211,36 @@ object Metrics {
     private val TYRE_PRESSURE_PREFIX = ExtendedPids.tyrePressureId("")
     private val TYRE_TEMPERATURE_PREFIX = ExtendedPids.tyreTemperatureId("")
 
+    /** The four injector corrections, which share a subtitle and a paragraph. */
+    private val INJECTION_DEVIATION_PREFIX = ExtendedPids.injectionDeviationId(0).dropLast(1)
+
+    /** The manufacturer-specific readings that are a temperature, whatever they are of. */
+    private val EXTENDED_TEMPERATURES = setOf(
+        ExtendedPids.OIL_TEMPERATURE,
+        ExtendedPids.TRANSMISSION_FLUID_TEMPERATURE,
+        ExtendedPids.CHARGE_AIR_TEMPERATURE,
+        ExtendedPids.CYLINDER_HEAD_TEMPERATURE,
+        ExtendedPids.DPF_INLET_TEMPERATURE,
+        ExtendedPids.DPF_OUTLET_TEMPERATURE,
+        ExtendedPids.INVERTER_TEMPERATURE,
+        ExtendedPids.BATTERY_TEMPERATURE,
+    )
+
+    /** The ones that describe the vehicle rather than its engine: batteries, distance. */
+    private val EXTENDED_VEHICLE = setOf(
+        ExtendedPids.ODOMETER,
+        ExtendedPids.BATTERY_SOC,
+        ExtendedPids.BATTERY_HEALTH,
+        ExtendedPids.BATTERY_VOLTAGE,
+        ExtendedPids.BATTERY_CURRENT,
+        ExtendedPids.BATTERY_RESISTANCE,
+        ExtendedPids.HV_SOC,
+        ExtendedPids.HV_HEALTH,
+        ExtendedPids.HV_VOLTAGE,
+        ExtendedPids.HV_CURRENT,
+        ExtendedPids.HV_ENERGY,
+    )
+
     val Rpm = MetricId.Sensor(Pids.ENGINE_RPM)
     val Speed = MetricId.Sensor(Pids.VEHICLE_SPEED)
     val CoolantTemp = MetricId.Sensor(Pids.COOLANT_TEMP)
@@ -376,10 +406,16 @@ object Metrics {
             else -> MetricGroup.Vehicle
         }
 
+        // Filed by what the number is about rather than by which marque reports it: a
+        // driver looking for a gearbox temperature is looking among temperatures, and it is
+        // no business of theirs that on their car it comes from an identifier and on the
+        // next one from a block read.
         is MetricId.Extended -> when {
-            id.id == ExtendedPids.OIL_PRESSURE -> MetricGroup.Engine
+            id.id in EXTENDED_TEMPERATURES -> MetricGroup.Temperature
+            id.id.startsWith(TYRE_TEMPERATURE_PREFIX) -> MetricGroup.Temperature
+            id.id in EXTENDED_VEHICLE -> MetricGroup.Vehicle
             id.id.startsWith(TYRE_PRESSURE_PREFIX) -> MetricGroup.Vehicle
-            else -> MetricGroup.Temperature
+            else -> MetricGroup.Engine
         }
 
         is MetricId.Sensor -> when (id.pid) {
@@ -607,7 +643,38 @@ object Metrics {
     private fun extendedNameRes(id: String): Int = when (id) {
         ExtendedPids.OIL_PRESSURE -> R.string.metric_ext_oil_pressure
         ExtendedPids.OIL_TEMPERATURE -> R.string.metric_ext_oil_temperature
+        ExtendedPids.OIL_LEVEL -> R.string.metric_ext_oil_level
         ExtendedPids.TRANSMISSION_FLUID_TEMPERATURE -> R.string.metric_ext_atf_temperature
+        ExtendedPids.BOOST_PRESSURE -> R.string.metric_ext_boost_pressure
+        ExtendedPids.CHARGE_AIR_TEMPERATURE -> R.string.metric_ext_charge_air_temperature
+        ExtendedPids.CYLINDER_HEAD_TEMPERATURE -> R.string.metric_ext_cylinder_head_temperature
+        ExtendedPids.WASTEGATE_DUTY -> R.string.metric_ext_wastegate_duty
+        ExtendedPids.ENGINE_TORQUE -> R.string.metric_ext_engine_torque
+        ExtendedPids.ODOMETER -> R.string.metric_ext_odometer
+        ExtendedPids.ALTERNATOR_POWER -> R.string.metric_ext_alternator_power
+        ExtendedPids.AC_PRESSURE -> R.string.metric_ext_ac_pressure
+        ExtendedPids.EGR_POSITION -> R.string.metric_ext_egr_position
+        ExtendedPids.TURBO_VANE_POSITION -> R.string.metric_ext_turbo_vane_position
+        ExtendedPids.BATTERY_SOC -> R.string.metric_ext_battery_soc
+        ExtendedPids.BATTERY_HEALTH -> R.string.metric_ext_battery_health
+        ExtendedPids.BATTERY_TEMPERATURE -> R.string.metric_ext_battery_temperature
+        ExtendedPids.BATTERY_VOLTAGE -> R.string.metric_ext_battery_voltage
+        ExtendedPids.BATTERY_CURRENT -> R.string.metric_ext_battery_current
+        ExtendedPids.BATTERY_RESISTANCE -> R.string.metric_ext_battery_resistance
+        ExtendedPids.DPF_SOOT_MEASURED -> R.string.metric_ext_dpf_soot_measured
+        ExtendedPids.DPF_SOOT_CALCULATED -> R.string.metric_ext_dpf_soot_calculated
+        ExtendedPids.DPF_ASH_MASS -> R.string.metric_ext_dpf_ash_mass
+        ExtendedPids.DPF_DISTANCE_SINCE_REGEN -> R.string.metric_ext_dpf_distance_since_regen
+        ExtendedPids.DPF_REGEN_INTERRUPTIONS -> R.string.metric_ext_dpf_regen_interruptions
+        ExtendedPids.DPF_INLET_TEMPERATURE -> R.string.metric_ext_dpf_inlet_temperature
+        ExtendedPids.DPF_OUTLET_TEMPERATURE -> R.string.metric_ext_dpf_outlet_temperature
+        ExtendedPids.DPF_PRESSURE_DIFFERENCE -> R.string.metric_ext_dpf_pressure_difference
+        ExtendedPids.HV_SOC -> R.string.metric_ext_hv_soc
+        ExtendedPids.HV_HEALTH -> R.string.metric_ext_hv_health
+        ExtendedPids.HV_VOLTAGE -> R.string.metric_ext_hv_voltage
+        ExtendedPids.HV_CURRENT -> R.string.metric_ext_hv_current
+        ExtendedPids.HV_ENERGY -> R.string.metric_ext_hv_energy
+        ExtendedPids.INVERTER_TEMPERATURE -> R.string.metric_ext_inverter_temperature
         ExtendedPids.tyrePressureId(FRONT_LEFT) -> R.string.metric_ext_tyre_pressure_fl
         ExtendedPids.tyrePressureId(FRONT_RIGHT) -> R.string.metric_ext_tyre_pressure_fr
         ExtendedPids.tyrePressureId(REAR_LEFT) -> R.string.metric_ext_tyre_pressure_rl
@@ -616,28 +683,117 @@ object Metrics {
         ExtendedPids.tyreTemperatureId(FRONT_RIGHT) -> R.string.metric_ext_tyre_temperature_fr
         ExtendedPids.tyreTemperatureId(REAR_LEFT) -> R.string.metric_ext_tyre_temperature_rl
         ExtendedPids.tyreTemperatureId(REAR_RIGHT) -> R.string.metric_ext_tyre_temperature_rr
+        ExtendedPids.injectionDeviationId(1) -> R.string.metric_ext_injection_deviation_1
+        ExtendedPids.injectionDeviationId(2) -> R.string.metric_ext_injection_deviation_2
+        ExtendedPids.injectionDeviationId(3) -> R.string.metric_ext_injection_deviation_3
+        ExtendedPids.injectionDeviationId(4) -> R.string.metric_ext_injection_deviation_4
         else -> R.string.metric_unknown
     }
 
+    /**
+     * The plain-language subtitle for one manufacturer-specific reading.
+     *
+     * The families — four tyres, four injectors — share one line, the same way the oxygen
+     * sensors do: what a tyre pressure *is* does not change between the front left and the
+     * rear right, and writing it four times would be four strings that differ by a corner,
+     * in every language the app ships.
+     */
     @StringRes
     private fun extendedHintRes(id: String): Int = when {
-        id == ExtendedPids.OIL_PRESSURE -> R.string.metric_hint_ext_oil_pressure
-        id == ExtendedPids.OIL_TEMPERATURE -> R.string.metric_hint_ext_oil_temperature
-        id == ExtendedPids.TRANSMISSION_FLUID_TEMPERATURE -> R.string.metric_hint_ext_atf_temperature
         id.startsWith(TYRE_PRESSURE_PREFIX) -> R.string.metric_hint_ext_tyre_pressure
         id.startsWith(TYRE_TEMPERATURE_PREFIX) -> R.string.metric_hint_ext_tyre_temperature
-        else -> R.string.metric_hint_unknown
+        id.startsWith(INJECTION_DEVIATION_PREFIX) -> R.string.metric_hint_ext_injection_deviation
+        else -> when (id) {
+            ExtendedPids.OIL_PRESSURE -> R.string.metric_hint_ext_oil_pressure
+            ExtendedPids.OIL_TEMPERATURE -> R.string.metric_hint_ext_oil_temperature
+            ExtendedPids.OIL_LEVEL -> R.string.metric_hint_ext_oil_level
+            ExtendedPids.TRANSMISSION_FLUID_TEMPERATURE -> R.string.metric_hint_ext_atf_temperature
+            ExtendedPids.BOOST_PRESSURE -> R.string.metric_hint_ext_boost_pressure
+            ExtendedPids.CHARGE_AIR_TEMPERATURE -> R.string.metric_hint_ext_charge_air_temperature
+            ExtendedPids.CYLINDER_HEAD_TEMPERATURE ->
+                R.string.metric_hint_ext_cylinder_head_temperature
+
+            ExtendedPids.WASTEGATE_DUTY -> R.string.metric_hint_ext_wastegate_duty
+            ExtendedPids.ENGINE_TORQUE -> R.string.metric_hint_ext_engine_torque
+            ExtendedPids.ODOMETER -> R.string.metric_hint_ext_odometer
+            ExtendedPids.ALTERNATOR_POWER -> R.string.metric_hint_ext_alternator_power
+            ExtendedPids.AC_PRESSURE -> R.string.metric_hint_ext_ac_pressure
+            ExtendedPids.EGR_POSITION -> R.string.metric_hint_ext_egr_position
+            ExtendedPids.TURBO_VANE_POSITION -> R.string.metric_hint_ext_turbo_vane_position
+            ExtendedPids.BATTERY_SOC -> R.string.metric_hint_ext_battery_soc
+            ExtendedPids.BATTERY_HEALTH -> R.string.metric_hint_ext_battery_health
+            ExtendedPids.BATTERY_TEMPERATURE -> R.string.metric_hint_ext_battery_temperature
+            ExtendedPids.BATTERY_VOLTAGE -> R.string.metric_hint_ext_battery_voltage
+            ExtendedPids.BATTERY_CURRENT -> R.string.metric_hint_ext_battery_current
+            ExtendedPids.BATTERY_RESISTANCE -> R.string.metric_hint_ext_battery_resistance
+            ExtendedPids.DPF_SOOT_MEASURED -> R.string.metric_hint_ext_dpf_soot_measured
+            ExtendedPids.DPF_SOOT_CALCULATED -> R.string.metric_hint_ext_dpf_soot_calculated
+            ExtendedPids.DPF_ASH_MASS -> R.string.metric_hint_ext_dpf_ash_mass
+            ExtendedPids.DPF_DISTANCE_SINCE_REGEN ->
+                R.string.metric_hint_ext_dpf_distance_since_regen
+
+            ExtendedPids.DPF_REGEN_INTERRUPTIONS -> R.string.metric_hint_ext_dpf_regen_interruptions
+            ExtendedPids.DPF_INLET_TEMPERATURE -> R.string.metric_hint_ext_dpf_inlet_temperature
+            ExtendedPids.DPF_OUTLET_TEMPERATURE -> R.string.metric_hint_ext_dpf_outlet_temperature
+            ExtendedPids.DPF_PRESSURE_DIFFERENCE -> R.string.metric_hint_ext_dpf_pressure_difference
+            ExtendedPids.HV_SOC -> R.string.metric_hint_ext_hv_soc
+            ExtendedPids.HV_HEALTH -> R.string.metric_hint_ext_hv_health
+            ExtendedPids.HV_VOLTAGE -> R.string.metric_hint_ext_hv_voltage
+            ExtendedPids.HV_CURRENT -> R.string.metric_hint_ext_hv_current
+            ExtendedPids.HV_ENERGY -> R.string.metric_hint_ext_hv_energy
+            ExtendedPids.INVERTER_TEMPERATURE -> R.string.metric_hint_ext_inverter_temperature
+            else -> R.string.metric_hint_unknown
+        }
     }
 
     @StringRes
     private fun extendedDescriptionRes(id: String): Int = when {
-        id == ExtendedPids.OIL_PRESSURE -> R.string.metric_desc_ext_oil_pressure
-        id == ExtendedPids.OIL_TEMPERATURE -> R.string.metric_desc_ext_oil_temperature
-        id == ExtendedPids.TRANSMISSION_FLUID_TEMPERATURE -> R.string.metric_desc_ext_atf_temperature
         id.startsWith(TYRE_PRESSURE_PREFIX) -> R.string.metric_desc_ext_tyre_pressure
         id.startsWith(TYRE_TEMPERATURE_PREFIX) -> R.string.metric_desc_ext_tyre_temperature
-        else -> R.string.metric_desc_unknown
+        id.startsWith(INJECTION_DEVIATION_PREFIX) -> R.string.metric_desc_ext_injection_deviation
+        else -> when (id) {
+            ExtendedPids.OIL_PRESSURE -> R.string.metric_desc_ext_oil_pressure
+            ExtendedPids.OIL_TEMPERATURE -> R.string.metric_desc_ext_oil_temperature
+            ExtendedPids.OIL_LEVEL -> R.string.metric_desc_ext_oil_level
+            ExtendedPids.TRANSMISSION_FLUID_TEMPERATURE -> R.string.metric_desc_ext_atf_temperature
+            ExtendedPids.BOOST_PRESSURE -> R.string.metric_desc_ext_boost_pressure
+            ExtendedPids.CHARGE_AIR_TEMPERATURE -> R.string.metric_desc_ext_charge_air_temperature
+            ExtendedPids.CYLINDER_HEAD_TEMPERATURE ->
+                R.string.metric_desc_ext_cylinder_head_temperature
+
+            ExtendedPids.WASTEGATE_DUTY -> R.string.metric_desc_ext_wastegate_duty
+            ExtendedPids.ENGINE_TORQUE -> R.string.metric_desc_ext_engine_torque
+            ExtendedPids.ODOMETER -> R.string.metric_desc_ext_odometer
+            ExtendedPids.ALTERNATOR_POWER -> R.string.metric_desc_ext_alternator_power
+            ExtendedPids.AC_PRESSURE -> R.string.metric_desc_ext_ac_pressure
+            ExtendedPids.EGR_POSITION -> R.string.metric_desc_ext_egr_position
+            ExtendedPids.TURBO_VANE_POSITION -> R.string.metric_desc_ext_turbo_vane_position
+            ExtendedPids.BATTERY_SOC -> R.string.metric_desc_ext_battery_soc
+            ExtendedPids.BATTERY_HEALTH -> R.string.metric_desc_ext_battery_health
+            ExtendedPids.BATTERY_TEMPERATURE -> R.string.metric_desc_ext_battery_temperature
+            ExtendedPids.BATTERY_VOLTAGE -> R.string.metric_desc_ext_battery_voltage
+            ExtendedPids.BATTERY_CURRENT -> R.string.metric_desc_ext_battery_current
+            ExtendedPids.BATTERY_RESISTANCE -> R.string.metric_desc_ext_battery_resistance
+            ExtendedPids.DPF_SOOT_MEASURED -> R.string.metric_desc_ext_dpf_soot_measured
+            ExtendedPids.DPF_SOOT_CALCULATED -> R.string.metric_desc_ext_dpf_soot_calculated
+            ExtendedPids.DPF_ASH_MASS -> R.string.metric_desc_ext_dpf_ash_mass
+            ExtendedPids.DPF_DISTANCE_SINCE_REGEN ->
+                R.string.metric_desc_ext_dpf_distance_since_regen
+
+            ExtendedPids.DPF_REGEN_INTERRUPTIONS -> R.string.metric_desc_ext_dpf_regen_interruptions
+            ExtendedPids.DPF_INLET_TEMPERATURE -> R.string.metric_desc_ext_dpf_inlet_temperature
+            ExtendedPids.DPF_OUTLET_TEMPERATURE -> R.string.metric_desc_ext_dpf_outlet_temperature
+            ExtendedPids.DPF_PRESSURE_DIFFERENCE -> R.string.metric_desc_ext_dpf_pressure_difference
+            ExtendedPids.HV_SOC -> R.string.metric_desc_ext_hv_soc
+            ExtendedPids.HV_HEALTH -> R.string.metric_desc_ext_hv_health
+            ExtendedPids.HV_VOLTAGE -> R.string.metric_desc_ext_hv_voltage
+            ExtendedPids.HV_CURRENT -> R.string.metric_desc_ext_hv_current
+            ExtendedPids.HV_ENERGY -> R.string.metric_desc_ext_hv_energy
+            ExtendedPids.INVERTER_TEMPERATURE -> R.string.metric_desc_ext_inverter_temperature
+            else -> R.string.metric_desc_unknown
+        }
     }
+
 
     private const val FRONT_LEFT = "fl"
     private const val FRONT_RIGHT = "fr"

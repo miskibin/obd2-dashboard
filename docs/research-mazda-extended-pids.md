@@ -174,6 +174,10 @@ Items 1–4 are in; item 5 (Torque CSV import) is not.
   link dropping, so the moment there would be something to read is the moment there is no
   longer anything to read it over. One snapshot per connection into a per-VIN history
   gives the same series without the timeouts.
+- **The reading names lost their marque.** When the other marques were seeded (see
+  `research-multibrand-extended-pids.md` §16) these entries' ids went from `mazda_oil_pressure`
+  to `ext_oil_pressure` and so on. A Ford answers `22 0415` for the same reason a Mazda does,
+  and a name that says otherwise would mean two tiles for one reading.
 - **Extended parameters are eleven-bit CAN only.** `ATSH 7DF` is that protocol's
   functional address and nothing else, and a probe that could not put the header back
   would leave every Mode 01 request going nowhere for the rest of the session.

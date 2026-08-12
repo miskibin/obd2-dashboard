@@ -198,6 +198,63 @@ class ExtendedPidTest {
     }
 
     @Test
+    fun `a module with a long answer gets flow control, and gives it back`() = runTest {
+        val transport = FakeElmTransport.scripted(
+            script = mapOf(
+                "ATSH70B" to "OK",
+                "ATFCSH70B" to "OK",
+                "ATFCSD300000" to "OK",
+                "ATFCSM1" to "OK",
+                "ATFCSM0" to "OK",
+                "2218A1" to "70B 10 0A 62 18 A1 00 00 00\r70B 21 00 00 5C 00",
+            ),
+        )
+        val client = Obd2Client(ElmSession(transport, backgroundScope), ObdProtocol.Can11Bit500)
+        val tyre = ExtendedPids.entries.first { it.header == "70B" && it.did == 0x18A1 }
+
+        val read = client.withModule(tyre.header, tyre.receiveHeader, tyre.flowControl) {
+            client.readExtended(tyre)
+        }
+
+        // The pressure is the sixth byte of the answer, i.e. in the consecutive frame that
+        // only arrives because something answered the first one.
+        assertTrue("read was $read", read is ExtendedRead.Value)
+        assertEquals(2.30, (read as ExtendedRead.Value).value, 0.01)
+        assertEquals(
+            listOf(
+                "ATSH70B", "ATFCSH70B", "ATFCSD300000", "ATFCSM1",
+                "2218A1",
+                "ATFCSM0", "ATSH7DF",
+            ),
+            transport.commands,
+        )
+    }
+
+    @Test
+    fun `a block read asks with one identifier byte and finds its value inside the block`() =
+        runTest {
+            // Toyota's `21 51`: one byte of identifier, an answer forty bytes long, and the
+            // oil temperature at the tenth of them.
+            val transport = FakeElmTransport.scripted(
+                script = mapOf(
+                    "ATSH7E0" to "OK",
+                    "ATCRA7E8" to "OK",
+                    "2151" to "7E8 10 11 61 51 00 00 00\r7E8 21 00 00 00 00 00 00\r7E8 22 82 8C 00 00 00",
+                ),
+            )
+            val client = Obd2Client(ElmSession(transport, backgroundScope), ObdProtocol.Can11Bit500)
+            val oil = ExtendedPids.entries.first {
+                it.service == MODE_READ_LOCAL_ID && it.did == 0x51
+            }
+
+            val read = client.withModule(oil.header, oil.receiveHeader) { client.readExtended(oil) }
+
+            assertTrue("read was $read", read is ExtendedRead.Value)
+            assertEquals(90.0, (read as ExtendedRead.Value).value, 0.001)
+            assertTrue("2151" in transport.commands)
+        }
+
+    @Test
     fun `the restore happens even when the read throws`() = runTest {
         val transport = FakeElmTransport.scripted(script = emptyMap())
         val client = Obd2Client(ElmSession(transport, backgroundScope), ObdProtocol.Can11Bit500)

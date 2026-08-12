@@ -4,45 +4,136 @@ package com.miskibin.obd2dashboard.obd
 const val MODE_READ_DATA_BY_ID = 0x22
 
 /**
+ * `ReadDataByLocalIdentifier`, the KWP2000 ancestor of [MODE_READ_DATA_BY_ID].
+ *
+ * One byte of identifier instead of two, and one identifier answers a whole block of data
+ * rather than a single value — forty to seventy bytes with a different reading at each
+ * offset. Toyota's Denso control units and Hyundai's answer both services, and on the
+ * older cars this is the only one they answer, which is why it is here: `21 51` reads an
+ * oil temperature off a 2008 Corolla that has never heard of a UDS identifier.
+ */
+const val MODE_READ_LOCAL_ID = 0x21
+
+/**
+ * A marque, as far as the first three characters of a VIN can settle it.
+ *
+ * The world manufacturer identifier is the only thing about a car the app can be certain
+ * of before it sends anything, and certainty is the whole requirement: an extended
+ * identifier is a manufacturer's private address space, so the same number is a different
+ * reading — or a refusal, or nothing at all — one badge over. Every code here is one the
+ * research notes verified against vPIC or the Wikibooks WMI list; nothing is guessed from
+ * the shape of a VIN.
+ *
+ * Opel is deliberately two marques rather than one. `W0L` is the General Motors car and
+ * `W0V` the Stellantis one built on PSA underpinnings, and they share nothing that matters
+ * here — not the module addresses, not the identifiers, not the ECU supplier.
+ */
+enum class Marque(val wmi: Set<String>) {
+    Mazda(setOf("JM1", "JM7", "JMZ")),
+
+    /** VW, Škoda, SEAT, Cupra and Audi, which share the module map and most identifiers. */
+    VolkswagenGroup(
+        setOf("WVW", "WVG", "WV1", "WV2", "VWV", "TMB", "VSS", "WAU", "WA1", "TRU", "WUA"),
+    ),
+
+    Toyota(
+        setOf(
+            "JT1", "JT2", "JT3", "JT4", "JT5", "JT6", "JT7", "JT8", "JTH", "JTJ",
+            "SB1", "VNK", "NMT", "MR0", "TW1",
+        ),
+    ),
+
+    /** Ford of Europe: Cologne and Saarlouis, Valencia, Britain, and Otosan in Turkey. */
+    Ford(setOf("WF0", "VS6", "SFA", "NM0")),
+
+    HyundaiKia(
+        setOf(
+            "KMH", "KMF", "KMJ", "TMA", "NLH", "MAL",
+            "KNA", "KNB", "KNC", "KND", "KNE", "U5Y", "U6Y",
+        ),
+    ),
+
+    RenaultDacia(setOf("VF1", "VF2", "X7L", "NM1", "UU1")),
+
+    /** Opel and Vauxhall as General Motors built them, to about 2017. */
+    OpelGm(setOf("W0L", "VXK", "VSX")),
+
+    /** Opel as Stellantis builds it: PSA platform, PSA headers, PSA identifiers. */
+    OpelPsa(setOf("W0V")),
+
+    Nissan(setOf("SJN", "VSK", "JN1", "JN8", "MNT", "MDH")),
+
+    Mercedes(setOf("WDB", "WDD", "WDC", "W1K", "W1N", "W1V", "WDF", "VSA", "WMX")),
+    ;
+
+    companion object {
+        private val byWmi: Map<String, Marque> =
+            entries.flatMap { marque -> marque.wmi.map { it to marque } }.toMap()
+
+        fun of(wmi: String): Marque? = byWmi[wmi.uppercase()]
+    }
+}
+
+/**
  * The car an extended parameter is being considered for.
  *
- * Only what the VIN itself settles, offline: which marque issued it and which model year it
- * carries. That is deliberately little. An extended DID is a manufacturer's private
- * address space and the same number means different things — or nothing — on a different
- * marque, so the gate has to be something the app can be certain of before it sends
- * anything, and the VIN is the only such thing.
+ * Deliberately little: which marque issued the VIN, which model year it carries, and what
+ * the driver said is in the tank. The first two are what the VIN itself settles offline;
+ * the third comes from the vehicle profile and is the only honest way to tell a TDI from a
+ * TSI, since nothing in a European VIN says which engine was fitted.
  */
-data class ExtendedVehicle(val vin: String? = null, val modelYear: Int? = null) {
+data class ExtendedVehicle(
+    val vin: String? = null,
+    val modelYear: Int? = null,
+    val fuel: FuelType? = null,
+) {
+
+    /** Which marque issued this VIN, or null for one no table here knows. */
+    val marque: Marque? get() = vin?.take(WMI_LENGTH)?.let(Marque::of)
+
+    fun isA(marque: Marque): Boolean = this.marque == marque
 
     /** Mazda's three world manufacturer identifiers. */
-    val isMazda: Boolean get() = vin?.take(WMI_LENGTH)?.uppercase() in MAZDA_WMI
+    val isMazda: Boolean get() = isA(Marque.Mazda)
+
+    /**
+     * Whether the driver's profile says this car burns diesel.
+     *
+     * An unfilled profile is not a diesel. Everything gated on this — particulate filter
+     * loads, injector corrections — is meaningless on a petrol engine and would be a row
+     * of dashes on the dashboard, so the doubt is resolved towards asking nothing.
+     */
+    val isDiesel: Boolean get() = fuel == FuelType.Diesel
 
     /** Whether the model year is known to be within [range]; false when it is not known. */
     fun builtIn(range: IntRange): Boolean = modelYear?.let { it in range } == true
 
+    /** Whether the car is known to be [year] or later; false when the year is not known. */
+    fun builtSince(year: Int): Boolean = modelYear?.let { it >= year } == true
+
     private companion object {
         const val WMI_LENGTH = 3
-        val MAZDA_WMI = setOf("JM1", "JM7", "JMZ")
     }
 }
 
 /**
  * One manufacturer-specific reading, addressed to one module.
  *
- * The four fields at the top are the whole difference from a [Pid]: an extended parameter
- * is not broadcast to every ECU on `7DF`, it is asked of one module at [header], and a
- * module outside the `7Ex` engine range answers on an address the adapter is not listening
- * to unless [receiveHeader] has been set with `ATCRA` first. Get either wrong and the
- * result is `NO DATA` from a car that would have answered perfectly.
+ * The fields at the top are the whole difference from a [Pid]: an extended parameter is not
+ * broadcast to every ECU on `7DF`, it is asked of one module at [header], and a module
+ * outside the `7Ex` engine range answers on an address the adapter is not listening to
+ * unless [receiveHeader] has been set with `ATCRA` first. Get either wrong and the result
+ * is `NO DATA` from a car that would have answered perfectly.
  *
  * [decode] is a Kotlin lambda rather than an interpreted formula string. The curated set is
  * small, every entry in it has been checked against a real response, and a formula
  * interpreter would buy nothing but the ability to ship an unchecked one.
  *
  * [id] is the stable identity of the *reading*, not of the request: two generations of the
- * same car report tyre pressure from different modules at different DIDs, and to a driver
- * that is one parameter. They therefore share an id, and [applies] keeps at most one of
- * them live on any given car.
+ * same car report tyre pressure from different modules at different identifiers, and two
+ * marques report oil temperature from different services entirely. To a driver that is one
+ * parameter. They therefore share an id, and [applies] keeps at most one of them live on
+ * any given car.
  */
 data class ExtendedPid(
     val id: String,
@@ -56,11 +147,34 @@ data class ExtendedPid(
     val tier: PidTier,
     /** The shortest gap worth asking again after; tyre pressures move in minutes, not tenths. */
     val minIntervalMillis: Long = 0,
+    /**
+     * Whether the answer needs the adapter's flow control configured; see
+     * [Obd2Client.withModule].
+     *
+     * True for the readings that live inside a long multi-frame block — a tyre pressure
+     * forty bytes into a chassis module's answer — where an adapter left to its own devices
+     * returns the first six bytes and stops.
+     */
+    val flowControl: Boolean = false,
     val applies: (ExtendedVehicle) -> Boolean,
     val decode: (IntArray) -> Double,
 ) {
-    /** The request, e.g. `220415`. */
-    val request: String get() = "%02X%04X".format(service, did)
+    /**
+     * The identifier as the request carries it: two bytes for service `22`, one for `21`.
+     *
+     * Also what a positive response repeats before the data, which is how the payload is
+     * located rather than by counting bytes from the start of the frame.
+     */
+    val didBytes: IntArray
+        get() = if (service == MODE_READ_LOCAL_ID) {
+            intArrayOf(did and 0xFF)
+        } else {
+            intArrayOf(did shr Byte.SIZE_BITS, did and 0xFF)
+        }
+
+    /** The request, e.g. `220415` or `2151`. */
+    val request: String
+        get() = "%02X".format(service) + didBytes.joinToString("") { "%02X".format(it) }
 
     /**
      * The byte a positive response starts with.
@@ -71,11 +185,14 @@ data class ExtendedPid(
      */
     val responseMarker: Int get() = service + ObdResponseParser.RESPONSE_OFFSET
 
-    /** The two DID bytes that a positive response repeats before the data. */
-    val didBytes: IntArray get() = intArrayOf(did shr Byte.SIZE_BITS, did and 0xFF)
-
     /** True when the adapter has to be told which address to listen on for this module. */
     val needsReceiveFilter: Boolean get() = receiveHeader != null
+
+    init {
+        require(service != MODE_READ_LOCAL_ID || did <= 0xFF) {
+            "a local identifier is one byte: $id asks for %04X".format(did)
+        }
+    }
 }
 
 /** What a probe of one extended parameter established. */
@@ -99,180 +216,97 @@ enum class ExtendedProbe {
 /**
  * The extended parameters this app will ask for, and the cars it will ask.
  *
- * Every entry here was read off a real car — see `docs/research-mazda-extended-pids.md` —
- * and every one is a read. Nothing in this table writes, changes a session, resets an
- * adaptation or runs a routine, and nothing ever should: an app that polls a running
- * engine has no business sending anything a car cannot ignore.
+ * Every entry was read off a real car — see `docs/research-mazda-extended-pids.md` and
+ * `docs/research-multibrand-extended-pids.md` — and every one is a read. Nothing in this
+ * table writes, changes a session, resets an adaptation or runs a routine, and nothing ever
+ * should: an app that polls a running engine has no business sending anything a car cannot
+ * ignore. That rule is why several marques ship thinner sets than their research section
+ * lists, and why two ship nothing at all: the identifiers behind a `10 03` diagnostic
+ * session are simply not taken.
+ *
+ * The per-marque tables live one file each. This object is what they have in common: the
+ * name of every reading, and the list of them all.
  */
 object ExtendedPids {
 
-    /** Mazda's PCM, which answers on `7E8` like any engine ECU. */
-    private const val PCM = "7E0"
+    // ---- the readings, by name ---------------------------------------------------
+    //
+    // A name is the identity of the reading and not of the request behind it, so a marque
+    // that reports oil temperature from its instrument cluster and one that reports it
+    // from a block read forty bytes long both land on OIL_TEMPERATURE and share a tile,
+    // a chart line and a column in an export.
 
-    /** The transmission module. */
-    private const val TCM = "7E1"
+    const val OIL_PRESSURE = "ext_oil_pressure"
+    const val OIL_TEMPERATURE = "ext_oil_temperature"
+    const val OIL_LEVEL = "ext_oil_level"
+    const val TRANSMISSION_FLUID_TEMPERATURE = "ext_atf_temperature"
+    const val BOOST_PRESSURE = "ext_boost_pressure"
+    const val CHARGE_AIR_TEMPERATURE = "ext_charge_air_temperature"
+    const val CYLINDER_HEAD_TEMPERATURE = "ext_cylinder_head_temperature"
+    const val WASTEGATE_DUTY = "ext_wastegate_duty"
+    const val ENGINE_TORQUE = "ext_engine_torque"
+    const val ODOMETER = "ext_odometer"
+    const val ALTERNATOR_POWER = "ext_alternator_power"
+    const val AC_PRESSURE = "ext_ac_pressure"
+    const val EGR_POSITION = "ext_egr_position"
+    const val TURBO_VANE_POSITION = "ext_turbo_vane_position"
 
-    /** The body module of a 2019-on Mazda 3 (BP), which carries its tyre pressures. */
-    private const val BODY_BP = "726"
-    private const val BODY_BP_RESPONSE = "72E"
+    const val BATTERY_SOC = "ext_battery_soc"
+    const val BATTERY_HEALTH = "ext_battery_health"
+    const val BATTERY_TEMPERATURE = "ext_battery_temperature"
+    const val BATTERY_VOLTAGE = "ext_battery_voltage"
+    const val BATTERY_CURRENT = "ext_battery_current"
+    const val BATTERY_RESISTANCE = "ext_battery_resistance"
 
-    /** The same job on the 2014-2018 car (BM/BN), at a different address entirely. */
-    private const val BODY_BM = "720"
-    private const val BODY_BM_RESPONSE = "728"
+    const val DPF_SOOT_MEASURED = "ext_dpf_soot_measured"
+    const val DPF_SOOT_CALCULATED = "ext_dpf_soot_calculated"
+    const val DPF_ASH_MASS = "ext_dpf_ash_mass"
+    const val DPF_DISTANCE_SINCE_REGEN = "ext_dpf_distance_since_regen"
+    const val DPF_REGEN_INTERRUPTIONS = "ext_dpf_regen_interruptions"
+    const val DPF_INLET_TEMPERATURE = "ext_dpf_inlet_temperature"
+    const val DPF_OUTLET_TEMPERATURE = "ext_dpf_outlet_temperature"
+    const val DPF_PRESSURE_DIFFERENCE = "ext_dpf_pressure_difference"
 
-    const val OIL_PRESSURE = "mazda_oil_pressure"
-    const val OIL_TEMPERATURE = "mazda_oil_temperature"
-    const val TRANSMISSION_FLUID_TEMPERATURE = "mazda_atf_temperature"
+    const val HV_SOC = "ext_hv_soc"
+    const val HV_HEALTH = "ext_hv_health"
+    const val HV_VOLTAGE = "ext_hv_voltage"
+    const val HV_CURRENT = "ext_hv_current"
+    const val HV_ENERGY = "ext_hv_energy"
+    const val INVERTER_TEMPERATURE = "ext_inverter_temperature"
 
-    /** Tyre positions, in the order both generations report them. */
-    val WHEELS = listOf("fl", "fr", "rl", "rr")
+    // The names of the families are [ExtendedNames]', because the marque tables need them
+    // while this object is still building its list and cannot ask it for anything.
 
-    fun tyrePressureId(wheel: String) = "mazda_tyre_pressure_$wheel"
+    /** Tyre positions, in the order the tables report them. */
+    val WHEELS = ExtendedNames.WHEELS
 
-    fun tyreTemperatureId(wheel: String) = "mazda_tyre_temperature_$wheel"
+    fun tyrePressureId(wheel: String) = ExtendedNames.tyrePressure(wheel)
 
-    /** The BP generation of the Mazda 3, which is the one with tyre pressures on `726`. */
-    val BP_YEARS = 2019..2030
-
-    /** The BM/BN generation before it. */
-    val BM_YEARS = 2014..2018
-
-    private const val CELSIUS = "°C"
-    private const val KPA = "kPa"
-    private const val BAR = "bar"
-
-    /** `0xFFFF` in the oil pressure DID is the sensor saying it has nothing, not 65 535 kPa. */
-    private const val INVALID_WORD = 0xFFFF
-
-    private const val OIL_TEMPERATURE_DIVISOR = 100.0
-    private const val TEMPERATURE_OFFSET = 40.0
+    fun tyreTemperatureId(wheel: String) = ExtendedNames.tyreTemperature(wheel)
 
     /**
-     * The transmission temperature divisor.
+     * The deviation of one cylinder's injected quantity from the mean, by cylinder number.
      *
-     * Published lists disagree between this and 16, which would put a cold gearbox at
-     * 400 °C. The reading is therefore gated to a range a gearbox can actually be in, so a
-     * car that turns out to use the other scaling shows nothing rather than something
-     * alarming and wrong.
+     * A family rather than four names, because what the reading *is* does not change
+     * between cylinder one and cylinder four — only which injector it indicts.
      */
-    private const val FLUID_TEMPERATURE_DIVISOR = 80.0
-    private val FLUID_TEMPERATURE_RANGE = -40.0..160.0
+    fun injectionDeviationId(cylinder: Int) = ExtendedNames.injectionDeviation(cylinder)
 
-    /** Tyre pressure counts, both generations, converted to the unit the rest of the app uses. */
-    private const val PSI_PER_COUNT = 0.2
-    private const val BAR_PER_PSI = 0.0689475729
-    private const val BAR_PER_COUNT = 1373.0 / 100_000.0
-
-    /** Tyre temperature is reported with a 50-degree offset rather than the usual 40. */
-    private const val TYRE_TEMPERATURE_OFFSET = 50.0
-
-    /** A tyre pressure asked for oftener than this is a request spent on a number that has not moved. */
-    private const val TYRE_INTERVAL_MILLIS = 15_000L
-
-    private fun word(data: IntArray) = data[0] * 256 + data[1]
-
-    private fun signedWord(data: IntArray): Double {
-        val raw = word(data)
-        return if (raw > 0x7FFF) (raw - 0x10000).toDouble() else raw.toDouble()
-    }
-
-    private fun isMazda(vehicle: ExtendedVehicle) = vehicle.isMazda
-
+    /**
+     * Every entry, marque by marque, in the order the research notes recommend building
+     * them: the largest European parc and the best-captured data first.
+     */
     val entries: List<ExtendedPid> = buildList {
-        add(
-            ExtendedPid(
-                id = OIL_PRESSURE,
-                header = PCM,
-                did = 0x0415,
-                unit = KPA,
-                decimals = 0,
-                bytes = 2,
-                tier = PidTier.Medium,
-                applies = ::isMazda,
-                decode = { if (word(it) == INVALID_WORD) NOT_USED else signedWord(it) },
-            ),
-        )
-        add(
-            ExtendedPid(
-                id = OIL_TEMPERATURE,
-                header = PCM,
-                did = 0x1310,
-                unit = CELSIUS,
-                decimals = 0,
-                bytes = 2,
-                tier = PidTier.Medium,
-                applies = ::isMazda,
-                decode = { word(it) / OIL_TEMPERATURE_DIVISOR - TEMPERATURE_OFFSET },
-            ),
-        )
-        add(
-            ExtendedPid(
-                id = TRANSMISSION_FLUID_TEMPERATURE,
-                header = TCM,
-                did = 0x1E1C,
-                unit = CELSIUS,
-                decimals = 0,
-                bytes = 2,
-                tier = PidTier.Slow,
-                applies = ::isMazda,
-                decode = {
-                    val celsius = word(it) / FLUID_TEMPERATURE_DIVISOR
-                    if (celsius in FLUID_TEMPERATURE_RANGE) celsius else NOT_USED
-                },
-            ),
-        )
-        WHEELS.forEachIndexed { index, wheel ->
-            add(tyrePressure(wheel, BODY_BP, BODY_BP_RESPONSE, 0xD922 + index, BP_YEARS) {
-                it[0] * PSI_PER_COUNT * BAR_PER_PSI
-            })
-            add(tyreTemperature(wheel, BODY_BP, BODY_BP_RESPONSE, 0xD926 + index, BP_YEARS))
-            add(tyrePressure(wheel, BODY_BM, BODY_BM_RESPONSE, 0x2A05 + index, BM_YEARS) {
-                it[0] * BAR_PER_COUNT
-            })
-            add(tyreTemperature(wheel, BODY_BM, BODY_BM_RESPONSE, 0x2A0A + index, BM_YEARS))
-        }
+        addAll(MazdaPids.entries)
+        addAll(VagPids.entries)
+        addAll(ToyotaPids.entries)
+        addAll(FordPids.entries)
+        addAll(HyundaiKiaPids.entries)
+        addAll(RenaultPids.entries)
+        addAll(OpelPids.entries)
+        addAll(NissanPids.entries)
+        addAll(MercedesPids.entries)
     }
-
-    private fun tyrePressure(
-        wheel: String,
-        header: String,
-        response: String,
-        did: Int,
-        years: IntRange,
-        decode: (IntArray) -> Double,
-    ) = ExtendedPid(
-        id = tyrePressureId(wheel),
-        header = header,
-        receiveHeader = response,
-        did = did,
-        unit = BAR,
-        decimals = 2,
-        bytes = 1,
-        tier = PidTier.Slow,
-        minIntervalMillis = TYRE_INTERVAL_MILLIS,
-        applies = { it.isMazda && it.builtIn(years) },
-        decode = decode,
-    )
-
-    private fun tyreTemperature(
-        wheel: String,
-        header: String,
-        response: String,
-        did: Int,
-        years: IntRange,
-    ) = ExtendedPid(
-        id = tyreTemperatureId(wheel),
-        header = header,
-        receiveHeader = response,
-        did = did,
-        unit = CELSIUS,
-        decimals = 0,
-        bytes = 1,
-        tier = PidTier.Slow,
-        minIntervalMillis = TYRE_INTERVAL_MILLIS,
-        applies = { it.isMazda && it.builtIn(years) },
-        decode = { it[0] - TYRE_TEMPERATURE_OFFSET },
-    )
 
     /**
      * The parameters worth probing on [vehicle].

@@ -23,7 +23,6 @@ import com.miskibin.obd2dashboard.data.TripRecorder
 import com.miskibin.obd2dashboard.data.TripRepository
 import com.miskibin.obd2dashboard.data.VinDecoder
 import com.miskibin.obd2dashboard.obd.ExtendedProbe
-import com.miskibin.obd2dashboard.obd.FuelType
 import com.miskibin.obd2dashboard.service.AlertMonitor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -135,7 +134,11 @@ object ObdHolder {
                 preferences.vehicles(SessionKind.Real),
                 preferences.vehicles(SessionKind.Demo),
             ) { kind, vin, real, demo ->
-                Garage.find(if (kind.demo) demo else real, vin)?.fuel ?: FuelType.Default
+                // Passed on unfilled rather than defaulted here: the consumption maths falls
+                // back to petrol on its own, and the extended table needs to be able to tell
+                // "the driver said petrol" from "the driver has not said", because it only
+                // asks a car about its particulate filter when it has been told there is one.
+                Garage.find(if (kind.demo) demo else real, vin)?.fuel
             }.collect(connection::setFuelType)
         }
         alerts.start()
