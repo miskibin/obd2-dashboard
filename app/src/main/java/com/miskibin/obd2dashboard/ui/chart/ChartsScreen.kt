@@ -109,6 +109,7 @@ fun ChartsScreen(
     vehicleLabel: String,
     chartMetrics: List<MetricId>,
     supportedPids: Set<Int>,
+    supportedExtended: Set<String>,
     snapshot: VehicleSnapshot,
     history: MetricHistory,
     historyRevision: Long,
@@ -154,12 +155,13 @@ fun ChartsScreen(
     val drawn = remember(series) { series.filter { it.samples.isNotEmpty() } }
     // And when the car has published its supported list, a parameter missing from it is
     // never going to arrive, which the legend says rather than leaving a row waiting.
-    val unavailable = remember(plotted, supportedPids) {
+    val unavailable = remember(plotted, supportedPids, supportedExtended) {
         if (supportedPids.isEmpty()) {
             emptySet()
         } else {
-            plotted.filter { Metrics[it]?.isAvailable(supportedPids, supportKnown = true) == false }
-                .toSet()
+            plotted.filter {
+                Metrics[it]?.isAvailable(supportedPids, supportedExtended, supportKnown = true) == false
+            }.toSet()
         }
     }
     val hasData = drawn.isNotEmpty()
@@ -263,6 +265,7 @@ fun ChartsScreen(
         ParameterSheet(
             selected = chartMetrics,
             supportedPids = supportedPids,
+            supportedExtended = supportedExtended,
             maxSeries = maxSeries,
             onToggle = onToggleMetric,
             onDismiss = { picking = false },
@@ -532,12 +535,6 @@ private fun sampleRateOf(series: List<ChartSeries>, window: ChartWindow): Int {
     if (densest < 2) return 0
     val seconds = window.millis / 1_000.0
     return (densest / seconds).toInt()
-}
-
-private fun ChartMode.labelRes(): Int = when (this) {
-    ChartMode.Bands -> R.string.chart_mode_bands
-    ChartMode.Relative -> R.string.chart_mode_relative
-    ChartMode.Absolute -> R.string.chart_mode_absolute
 }
 
 /** `m:ss` up to an hour, then `h:mm:ss`. */

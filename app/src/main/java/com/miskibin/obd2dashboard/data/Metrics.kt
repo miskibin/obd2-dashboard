@@ -3,6 +3,7 @@ package com.miskibin.obd2dashboard.data
 import androidx.annotation.StringRes
 import com.miskibin.obd2dashboard.R
 import com.miskibin.obd2dashboard.obd.DerivedMetrics
+import com.miskibin.obd2dashboard.obd.ExtendedPids
 import com.miskibin.obd2dashboard.obd.Pids
 import com.miskibin.obd2dashboard.obd.VehicleSnapshot
 import com.miskibin.obd2dashboard.obd.keyPid
@@ -44,6 +45,17 @@ sealed interface MetricId {
         override val storageKey: String get() = DERIVED_PREFIX + key
     }
 
+    /**
+     * A manufacturer-specific reading, keyed by [com.miskibin.obd2dashboard.obd.ExtendedPid.id].
+     *
+     * Identified by name rather than by number because the number is not the identity: two
+     * generations of the same car report tyre pressure from different modules at different
+     * identifiers, and to everything above this they are the same reading.
+     */
+    data class Extended(val id: String) : MetricId {
+        override val storageKey: String get() = EXTENDED_PREFIX + id
+    }
+
     /** Adapter-reported battery voltage (`ATRV`), which is not a PID. */
     data object Battery : MetricId {
         override val storageKey: String get() = BATTERY_KEY
@@ -52,6 +64,7 @@ sealed interface MetricId {
     companion object {
         private const val PID_PREFIX = "pid:"
         private const val DERIVED_PREFIX = "derived:"
+        private const val EXTENDED_PREFIX = "ext:"
         private const val BATTERY_KEY = "battery"
 
         fun parse(raw: String): MetricId? = when {
@@ -61,6 +74,9 @@ sealed interface MetricId {
 
             raw.startsWith(DERIVED_PREFIX) ->
                 raw.removePrefix(DERIVED_PREFIX).takeIf(String::isNotEmpty)?.let(::Derived)
+
+            raw.startsWith(EXTENDED_PREFIX) ->
+                raw.removePrefix(EXTENDED_PREFIX).takeIf(String::isNotEmpty)?.let(::Extended)
 
             else -> null
         }
@@ -75,11 +91,17 @@ sealed interface MetricId {
  * who has never seen the acronym before. "Air flow (MAF) 22 g/s" tells a mechanic
  * something and an owner nothing; "how much air is going in" is the same reading with the
  * jargon paid for.
+ *
+ * [descriptionRes] is the paragraph behind that line, for the driver who tapped the tile
+ * because the subtitle made them curious: what the sensor physically measures, why it is
+ * worth looking at, and what a typical or a worrying value looks like. The hint has to fit
+ * under a name on a tile, so it can only ever gesture at the answer; this is the answer.
  */
 data class Metric(
     val id: MetricId,
     @param:StringRes val nameRes: Int,
     @param:StringRes val hintRes: Int,
+    @param:StringRes val descriptionRes: Int,
     val unit: String,
     val decimals: Int,
     /**
@@ -179,6 +201,46 @@ object Metrics {
         (0x14..0x1B).map { sensorKey(it, 0) }.toSet() +
             (0x24..0x2B).map { sensorKey(it, 1) }.toSet()
 
+    /**
+     * The id prefixes that mark a tyre reading, which the four wheels share a paragraph on.
+     *
+     * Declared up here with [O2_VOLTAGE_KEYS] and for the same reason: [catalog] reads them
+     * while it is being built, and a property of an `object` initialised further down is
+     * still null at that point.
+     */
+    private val TYRE_PRESSURE_PREFIX = ExtendedPids.tyrePressureId("")
+    private val TYRE_TEMPERATURE_PREFIX = ExtendedPids.tyreTemperatureId("")
+
+    /** The four injector corrections, which share a subtitle and a paragraph. */
+    private val INJECTION_DEVIATION_PREFIX = ExtendedPids.injectionDeviationId(0).dropLast(1)
+
+    /** The manufacturer-specific readings that are a temperature, whatever they are of. */
+    private val EXTENDED_TEMPERATURES = setOf(
+        ExtendedPids.OIL_TEMPERATURE,
+        ExtendedPids.TRANSMISSION_FLUID_TEMPERATURE,
+        ExtendedPids.CHARGE_AIR_TEMPERATURE,
+        ExtendedPids.CYLINDER_HEAD_TEMPERATURE,
+        ExtendedPids.DPF_INLET_TEMPERATURE,
+        ExtendedPids.DPF_OUTLET_TEMPERATURE,
+        ExtendedPids.INVERTER_TEMPERATURE,
+        ExtendedPids.BATTERY_TEMPERATURE,
+    )
+
+    /** The ones that describe the vehicle rather than its engine: batteries, distance. */
+    private val EXTENDED_VEHICLE = setOf(
+        ExtendedPids.ODOMETER,
+        ExtendedPids.BATTERY_SOC,
+        ExtendedPids.BATTERY_HEALTH,
+        ExtendedPids.BATTERY_VOLTAGE,
+        ExtendedPids.BATTERY_CURRENT,
+        ExtendedPids.BATTERY_RESISTANCE,
+        ExtendedPids.HV_SOC,
+        ExtendedPids.HV_HEALTH,
+        ExtendedPids.HV_VOLTAGE,
+        ExtendedPids.HV_CURRENT,
+        ExtendedPids.HV_ENERGY,
+    )
+
     val Rpm = MetricId.Sensor(Pids.ENGINE_RPM)
     val Speed = MetricId.Sensor(Pids.VEHICLE_SPEED)
     val CoolantTemp = MetricId.Sensor(Pids.COOLANT_TEMP)
@@ -208,6 +270,7 @@ object Metrics {
                         id = MetricId.Sensor(key),
                         nameRes = nameRes,
                         hintRes = hintOf(pid.id, channel.index),
+                        descriptionRes = descriptionOf(pid.id, channel.index),
                         unit = channel.unit,
                         decimals = decimalsFor(key, channel.unit),
                         nameArgs = args,
@@ -220,6 +283,7 @@ object Metrics {
                 MetricId.Derived(DerivedMetrics.Boost.key),
                 R.string.metric_boost,
                 R.string.metric_hint_boost,
+                R.string.metric_desc_boost,
                 "kPa",
                 0,
             ),
@@ -229,6 +293,7 @@ object Metrics {
                 MetricId.Derived(DerivedMetrics.FuelRate.key),
                 R.string.metric_fuel_rate,
                 R.string.metric_hint_fuel_rate,
+                R.string.metric_desc_fuel_rate,
                 "L/h",
                 1,
             ),
@@ -238,6 +303,7 @@ object Metrics {
                 MetricId.Derived(DerivedMetrics.FuelPer100Km.key),
                 R.string.metric_fuel_per_100km,
                 R.string.metric_hint_fuel_per_100km,
+                R.string.metric_desc_fuel_per_100km,
                 "L/100km",
                 1,
             ),
@@ -247,10 +313,27 @@ object Metrics {
                 MetricId.Battery,
                 R.string.metric_battery,
                 R.string.metric_hint_battery,
+                R.string.metric_desc_battery,
                 "V",
                 1,
             ),
         )
+        // The manufacturer-specific readings sit in the same catalogue as everything else,
+        // so a tile, a chart line and a recording column reach them by the ordinary route.
+        // They are only ever *offered* on a car whose probe answered for them; see
+        // Metric.isAvailable.
+        ExtendedPids.metrics.forEach { pid ->
+            add(
+                Metric(
+                    id = MetricId.Extended(pid.id),
+                    nameRes = extendedNameRes(pid.id),
+                    hintRes = extendedHintRes(pid.id),
+                    descriptionRes = extendedDescriptionRes(pid.id),
+                    unit = pid.unit,
+                    decimals = pid.decimals,
+                ),
+            )
+        }
     }
 
     private val byId: Map<MetricId, Metric> = catalog.associateBy(Metric::id)
@@ -269,7 +352,12 @@ object Metrics {
     val normalBands: Map<MetricId, NormalBand> = mapOf(
         CoolantTemp to NormalBand(82.0, 98.0),
         OilTemp to NormalBand(80.0, 110.0),
-        Battery to NormalBand(13.8, 14.4),
+        // ATRV is the voltage at the OBD socket, which is the resting battery with the
+        // engine off and the charging system with it running. One band has to cover both,
+        // or every key-on reading would be tinted for a battery that is perfectly healthy;
+        // a charging system that has actually stopped charging is the engine-running alert
+        // rule's job, not this band's.
+        Battery to NormalBand(12.2, 14.8),
         MetricId.Sensor(Pids.SHORT_FUEL_TRIM_1) to NormalBand(-10.0, 10.0),
         MetricId.Sensor(Pids.LONG_FUEL_TRIM_1) to NormalBand(-10.0, 10.0),
     )
@@ -316,6 +404,18 @@ object Metrics {
         is MetricId.Derived -> when (id.key) {
             DerivedMetrics.Boost.key -> MetricGroup.Engine
             else -> MetricGroup.Vehicle
+        }
+
+        // Filed by what the number is about rather than by which marque reports it: a
+        // driver looking for a gearbox temperature is looking among temperatures, and it is
+        // no business of theirs that on their car it comes from an identifier and on the
+        // next one from a block read.
+        is MetricId.Extended -> when {
+            id.id in EXTENDED_TEMPERATURES -> MetricGroup.Temperature
+            id.id.startsWith(TYRE_TEMPERATURE_PREFIX) -> MetricGroup.Temperature
+            id.id in EXTENDED_VEHICLE -> MetricGroup.Vehicle
+            id.id.startsWith(TYRE_PRESSURE_PREFIX) -> MetricGroup.Vehicle
+            else -> MetricGroup.Engine
         }
 
         is MetricId.Sensor -> when (id.pid) {
@@ -365,6 +465,18 @@ object Metrics {
      * strings that differ only by a digit.
      */
     private fun nameOf(pid: Int, channel: Int): Pair<Int, List<Int>> = when (pid) {
+        // Two fuel systems, named by their number rather than by two near-identical strings.
+        Pids.FUEL_SYSTEM_STATUS -> R.string.metric_fuel_system to listOf(channel + 1)
+
+        // `0165` packs five unrelated things behind one support byte, so each channel is a
+        // metric in its own right rather than a numbered member of a family.
+        Pids.AUXILIARY_IO -> auxiliaryNameRes(channel) to emptyList()
+
+        Pids.FUEL_RATE_MASS -> {
+            val res = if (channel == 0) R.string.metric_pid_9d else R.string.metric_pid_9d_vehicle
+            res to emptyList()
+        }
+
         in 0x14..0x1B -> {
             val sensor = pid - 0x14 + 1
             val res = if (channel == 0) R.string.metric_o2_voltage else R.string.metric_o2_trim
@@ -409,11 +521,19 @@ object Metrics {
      */
     @StringRes
     private fun hintOf(pid: Int, channel: Int): Int = when (pid) {
+        Pids.FUEL_SYSTEM_STATUS -> R.string.metric_hint_pid_03
+        Pids.AUXILIARY_IO -> auxiliaryHintRes(channel)
+        Pids.FUEL_RATE_MASS ->
+            if (channel == 0) R.string.metric_hint_pid_9d else R.string.metric_hint_pid_9d_vehicle
+
         in 0x14..0x1B ->
             if (channel == 0) R.string.metric_hint_o2_voltage else R.string.metric_hint_o2_trim
 
+        // The second channel of a wide-range sensor is the probe's own signal voltage, not
+        // the 0.1–0.9 V switch a narrow-band sensor makes, so it gets its own subtitle.
         in 0x24..0x2B ->
-            if (channel == 0) R.string.metric_hint_o2_lambda else R.string.metric_hint_o2_voltage
+            if (channel == 0) R.string.metric_hint_o2_lambda
+            else R.string.metric_hint_o2_wide_voltage
 
         in 0x34..0x3B ->
             if (channel == 0) R.string.metric_hint_o2_lambda else R.string.metric_hint_o2_current
@@ -430,6 +550,255 @@ object Metrics {
         0x78, 0x79 -> R.string.metric_hint_exhaust_gas_temp
         else -> hintResFor(pid)
     }
+
+    /**
+     * The paragraph explaining one channel; see [Metric.descriptionRes].
+     *
+     * Families share one description rather than getting one per sensor: what an oxygen
+     * sensor is does not change between the second one and the sixth, and the channel's own
+     * nuance — which bank it sits on, that a wide-range probe's second channel is a signal
+     * voltage and not the narrow-band switch — is written into the text instead. Splitting
+     * it per sensor would be dozens of paragraphs that differ by a digit, in every language.
+     */
+    @StringRes
+    private fun descriptionOf(pid: Int, channel: Int): Int = when (pid) {
+        Pids.FUEL_SYSTEM_STATUS -> R.string.metric_desc_pid_03
+        Pids.AUXILIARY_IO -> auxiliaryDescriptionRes(channel)
+        // Both channels are a fuel flow by mass; what differs is whose, which the two
+        // paragraphs say. Sharing one would leave a driver wondering why the car reports
+        // the same number twice — which on most cars it does, and for a reason.
+        Pids.FUEL_RATE_MASS ->
+            if (channel == 0) R.string.metric_desc_pid_9d else R.string.metric_desc_pid_9d_vehicle
+
+        in 0x14..0x1B ->
+            if (channel == 0) R.string.metric_desc_o2_voltage else R.string.metric_desc_o2_trim
+
+        in 0x24..0x2B ->
+            if (channel == 0) R.string.metric_desc_o2_lambda
+            else R.string.metric_desc_o2_wide_voltage
+
+        in 0x34..0x3B ->
+            if (channel == 0) R.string.metric_desc_o2_lambda else R.string.metric_desc_o2_current
+
+        0x55, 0x57 -> R.string.metric_desc_secondary_trim_short
+        0x56, 0x58 -> R.string.metric_desc_secondary_trim_long
+        0x66 -> R.string.metric_desc_maf_sensor
+        0x67 -> R.string.metric_desc_ect_sensor
+        0x68 -> R.string.metric_desc_iat_sensor
+        0x6B -> R.string.metric_desc_egr_temp
+        0x73 -> R.string.metric_desc_exhaust_pressure
+        0x74 -> R.string.metric_desc_turbo_speed
+        0x77 -> R.string.metric_desc_charge_air_temp
+        0x78, 0x79 -> R.string.metric_desc_exhaust_gas_temp
+        else -> descriptionResFor(pid)
+    }
+
+    /**
+     * The five channels of `0165`, which share a PID and nothing else.
+     *
+     * Written out per channel rather than derived, because the recommended gear is a shift
+     * indicator, the glow plug lamp is a diesel warning light and the power take-off is
+     * fitted to a van — three unrelated things that happen to be bit-encoded into one
+     * two-byte answer.
+     */
+    @StringRes
+    private fun auxiliaryNameRes(channel: Int): Int = when (channel) {
+        AUX_RECOMMENDED_GEAR -> R.string.metric_pid_65_gear
+        AUX_GLOW_PLUG -> R.string.metric_pid_65_glow_plug
+        AUX_MANUAL_NEUTRAL -> R.string.metric_pid_65_manual_neutral
+        AUX_AUTO_NEUTRAL -> R.string.metric_pid_65_auto_neutral
+        else -> R.string.metric_pid_65_pto
+    }
+
+    @StringRes
+    private fun auxiliaryHintRes(channel: Int): Int = when (channel) {
+        AUX_RECOMMENDED_GEAR -> R.string.metric_hint_pid_65_gear
+        AUX_GLOW_PLUG -> R.string.metric_hint_pid_65_glow_plug
+        AUX_MANUAL_NEUTRAL, AUX_AUTO_NEUTRAL -> R.string.metric_hint_pid_65_neutral
+        else -> R.string.metric_hint_pid_65_pto
+    }
+
+    @StringRes
+    private fun auxiliaryDescriptionRes(channel: Int): Int = when (channel) {
+        AUX_RECOMMENDED_GEAR -> R.string.metric_desc_pid_65_gear
+        AUX_GLOW_PLUG -> R.string.metric_desc_pid_65_glow_plug
+        AUX_MANUAL_NEUTRAL, AUX_AUTO_NEUTRAL -> R.string.metric_desc_pid_65_neutral
+        else -> R.string.metric_desc_pid_65_pto
+    }
+
+    private const val AUX_RECOMMENDED_GEAR = 0
+    private const val AUX_GLOW_PLUG = 1
+    private const val AUX_MANUAL_NEUTRAL = 2
+    private const val AUX_AUTO_NEUTRAL = 3
+
+    /**
+     * The name of one manufacturer-specific reading.
+     *
+     * Each tyre gets a name of its own — "front left" is not a number that could be
+     * substituted into a template — while the sentence explaining what a tyre pressure is
+     * is written once and shared by all four, the same way the oxygen sensor family shares
+     * one paragraph.
+     */
+    @StringRes
+    private fun extendedNameRes(id: String): Int = when (id) {
+        ExtendedPids.OIL_PRESSURE -> R.string.metric_ext_oil_pressure
+        ExtendedPids.OIL_TEMPERATURE -> R.string.metric_ext_oil_temperature
+        ExtendedPids.OIL_LEVEL -> R.string.metric_ext_oil_level
+        ExtendedPids.TRANSMISSION_FLUID_TEMPERATURE -> R.string.metric_ext_atf_temperature
+        ExtendedPids.BOOST_PRESSURE -> R.string.metric_ext_boost_pressure
+        ExtendedPids.CHARGE_AIR_TEMPERATURE -> R.string.metric_ext_charge_air_temperature
+        ExtendedPids.CYLINDER_HEAD_TEMPERATURE -> R.string.metric_ext_cylinder_head_temperature
+        ExtendedPids.WASTEGATE_DUTY -> R.string.metric_ext_wastegate_duty
+        ExtendedPids.ENGINE_TORQUE -> R.string.metric_ext_engine_torque
+        ExtendedPids.ODOMETER -> R.string.metric_ext_odometer
+        ExtendedPids.ALTERNATOR_POWER -> R.string.metric_ext_alternator_power
+        ExtendedPids.AC_PRESSURE -> R.string.metric_ext_ac_pressure
+        ExtendedPids.EGR_POSITION -> R.string.metric_ext_egr_position
+        ExtendedPids.TURBO_VANE_POSITION -> R.string.metric_ext_turbo_vane_position
+        ExtendedPids.BATTERY_SOC -> R.string.metric_ext_battery_soc
+        ExtendedPids.BATTERY_HEALTH -> R.string.metric_ext_battery_health
+        ExtendedPids.BATTERY_TEMPERATURE -> R.string.metric_ext_battery_temperature
+        ExtendedPids.BATTERY_VOLTAGE -> R.string.metric_ext_battery_voltage
+        ExtendedPids.BATTERY_CURRENT -> R.string.metric_ext_battery_current
+        ExtendedPids.BATTERY_RESISTANCE -> R.string.metric_ext_battery_resistance
+        ExtendedPids.DPF_SOOT_MEASURED -> R.string.metric_ext_dpf_soot_measured
+        ExtendedPids.DPF_SOOT_CALCULATED -> R.string.metric_ext_dpf_soot_calculated
+        ExtendedPids.DPF_ASH_MASS -> R.string.metric_ext_dpf_ash_mass
+        ExtendedPids.DPF_DISTANCE_SINCE_REGEN -> R.string.metric_ext_dpf_distance_since_regen
+        ExtendedPids.DPF_REGEN_INTERRUPTIONS -> R.string.metric_ext_dpf_regen_interruptions
+        ExtendedPids.DPF_INLET_TEMPERATURE -> R.string.metric_ext_dpf_inlet_temperature
+        ExtendedPids.DPF_OUTLET_TEMPERATURE -> R.string.metric_ext_dpf_outlet_temperature
+        ExtendedPids.DPF_PRESSURE_DIFFERENCE -> R.string.metric_ext_dpf_pressure_difference
+        ExtendedPids.HV_SOC -> R.string.metric_ext_hv_soc
+        ExtendedPids.HV_HEALTH -> R.string.metric_ext_hv_health
+        ExtendedPids.HV_VOLTAGE -> R.string.metric_ext_hv_voltage
+        ExtendedPids.HV_CURRENT -> R.string.metric_ext_hv_current
+        ExtendedPids.HV_ENERGY -> R.string.metric_ext_hv_energy
+        ExtendedPids.INVERTER_TEMPERATURE -> R.string.metric_ext_inverter_temperature
+        ExtendedPids.tyrePressureId(FRONT_LEFT) -> R.string.metric_ext_tyre_pressure_fl
+        ExtendedPids.tyrePressureId(FRONT_RIGHT) -> R.string.metric_ext_tyre_pressure_fr
+        ExtendedPids.tyrePressureId(REAR_LEFT) -> R.string.metric_ext_tyre_pressure_rl
+        ExtendedPids.tyrePressureId(REAR_RIGHT) -> R.string.metric_ext_tyre_pressure_rr
+        ExtendedPids.tyreTemperatureId(FRONT_LEFT) -> R.string.metric_ext_tyre_temperature_fl
+        ExtendedPids.tyreTemperatureId(FRONT_RIGHT) -> R.string.metric_ext_tyre_temperature_fr
+        ExtendedPids.tyreTemperatureId(REAR_LEFT) -> R.string.metric_ext_tyre_temperature_rl
+        ExtendedPids.tyreTemperatureId(REAR_RIGHT) -> R.string.metric_ext_tyre_temperature_rr
+        ExtendedPids.injectionDeviationId(1) -> R.string.metric_ext_injection_deviation_1
+        ExtendedPids.injectionDeviationId(2) -> R.string.metric_ext_injection_deviation_2
+        ExtendedPids.injectionDeviationId(3) -> R.string.metric_ext_injection_deviation_3
+        ExtendedPids.injectionDeviationId(4) -> R.string.metric_ext_injection_deviation_4
+        else -> R.string.metric_unknown
+    }
+
+    /**
+     * The plain-language subtitle for one manufacturer-specific reading.
+     *
+     * The families — four tyres, four injectors — share one line, the same way the oxygen
+     * sensors do: what a tyre pressure *is* does not change between the front left and the
+     * rear right, and writing it four times would be four strings that differ by a corner,
+     * in every language the app ships.
+     */
+    @StringRes
+    private fun extendedHintRes(id: String): Int = when {
+        id.startsWith(TYRE_PRESSURE_PREFIX) -> R.string.metric_hint_ext_tyre_pressure
+        id.startsWith(TYRE_TEMPERATURE_PREFIX) -> R.string.metric_hint_ext_tyre_temperature
+        id.startsWith(INJECTION_DEVIATION_PREFIX) -> R.string.metric_hint_ext_injection_deviation
+        else -> when (id) {
+            ExtendedPids.OIL_PRESSURE -> R.string.metric_hint_ext_oil_pressure
+            ExtendedPids.OIL_TEMPERATURE -> R.string.metric_hint_ext_oil_temperature
+            ExtendedPids.OIL_LEVEL -> R.string.metric_hint_ext_oil_level
+            ExtendedPids.TRANSMISSION_FLUID_TEMPERATURE -> R.string.metric_hint_ext_atf_temperature
+            ExtendedPids.BOOST_PRESSURE -> R.string.metric_hint_ext_boost_pressure
+            ExtendedPids.CHARGE_AIR_TEMPERATURE -> R.string.metric_hint_ext_charge_air_temperature
+            ExtendedPids.CYLINDER_HEAD_TEMPERATURE ->
+                R.string.metric_hint_ext_cylinder_head_temperature
+
+            ExtendedPids.WASTEGATE_DUTY -> R.string.metric_hint_ext_wastegate_duty
+            ExtendedPids.ENGINE_TORQUE -> R.string.metric_hint_ext_engine_torque
+            ExtendedPids.ODOMETER -> R.string.metric_hint_ext_odometer
+            ExtendedPids.ALTERNATOR_POWER -> R.string.metric_hint_ext_alternator_power
+            ExtendedPids.AC_PRESSURE -> R.string.metric_hint_ext_ac_pressure
+            ExtendedPids.EGR_POSITION -> R.string.metric_hint_ext_egr_position
+            ExtendedPids.TURBO_VANE_POSITION -> R.string.metric_hint_ext_turbo_vane_position
+            ExtendedPids.BATTERY_SOC -> R.string.metric_hint_ext_battery_soc
+            ExtendedPids.BATTERY_HEALTH -> R.string.metric_hint_ext_battery_health
+            ExtendedPids.BATTERY_TEMPERATURE -> R.string.metric_hint_ext_battery_temperature
+            ExtendedPids.BATTERY_VOLTAGE -> R.string.metric_hint_ext_battery_voltage
+            ExtendedPids.BATTERY_CURRENT -> R.string.metric_hint_ext_battery_current
+            ExtendedPids.BATTERY_RESISTANCE -> R.string.metric_hint_ext_battery_resistance
+            ExtendedPids.DPF_SOOT_MEASURED -> R.string.metric_hint_ext_dpf_soot_measured
+            ExtendedPids.DPF_SOOT_CALCULATED -> R.string.metric_hint_ext_dpf_soot_calculated
+            ExtendedPids.DPF_ASH_MASS -> R.string.metric_hint_ext_dpf_ash_mass
+            ExtendedPids.DPF_DISTANCE_SINCE_REGEN ->
+                R.string.metric_hint_ext_dpf_distance_since_regen
+
+            ExtendedPids.DPF_REGEN_INTERRUPTIONS -> R.string.metric_hint_ext_dpf_regen_interruptions
+            ExtendedPids.DPF_INLET_TEMPERATURE -> R.string.metric_hint_ext_dpf_inlet_temperature
+            ExtendedPids.DPF_OUTLET_TEMPERATURE -> R.string.metric_hint_ext_dpf_outlet_temperature
+            ExtendedPids.DPF_PRESSURE_DIFFERENCE -> R.string.metric_hint_ext_dpf_pressure_difference
+            ExtendedPids.HV_SOC -> R.string.metric_hint_ext_hv_soc
+            ExtendedPids.HV_HEALTH -> R.string.metric_hint_ext_hv_health
+            ExtendedPids.HV_VOLTAGE -> R.string.metric_hint_ext_hv_voltage
+            ExtendedPids.HV_CURRENT -> R.string.metric_hint_ext_hv_current
+            ExtendedPids.HV_ENERGY -> R.string.metric_hint_ext_hv_energy
+            ExtendedPids.INVERTER_TEMPERATURE -> R.string.metric_hint_ext_inverter_temperature
+            else -> R.string.metric_hint_unknown
+        }
+    }
+
+    @StringRes
+    private fun extendedDescriptionRes(id: String): Int = when {
+        id.startsWith(TYRE_PRESSURE_PREFIX) -> R.string.metric_desc_ext_tyre_pressure
+        id.startsWith(TYRE_TEMPERATURE_PREFIX) -> R.string.metric_desc_ext_tyre_temperature
+        id.startsWith(INJECTION_DEVIATION_PREFIX) -> R.string.metric_desc_ext_injection_deviation
+        else -> when (id) {
+            ExtendedPids.OIL_PRESSURE -> R.string.metric_desc_ext_oil_pressure
+            ExtendedPids.OIL_TEMPERATURE -> R.string.metric_desc_ext_oil_temperature
+            ExtendedPids.OIL_LEVEL -> R.string.metric_desc_ext_oil_level
+            ExtendedPids.TRANSMISSION_FLUID_TEMPERATURE -> R.string.metric_desc_ext_atf_temperature
+            ExtendedPids.BOOST_PRESSURE -> R.string.metric_desc_ext_boost_pressure
+            ExtendedPids.CHARGE_AIR_TEMPERATURE -> R.string.metric_desc_ext_charge_air_temperature
+            ExtendedPids.CYLINDER_HEAD_TEMPERATURE ->
+                R.string.metric_desc_ext_cylinder_head_temperature
+
+            ExtendedPids.WASTEGATE_DUTY -> R.string.metric_desc_ext_wastegate_duty
+            ExtendedPids.ENGINE_TORQUE -> R.string.metric_desc_ext_engine_torque
+            ExtendedPids.ODOMETER -> R.string.metric_desc_ext_odometer
+            ExtendedPids.ALTERNATOR_POWER -> R.string.metric_desc_ext_alternator_power
+            ExtendedPids.AC_PRESSURE -> R.string.metric_desc_ext_ac_pressure
+            ExtendedPids.EGR_POSITION -> R.string.metric_desc_ext_egr_position
+            ExtendedPids.TURBO_VANE_POSITION -> R.string.metric_desc_ext_turbo_vane_position
+            ExtendedPids.BATTERY_SOC -> R.string.metric_desc_ext_battery_soc
+            ExtendedPids.BATTERY_HEALTH -> R.string.metric_desc_ext_battery_health
+            ExtendedPids.BATTERY_TEMPERATURE -> R.string.metric_desc_ext_battery_temperature
+            ExtendedPids.BATTERY_VOLTAGE -> R.string.metric_desc_ext_battery_voltage
+            ExtendedPids.BATTERY_CURRENT -> R.string.metric_desc_ext_battery_current
+            ExtendedPids.BATTERY_RESISTANCE -> R.string.metric_desc_ext_battery_resistance
+            ExtendedPids.DPF_SOOT_MEASURED -> R.string.metric_desc_ext_dpf_soot_measured
+            ExtendedPids.DPF_SOOT_CALCULATED -> R.string.metric_desc_ext_dpf_soot_calculated
+            ExtendedPids.DPF_ASH_MASS -> R.string.metric_desc_ext_dpf_ash_mass
+            ExtendedPids.DPF_DISTANCE_SINCE_REGEN ->
+                R.string.metric_desc_ext_dpf_distance_since_regen
+
+            ExtendedPids.DPF_REGEN_INTERRUPTIONS -> R.string.metric_desc_ext_dpf_regen_interruptions
+            ExtendedPids.DPF_INLET_TEMPERATURE -> R.string.metric_desc_ext_dpf_inlet_temperature
+            ExtendedPids.DPF_OUTLET_TEMPERATURE -> R.string.metric_desc_ext_dpf_outlet_temperature
+            ExtendedPids.DPF_PRESSURE_DIFFERENCE -> R.string.metric_desc_ext_dpf_pressure_difference
+            ExtendedPids.HV_SOC -> R.string.metric_desc_ext_hv_soc
+            ExtendedPids.HV_HEALTH -> R.string.metric_desc_ext_hv_health
+            ExtendedPids.HV_VOLTAGE -> R.string.metric_desc_ext_hv_voltage
+            ExtendedPids.HV_CURRENT -> R.string.metric_desc_ext_hv_current
+            ExtendedPids.HV_ENERGY -> R.string.metric_desc_ext_hv_energy
+            ExtendedPids.INVERTER_TEMPERATURE -> R.string.metric_desc_ext_inverter_temperature
+            else -> R.string.metric_desc_unknown
+        }
+    }
+
+
+    private const val FRONT_LEFT = "fl"
+    private const val FRONT_RIGHT = "fr"
+    private const val REAR_LEFT = "rl"
+    private const val REAR_RIGHT = "rr"
 
     /** `0155` and `0156` report banks 1 and 3; `0157` and `0158` report banks 2 and 4. */
     private fun secondaryBank(pid: Int, channel: Int): Int =
@@ -451,6 +820,7 @@ object Metrics {
         0x0F -> R.string.metric_pid_0f
         0x10 -> R.string.metric_pid_10
         0x11 -> R.string.metric_pid_11
+        0x13 -> R.string.metric_pid_13
         0x1F -> R.string.metric_pid_1f
         0x21 -> R.string.metric_pid_21
         0x22 -> R.string.metric_pid_22
@@ -493,6 +863,7 @@ object Metrics {
         0x61 -> R.string.metric_pid_61
         0x62 -> R.string.metric_pid_62
         0x63 -> R.string.metric_pid_63
+        0x8E -> R.string.metric_pid_8e
         0x9E -> R.string.metric_pid_9e
         0xA4 -> R.string.metric_pid_a4
         0xA6 -> R.string.metric_pid_a6
@@ -516,6 +887,7 @@ object Metrics {
         0x0F -> R.string.metric_hint_pid_0f
         0x10 -> R.string.metric_hint_pid_10
         0x11 -> R.string.metric_hint_pid_11
+        0x13 -> R.string.metric_hint_pid_13
         0x1F -> R.string.metric_hint_pid_1f
         0x21 -> R.string.metric_hint_pid_21
         0x22 -> R.string.metric_hint_pid_22
@@ -558,10 +930,78 @@ object Metrics {
         0x61 -> R.string.metric_hint_pid_61
         0x62 -> R.string.metric_hint_pid_62
         0x63 -> R.string.metric_hint_pid_63
+        0x8E -> R.string.metric_hint_pid_8e
         0x9E -> R.string.metric_hint_pid_9e
         0xA4 -> R.string.metric_hint_pid_a4
         0xA6 -> R.string.metric_hint_pid_a6
         else -> R.string.metric_hint_unknown
+    }
+
+    /** The paragraph behind the subtitle; see [Metric.descriptionRes]. */
+    @StringRes
+    private fun descriptionResFor(pid: Int): Int = when (pid) {
+        0x04 -> R.string.metric_desc_pid_04
+        0x05 -> R.string.metric_desc_pid_05
+        0x06 -> R.string.metric_desc_pid_06
+        0x07 -> R.string.metric_desc_pid_07
+        0x08 -> R.string.metric_desc_pid_08
+        0x09 -> R.string.metric_desc_pid_09
+        0x0A -> R.string.metric_desc_pid_0a
+        0x0B -> R.string.metric_desc_pid_0b
+        0x0C -> R.string.metric_desc_pid_0c
+        0x0D -> R.string.metric_desc_pid_0d
+        0x0E -> R.string.metric_desc_pid_0e
+        0x0F -> R.string.metric_desc_pid_0f
+        0x10 -> R.string.metric_desc_pid_10
+        0x11 -> R.string.metric_desc_pid_11
+        0x13 -> R.string.metric_desc_pid_13
+        0x1F -> R.string.metric_desc_pid_1f
+        0x21 -> R.string.metric_desc_pid_21
+        0x22 -> R.string.metric_desc_pid_22
+        0x23 -> R.string.metric_desc_pid_23
+        0x2C -> R.string.metric_desc_pid_2c
+        0x2D -> R.string.metric_desc_pid_2d
+        0x2E -> R.string.metric_desc_pid_2e
+        0x2F -> R.string.metric_desc_pid_2f
+        0x30 -> R.string.metric_desc_pid_30
+        0x31 -> R.string.metric_desc_pid_31
+        0x32 -> R.string.metric_desc_pid_32
+        0x33 -> R.string.metric_desc_pid_33
+        0x3C -> R.string.metric_desc_pid_3c
+        0x3D -> R.string.metric_desc_pid_3d
+        0x3E -> R.string.metric_desc_pid_3e
+        0x3F -> R.string.metric_desc_pid_3f
+        0x42 -> R.string.metric_desc_pid_42
+        0x43 -> R.string.metric_desc_pid_43
+        0x44 -> R.string.metric_desc_pid_44
+        0x45 -> R.string.metric_desc_pid_45
+        0x46 -> R.string.metric_desc_pid_46
+        0x47 -> R.string.metric_desc_pid_47
+        0x48 -> R.string.metric_desc_pid_48
+        0x49 -> R.string.metric_desc_pid_49
+        0x4A -> R.string.metric_desc_pid_4a
+        0x4B -> R.string.metric_desc_pid_4b
+        0x4C -> R.string.metric_desc_pid_4c
+        0x4D -> R.string.metric_desc_pid_4d
+        0x4E -> R.string.metric_desc_pid_4e
+        0x51 -> R.string.metric_desc_pid_51
+        0x52 -> R.string.metric_desc_pid_52
+        0x53 -> R.string.metric_desc_pid_53
+        0x54 -> R.string.metric_desc_pid_54
+        0x59 -> R.string.metric_desc_pid_59
+        0x5A -> R.string.metric_desc_pid_5a
+        0x5B -> R.string.metric_desc_pid_5b
+        0x5C -> R.string.metric_desc_pid_5c
+        0x5D -> R.string.metric_desc_pid_5d
+        0x5E -> R.string.metric_desc_pid_5e
+        0x61 -> R.string.metric_desc_pid_61
+        0x62 -> R.string.metric_desc_pid_62
+        0x63 -> R.string.metric_desc_pid_63
+        0x8E -> R.string.metric_desc_pid_8e
+        0x9E -> R.string.metric_desc_pid_9e
+        0xA4 -> R.string.metric_desc_pid_a4
+        0xA6 -> R.string.metric_desc_pid_a6
+        else -> R.string.metric_desc_unknown
     }
 }
 
@@ -569,12 +1009,17 @@ object Metrics {
 fun VehicleSnapshot.valueOf(id: MetricId): Double? = when (id) {
     is MetricId.Sensor -> readings[id.key]?.value
     is MetricId.Derived -> derived[id.key]
+    is MetricId.Extended -> extended[id.id]?.value
     MetricId.Battery -> batteryVoltage
 }
 
 /** When [id] was last refreshed, used to dim readings that have gone stale. */
 fun VehicleSnapshot.updatedAtOf(id: MetricId): Long = when (id) {
     is MetricId.Sensor -> readings[id.key]?.timestampMillis ?: 0L
+    // An extended parameter is read every few cycles at best, and a tyre pressure at most
+    // once a quarter minute, so the snapshot's own timestamp would say it was fresh long
+    // after it stopped being.
+    is MetricId.Extended -> extended[id.id]?.timestampMillis ?: 0L
     else -> updatedAtMillis
 }
 
@@ -582,5 +1027,6 @@ fun VehicleSnapshot.updatedAtOf(id: MetricId): Long = when (id) {
 fun VehicleSnapshot.presentMetrics(): List<MetricId> = buildList {
     readings.keys.forEach { add(MetricId.Sensor(it)) }
     derived.keys.forEach { add(MetricId.Derived(it)) }
+    extended.keys.forEach { add(MetricId.Extended(it)) }
     if (batteryVoltage != null) add(MetricId.Battery)
 }

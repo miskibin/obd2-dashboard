@@ -29,15 +29,36 @@ class ElmSession(
         transport.incoming().collect { chunks.send(it) }
     }
 
+    /**
+     * Sends [command] and returns what came back before the next `>` prompt.
+     *
+     * An ECU that needs longer than the bus allows answers `7F <service> 78` first and the
+     * real response afterwards, and an ELM327 prints a prompt after each of them. Treating
+     * the first prompt as the end of the exchange would hand the caller a negative response
+     * for a request that in fact succeeded, and leave the real answer in the buffer to be
+     * misread as the reply to whatever is asked next — which is how one slow extended read
+     * desynchronises every reading after it. So a response that is nothing but "pending" is
+     * not an answer: the wait continues, up to [MAX_RESPONSE_PENDING] times, which is the
+     * ceiling ISO 14229 puts on how long an ECU may stall.
+     */
     suspend fun request(
         command: String,
         timeoutMillis: Long = defaultTimeoutMillis,
     ): ElmResponse = mutex.withLock {
         discardStale()
         transport.write(command)
-        val raw = withTimeoutOrNull(timeoutMillis) { readUntilPrompt() }
-            ?: return@withLock ElmResponse.Failure(ElmError.Timeout, buffer.toString())
-        parse(command, raw)
+        var waits = 0
+        var response: ElmResponse
+        do {
+            val raw = withTimeoutOrNull(timeoutMillis) { readUntilPrompt() }
+                ?: return@withLock ElmResponse.Failure(ElmError.Timeout, buffer.toString())
+            response = parse(command, raw)
+        } while (
+            response is ElmResponse.Ok &&
+            waits++ < MAX_RESPONSE_PENDING &&
+            NegativeResponse.isPendingOnly(ObdResponseParser.frames(response.lines))
+        )
+        response
     }
 
     fun close() {
@@ -96,6 +117,13 @@ class ElmSession(
 
         /** A protocol search over all twelve protocols, 5-baud init attempts included. */
         const val PROTOCOL_SEARCH_TIMEOUT_MILLIS = 15_000L
+
+        /**
+         * How many `7F .. 78` stalls one request may absorb before the answer is given up
+         * on. ISO 14229 lets an ECU repeat the code while it works; it does not let it do
+         * so forever, and neither does a dashboard with gauges waiting behind the gate.
+         */
+        const val MAX_RESPONSE_PENDING = 4
 
         private const val PROMPT = ">"
         private val SEARCHING = Regex("SEARCHING\\.*", RegexOption.IGNORE_CASE)

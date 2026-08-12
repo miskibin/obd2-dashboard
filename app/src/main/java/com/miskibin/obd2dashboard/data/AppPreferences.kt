@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.miskibin.obd2dashboard.obd.ExtendedProbe
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -51,6 +52,17 @@ class AppPreferences(context: Context) {
         prefs[KEY_CHART_METRICS]?.let(::decodeMetrics).orEmpty()
     }
 
+    /**
+     * Which parts of the car diagram the driver keeps on it.
+     *
+     * Absent means "never chosen" and gets [CarZone.DEFAULTS]; an empty string means every
+     * zone was ticked off, which is a choice and not a fresh install, and leaves the card
+     * collapsed rather than quietly putting the defaults back.
+     */
+    val carZones: Flow<Set<CarZone>> = store.data.map { prefs ->
+        prefs[KEY_CAR_ZONES]?.let(CarZone::decode) ?: CarZone.DEFAULTS
+    }
+
     val pollingEnabled: Flow<Boolean> = store.data.map { it[KEY_POLLING_ENABLED] ?: true }
 
     /** Where the engine-speed bar turns red, in rpm. */
@@ -86,6 +98,19 @@ class AppPreferences(context: Context) {
     fun vehicles(kind: SessionKind): Flow<List<Vehicle>> =
         store.data.map { Garage.decode(it[vehicleKey(kind)]) }
 
+    /**
+     * What the ECU's own self-tests said, every time this app has looked, per car.
+     *
+     * Mode 06 numbers are only worth anything as a series: one catalyst storage reading is
+     * a number and five of them across a year say whether the converter is on its way out.
+     */
+    fun monitorLog(kind: SessionKind): Flow<List<MonitorSnapshot>> =
+        store.data.map { MonitorLog.decode(it[monitorKey(kind)]) }
+
+    /** Which manufacturer-specific parameters each car has already answered for. */
+    fun extendedSupport(kind: SessionKind): Flow<Map<String, ExtendedProbe>> =
+        store.data.map { ExtendedSupport.decode(it[extendedKey(kind)]) }
+
     suspend fun saveAdapter(address: String, name: String?, classic: Boolean = false) {
         store.edit { prefs ->
             prefs[KEY_ADAPTER_ADDRESS] = address
@@ -108,6 +133,10 @@ class AppPreferences(context: Context) {
 
     suspend fun setChartMetrics(metrics: List<MetricId>) {
         store.edit { it[KEY_CHART_METRICS] = encodeMetrics(metrics) }
+    }
+
+    suspend fun setCarZones(zones: Set<CarZone>) {
+        store.edit { it[KEY_CAR_ZONES] = CarZone.encode(zones) }
     }
 
     suspend fun setPollingEnabled(enabled: Boolean) {
@@ -165,6 +194,33 @@ class AppPreferences(context: Context) {
         }
     }
 
+    /** Stores one reading of the on-board monitors against the car it came from. */
+    suspend fun recordMonitorSnapshot(kind: SessionKind, snapshot: MonitorSnapshot) {
+        if (snapshot.isEmpty || snapshot.vin.isBlank()) return
+        val key = monitorKey(kind)
+        store.edit { prefs -> prefs[key] = MonitorLog.recordInto(prefs[key], snapshot) }
+    }
+
+    /**
+     * Remembers what one probe established, for one car.
+     *
+     * Verdicts that could change are dropped by [ExtendedSupport.remember] rather than
+     * filtered here, so there is one place that decides what "known" means.
+     */
+    suspend fun rememberExtendedProbe(
+        kind: SessionKind,
+        vin: String,
+        id: String,
+        probe: ExtendedProbe,
+    ) {
+        if (!ExtendedSupport.isDurable(probe)) return
+        val key = extendedKey(kind)
+        store.edit { prefs ->
+            val known = ExtendedSupport.decode(prefs[key])
+            prefs[key] = ExtendedSupport.encode(ExtendedSupport.remember(known, vin, id, probe))
+        }
+    }
+
     private companion object {
         fun dtcKey(kind: SessionKind): Preferences.Key<String> =
             stringPreferencesKey(DtcLog.storageKey(kind))
@@ -172,11 +228,18 @@ class AppPreferences(context: Context) {
         fun vehicleKey(kind: SessionKind): Preferences.Key<String> =
             stringPreferencesKey(Garage.storageKey(kind))
 
+        fun monitorKey(kind: SessionKind): Preferences.Key<String> =
+            stringPreferencesKey(MonitorLog.storageKey(kind))
+
+        fun extendedKey(kind: SessionKind): Preferences.Key<String> =
+            stringPreferencesKey(ExtendedSupport.storageKey(kind))
+
         val KEY_ADAPTER_ADDRESS = stringPreferencesKey("adapter_address")
         val KEY_ADAPTER_NAME = stringPreferencesKey("adapter_name")
         val KEY_ADAPTER_CLASSIC = booleanPreferencesKey("adapter_classic")
         val KEY_TILES = stringPreferencesKey("tiles")
         val KEY_CHART_METRICS = stringPreferencesKey("chart_metrics")
+        val KEY_CAR_ZONES = stringPreferencesKey("car_zones")
         val KEY_POLLING_ENABLED = booleanPreferencesKey("polling_enabled")
         val KEY_REDLINE = intPreferencesKey("redline_rpm")
         val KEY_ALERTS = stringPreferencesKey("alert_rules")

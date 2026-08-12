@@ -349,6 +349,10 @@ private fun AppNavHost(
             val gear by viewModel.gear.collectAsStateWithLifecycle()
             val imperial by viewModel.imperialUnits.collectAsStateWithLifecycle()
             val recording by viewModel.recording.collectAsStateWithLifecycle()
+            val carZones by viewModel.carZones.collectAsStateWithLifecycle()
+            val supported by viewModel.supportedPids.collectAsStateWithLifecycle()
+            val supportedExtended by viewModel.supportedExtended.collectAsStateWithLifecycle()
+            val misfire by viewModel.misfire.collectAsStateWithLifecycle()
             DashboardScreen(
                 vehicleName = savedAdapter?.name?.takeIf(String::isNotBlank)
                     ?: stringResource(R.string.dashboard_vehicle_unknown),
@@ -364,12 +368,20 @@ private fun AppNavHost(
                 imperial = imperial,
                 alertRules = alertRules,
                 recording = recording,
+                carZones = carZones,
+                supportedPids = supported,
+                supportedExtended = supportedExtended,
+                misfire = misfire,
                 onMove = viewModel::moveTile,
                 onRemove = viewModel::removeTile,
                 onAddTile = { navController.navigate(Routes.PICKER) },
                 onToggleUnits = viewModel::toggleUnits,
+                onToggleCarZone = viewModel::toggleCarZone,
                 onOpenSettings = { navController.navigate(Routes.SETTINGS) },
                 onOpenCharts = { navController.switchTo(Routes.CHARTS) },
+                // The misfire count has no sheet of its own — it is the ECU's own
+                // self-test result — so its chip goes where those are read.
+                onOpenMonitors = { navController.switchTo(Routes.DIAGNOSTICS) },
                 onOpenConnection = { navController.navigate(Routes.CONNECT) },
                 onConnect = { navController.navigate(Routes.CONNECT) },
             )
@@ -379,6 +391,7 @@ private fun AppNavHost(
             val chartMetrics by viewModel.chartMetrics.collectAsStateWithLifecycle()
             val recording by viewModel.recording.collectAsStateWithLifecycle()
             val supported by viewModel.supportedPids.collectAsStateWithLifecycle()
+            val supportedExtended by viewModel.supportedExtended.collectAsStateWithLifecycle()
             val vin by viewModel.vin.collectAsStateWithLifecycle()
             val savedAdapter by viewModel.savedAdapter.collectAsStateWithLifecycle()
             val vehicle by viewModel.vehicle.collectAsStateWithLifecycle()
@@ -387,6 +400,7 @@ private fun AppNavHost(
                 vehicleLabel = vehicleLabel(vehicle?.label(facts), vin, connectionState, savedAdapter),
                 chartMetrics = chartMetrics,
                 supportedPids = supported,
+                supportedExtended = supportedExtended,
                 snapshot = snapshot,
                 history = viewModel.history,
                 historyRevision = historyRevision,
@@ -443,11 +457,15 @@ private fun AppNavHost(
             val operation by viewModel.dtcOperation.collectAsStateWithLifecycle()
             val freezeFrame by viewModel.freezeFrame.collectAsStateWithLifecycle()
             val contexts by viewModel.faultContexts.collectAsStateWithLifecycle()
+            val monitors by viewModel.monitors.collectAsStateWithLifecycle()
+            val performance by viewModel.performance.collectAsStateWithLifecycle()
             val language = Locale.current.language
 
             DiagnosticsScreen(
                 diagnostics = diagnostics,
                 freezeFrame = freezeFrame,
+                monitors = monitors,
+                performance = performance,
                 operation = operation,
                 connected = connectionState is ConnectionState.Connected,
                 recordedCodes = contexts.filterValues { it.hasTimeline }.keys,
@@ -586,9 +604,11 @@ private fun AppNavHost(
         composable(Routes.PICKER) {
             val supported by viewModel.supportedPids.collectAsStateWithLifecycle()
             val undecoded by viewModel.undecodedPids.collectAsStateWithLifecycle()
+            val supportedExtended by viewModel.supportedExtended.collectAsStateWithLifecycle()
             PidPickerScreen(
                 selected = tiles,
                 supportedPids = supported,
+                supportedExtended = supportedExtended,
                 undecodedPids = undecoded,
                 onToggle = { id ->
                     if (id in tiles) viewModel.removeTile(id) else viewModel.addTile(id)

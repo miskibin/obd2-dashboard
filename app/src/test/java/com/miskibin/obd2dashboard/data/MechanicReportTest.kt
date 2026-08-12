@@ -71,7 +71,7 @@ class MechanicReportTest {
         assertTrue(report.startsWith("OBD2 Dashboard 0.1.0\nVehicle report\n"))
         assertTrue(hasField(report, "Generated", "2025-08-11 12:00"))
         assertTrue(hasField(report, "VIN", "WVWZZZ1KZ8W123456"))
-        assertTrue(hasField(report, "Battery", "14.2 V"))
+        assertTrue(hasField(report, "Voltage (OBD)", "14.2 V"))
         assertTrue(hasField(report, "Check engine", "ON (2 stored)"))
     }
 
@@ -161,7 +161,7 @@ class MechanicReportTest {
         )
 
         assertTrue(hasField(report, "VIN", "not read"))
-        assertTrue(hasField(report, "Battery", "not read"))
+        assertTrue(hasField(report, "Voltage (OBD)", "not read"))
         assertTrue(hasField(report, "Check engine", "not read"))
         assertTrue(report.contains("READINESS MONITORS\n  not read"))
     }

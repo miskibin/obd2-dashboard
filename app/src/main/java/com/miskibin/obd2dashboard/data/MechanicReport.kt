@@ -177,7 +177,8 @@ object MechanicReport {
     private val TITLE = LocalizedText("Vehicle report", "Raport z pojazdu")
     private val GENERATED = LocalizedText("Generated", "Wygenerowano")
     private val VIN = LocalizedText("VIN", "VIN")
-    private val BATTERY = LocalizedText("Battery", "Akumulator")
+    /** `ATRV`: the adapter's reading at the socket, not a battery terminal measurement. */
+    private val BATTERY = LocalizedText("Voltage (OBD)", "Napięcie (OBD)")
     private val LAMP = LocalizedText("Check engine", "Kontrolka silnika")
     private val LAMP_ON = LocalizedText("ON (%1\$d stored)", "ŚWIECI (zapisanych: %1\$d)")
     private val LAMP_OFF = LocalizedText("off (%1\$d stored)", "nie świeci (zapisanych: %1\$d)")
@@ -212,7 +213,7 @@ object MechanicReport {
     private val FREEZE_FRAME_LABELS: Map<Int, LocalizedText> = mapOf(
         Pids.ENGINE_RPM to LocalizedText("Engine RPM", "Obroty silnika"),
         Pids.VEHICLE_SPEED to LocalizedText("Vehicle speed", "Prędkość"),
-        Pids.ENGINE_LOAD to LocalizedText("Engine load", "Obciążenie silnika"),
+        Pids.ENGINE_LOAD to LocalizedText("Calculated load", "Obliczone obciążenie"),
         Pids.COOLANT_TEMP to LocalizedText("Coolant temperature", "Temperatura płynu"),
         Pids.INTAKE_MAP to LocalizedText("Manifold pressure", "Ciśnienie w kolektorze"),
         Pids.INTAKE_AIR_TEMP to LocalizedText("Intake air temperature", "Temperatura dolotu"),

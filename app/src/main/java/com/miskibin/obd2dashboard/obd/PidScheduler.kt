@@ -22,10 +22,19 @@ data class Reading(
     val timestampMillis: Long,
 )
 
+/** One manufacturer-specific reading, keyed by [ExtendedPid.id] rather than by PID. */
+data class ExtendedReading(
+    val id: String,
+    val unit: String,
+    val value: Double,
+    val timestampMillis: Long,
+)
+
 /** Everything the dashboard renders, replaced wholesale on every update. */
 data class VehicleSnapshot(
     val readings: Map<Int, Reading> = emptyMap(),
     val derived: Map<String, Double> = emptyMap(),
+    val extended: Map<String, ExtendedReading> = emptyMap(),
     val batteryVoltage: Double? = null,
     val cycle: Long = 0,
     val updatedAtMillis: Long = 0,
@@ -67,6 +76,24 @@ class PidScheduler(
     private val rested = mutableMapOf<Int, Long>()
     private var supported: Set<Int> = emptySet()
 
+    /** The extended parameters the probe found on this car; empty on most cars. */
+    private var extended: List<ExtendedPid> = emptyList()
+
+    /** Extended id to when it was last asked for, for the ones with a minimum interval. */
+    private val extendedReadAt = mutableMapOf<String, Long>()
+
+    /** Which header group gets this cycle's one `ATSH`/`ATCRA` switch. */
+    private var headerCursor = 0
+
+    /**
+     * Byte A of `0113`, once the car has answered it: which oxygen sensor positions exist.
+     *
+     * Kept because the support blocks over-report — a two-probe car routinely lists all
+     * eight `0114`-`011B` — and this byte is the car's own answer to which of them are
+     * real, bought for one request instead of six timeouts a sweep.
+     */
+    private var oxygenSensorMask: Int? = null
+
     /** Written from whichever thread the UI collects on, read by the polling loop. */
     @Volatile
     private var priority: Set<Int> = emptySet()
@@ -78,6 +105,19 @@ class PidScheduler(
         supported = supportedPids
         misses.clear()
         rested.clear()
+        oxygenSensorMask = null
+    }
+
+    /**
+     * The manufacturer-specific parameters this car answered the connect-time probe for.
+     *
+     * Separate from [configure] because it arrives later: the probe needs the VIN, and the
+     * VIN is read after the gauges are already live rather than before.
+     */
+    fun configureExtended(pids: List<ExtendedPid>) {
+        extended = pids
+        extendedReadAt.clear()
+        headerCursor = 0
     }
 
     /**
@@ -115,11 +155,64 @@ class PidScheduler(
         if (forCycle % SLOW_EVERY == 0L) addAll(nextSlowSlice())
     }.filter { isActive(it.id) }.distinctBy(Pid::id)
 
+    /**
+     * The extended parameters to read this cycle: one module, at most [MAX_EXTENDED_PER_CYCLE]
+     * of them.
+     *
+     * Every module change costs an `ATSH` and, off the engine ECU, an `ATCRA` as well —
+     * four AT commands and their round trips to fetch two numbers. Doing that for each
+     * parameter in turn would put more traffic on the bus than the parameters are worth, so
+     * a cycle serves one module and the modules take turns.
+     */
+    fun planExtended(forCycle: Long): List<ExtendedPid> {
+        val now = clock()
+        val due = extended.filter { isDue(it, forCycle, now) }.sortedBy(ExtendedPid::header)
+        if (due.isEmpty()) return emptyList()
+        val headers = due.map(ExtendedPid::header).distinct()
+        val header = headers[headerCursor++ % headers.size]
+        return due.filter { it.header == header }.take(MAX_EXTENDED_PER_CYCLE)
+    }
+
+    private fun isDue(pid: ExtendedPid, forCycle: Long, now: Long): Boolean {
+        val cadence = when (pid.tier) {
+            PidTier.Fast -> 1L
+            PidTier.Medium -> MEDIUM_EVERY
+            PidTier.Slow -> SLOW_EVERY
+        }
+        if (forCycle % cadence != 0L) return false
+        val last = extendedReadAt[pid.id] ?: return true
+        return now - last >= pid.minIntervalMillis
+    }
+
     private suspend fun pollCycle() {
         val due = plan(cycle)
         val remaining = if (client.batchingEnabled) pollBatched(due) else due
-        remaining.forEach { pollSingle(it) }
+        // Checked again here rather than only at planning time: `0113` is itself in the
+        // plan, so the answer that says which oxygen sensors exist can arrive halfway
+        // through the very sweep that would otherwise go on to ask after the ones that
+        // do not.
+        remaining.forEach { if (isFitted(it.id)) pollSingle(it) }
+        pollExtended()
         if (cycle % SLOW_EVERY == 0L) client.readVoltage()?.let(::publishVoltage)
+    }
+
+    /**
+     * Reads this cycle's module, and puts the adapter back the way Mode 01 needs it.
+     *
+     * The restore is [Obd2Client.withModule]'s job and it happens whatever the reads did,
+     * because an `ATSH` left pointing at a body module is a dashboard that goes blank.
+     */
+    private suspend fun pollExtended() {
+        val due = planExtended(cycle)
+        if (due.isEmpty()) return
+        val module = due.first()
+        client.withModule(module.header, module.receiveHeader, due.any { it.flowControl }) {
+            due.forEach { pid ->
+                extendedReadAt[pid.id] = clock()
+                val read = client.readExtended(pid)
+                if (read is ExtendedRead.Value) publishExtended(pid, read.value)
+            }
+        }
     }
 
     /** Returns the PIDs the batch did not answer, to be retried one at a time. */
@@ -175,6 +268,8 @@ class PidScheduler(
      */
     private fun publish(pid: Pid, data: IntArray) {
         val now = clock()
+        // The one PID that changes what gets polled rather than what gets shown.
+        if (pid.id == Pids.O2_SENSORS_PRESENT && data.isNotEmpty()) oxygenSensorMask = data[0]
         val fresh = pid.channels.mapNotNull { channel ->
             val value = channel.decode(data)
             if (!value.isFinite()) return@mapNotNull null
@@ -187,6 +282,18 @@ class PidScheduler(
             current.copy(
                 readings = readings,
                 derived = DerivedMetrics.compute(readings.mapValues { it.value.value }, fuel()),
+                cycle = cycle,
+                updatedAtMillis = now,
+            )
+        }
+    }
+
+    private fun publishExtended(pid: ExtendedPid, value: Double) {
+        val now = clock()
+        _snapshot.update { current ->
+            current.copy(
+                extended = current.extended +
+                    (pid.id to ExtendedReading(pid.id, pid.unit, value, now)),
                 cycle = cycle,
                 updatedAtMillis = now,
             )
@@ -216,11 +323,23 @@ class PidScheduler(
      */
     private fun isActive(pid: Int): Boolean {
         if (supported.isNotEmpty() && pid !in supported) return false
+        if (!isFitted(pid)) return false
         val restedAt = rested[pid] ?: return true
         if (cycle - restedAt < REST_CYCLES) return false
         rested.remove(pid)
         misses.remove(pid)
         return true
+    }
+
+    /**
+     * Whether the car has said this oxygen sensor exists, for the PIDs that report one.
+     *
+     * Always true until `0113` has been answered, and always true for everything that is
+     * not an oxygen sensor: absence of the map is not evidence of absence of the sensor.
+     */
+    private fun isFitted(pid: Int): Boolean {
+        val mask = oxygenSensorMask ?: return true
+        return Pids.o2SensorFitted(mask, pid) != false
     }
 
     companion object {
@@ -229,6 +348,9 @@ class PidScheduler(
         const val SLOW_PER_CYCLE = 4
         const val MAX_MISSES = 3
         const val MAX_BATCH_SIZE = 6
+
+        /** How many extended parameters one module gets per cycle; see [planExtended]. */
+        const val MAX_EXTENDED_PER_CYCLE = 2
         const val DEFAULT_CYCLE_DELAY_MILLIS = 0L
         const val PAUSED_POLL_MILLIS = 250L
 

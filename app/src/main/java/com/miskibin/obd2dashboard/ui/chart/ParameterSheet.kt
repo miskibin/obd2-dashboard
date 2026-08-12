@@ -43,6 +43,7 @@ import com.miskibin.obd2dashboard.ui.theme.InkRaised
 import com.miskibin.obd2dashboard.ui.theme.PanelCorner
 import com.miskibin.obd2dashboard.ui.theme.SlateBorder
 import com.miskibin.obd2dashboard.ui.theme.SlateEdge
+import com.miskibin.obd2dashboard.ui.theme.Smoke
 import com.miskibin.obd2dashboard.ui.theme.Steel
 
 /**
@@ -58,17 +59,21 @@ import com.miskibin.obd2dashboard.ui.theme.Steel
 fun ParameterSheet(
     selected: List<MetricId>,
     supportedPids: Set<Int>,
+    supportedExtended: Set<String>,
     maxSeries: Int,
     onToggle: (MetricId) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
     val supportKnown = supportedPids.isNotEmpty()
-    val groups = remember(context, supportedPids, selected) {
+    val groups = remember(context, supportedPids, supportedExtended, selected) {
         MetricGroup.entries.map { group ->
             group to Metrics.catalog
                 .filter { Metrics.groupOf(it.id) == group }
-                .filter { it.id in selected || it.isAvailable(supportedPids, supportKnown) }
+                .filter {
+                    it.id in selected ||
+                        it.isAvailable(supportedPids, supportedExtended, supportKnown)
+                }
                 .sortedBy { it.label(context) }
         }.filter { (_, items) -> items.isNotEmpty() }
     }
@@ -104,7 +109,8 @@ fun ParameterSheet(
                     ) {
                         items.forEach { metric ->
                             ParameterRow(
-                                metric = metric,
+                                label = metric.label(),
+                                unit = metric.unit,
                                 selected = metric.id in selected,
                                 onToggle = { onToggle(metric.id) },
                             )
@@ -126,8 +132,22 @@ fun ParameterSheet(
     }
 }
 
+/**
+ * One parameter, ticked or not.
+ *
+ * Takes the label rather than the [Metric] because the trip screen picks from what a
+ * recording happens to carry, which can include a column this build of the app no longer
+ * has a definition for — and a row that vanishes because the catalogue moved on is worse
+ * than a row named by its storage key.
+ */
 @Composable
-private fun ParameterRow(metric: Metric, selected: Boolean, onToggle: () -> Unit) {
+fun ParameterRow(
+    label: String,
+    unit: String,
+    selected: Boolean,
+    onToggle: () -> Unit,
+    detail: String? = null,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -150,16 +170,24 @@ private fun ParameterRow(metric: Metric, selected: Boolean, onToggle: () -> Unit
             }
         }
         Text(
-            text = metric.label(),
+            text = label,
             style = MaterialTheme.typography.bodyMedium,
             color = if (selected) Chalk else AshDim,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
-        if (metric.unit.isNotBlank()) {
+        if (detail != null) {
             Text(
-                text = metric.unit,
+                text = detail,
+                style = MaterialTheme.typography.labelMedium,
+                color = Smoke,
+                maxLines = 1,
+            )
+        }
+        if (unit.isNotBlank()) {
+            Text(
+                text = unit,
                 style = MaterialTheme.typography.labelMedium,
                 color = Fog,
             )
@@ -174,11 +202,23 @@ private fun MetricGroup.titleRes(): Int = when (this) {
     MetricGroup.Vehicle -> R.string.metric_group_vehicle
 }
 
-/** A metric the car answers for, or one whose support is not known yet. */
-fun Metric.isAvailable(supportedPids: Set<Int>, supportKnown: Boolean): Boolean =
-    when (val metricId = id) {
-        is MetricId.Sensor -> !supportKnown || metricId.pid in supportedPids
-        else -> true
-    }
+/**
+ * A metric the car answers for, or one whose support is not known yet.
+ *
+ * An extended parameter is held to a stricter rule than a PID: it is offered only once the
+ * connect-time probe has actually seen the car answer for it, never merely because support
+ * is unknown. A PID the car turns out not to have costs one wasted request; a manufacturer
+ * identifier offered to the wrong marque would be a reading that either never arrives or —
+ * worse — arrives decoded with somebody else's formula.
+ */
+fun Metric.isAvailable(
+    supportedPids: Set<Int>,
+    supportedExtended: Set<String>,
+    supportKnown: Boolean,
+): Boolean = when (val metricId = id) {
+    is MetricId.Sensor -> !supportKnown || metricId.pid in supportedPids
+    is MetricId.Extended -> metricId.id in supportedExtended
+    else -> true
+}
 
 private const val PICKER_MAX_HEIGHT = 360

@@ -10,15 +10,19 @@ import com.miskibin.obd2dashboard.ble.ConnectionIssue
 import com.miskibin.obd2dashboard.ble.ConnectionManager
 import com.miskibin.obd2dashboard.ble.DeviceKind
 import com.miskibin.obd2dashboard.ble.DiscoveredDevice
+import com.miskibin.obd2dashboard.ble.ExtendedMemory
 import com.miskibin.obd2dashboard.data.AppPreferences
+import com.miskibin.obd2dashboard.data.ExtendedSupport
 import com.miskibin.obd2dashboard.data.Garage
 import com.miskibin.obd2dashboard.log.LogTag
 import com.miskibin.obd2dashboard.log.ObdLog
 import com.miskibin.obd2dashboard.data.MetricHistory
+import com.miskibin.obd2dashboard.data.MonitorSnapshot
 import com.miskibin.obd2dashboard.data.SessionKind
 import com.miskibin.obd2dashboard.data.TripRecorder
 import com.miskibin.obd2dashboard.data.TripRepository
-import com.miskibin.obd2dashboard.obd.FuelType
+import com.miskibin.obd2dashboard.data.VinDecoder
+import com.miskibin.obd2dashboard.obd.ExtendedProbe
 import com.miskibin.obd2dashboard.service.AlertMonitor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -73,6 +77,41 @@ object ObdHolder {
 
         scope.launch { connection.snapshot.collect(history::record) }
         scope.launch { preferences.pollingEnabled.collect(connection::setPollingEnabled) }
+
+        // The connection layer decides *what* to probe and *when*; where the answers are
+        // kept is none of its business, so the two are wired together here.
+        connection.extendedMemory = object : ExtendedMemory {
+            override suspend fun known(vin: String): Map<String, ExtendedProbe> =
+                ExtendedSupport.forVin(
+                    preferences.extendedSupport(connection.sessionKind.value).first(),
+                    vin,
+                )
+
+            override suspend fun remember(vin: String, id: String, probe: ExtendedProbe) {
+                preferences.rememberExtendedProbe(connection.sessionKind.value, vin, id, probe)
+            }
+        }
+        // Which generation of a car it is decides which module its tyre pressures live in,
+        // and the only offline source for that is the VIN's model-year character.
+        connection.modelYear = { vin -> VinDecoder.decode(vin)?.modelYear }
+
+        // One reading of the on-board monitors per connection, filed under the car it came
+        // from. Both halves have to be present — a snapshot with no VIN belongs to no car
+        // and would be indistinguishable from the next one.
+        scope.launch {
+            combine(connection.vin, connection.monitors, connection.performance) { vin, tests, ipt ->
+                if (vin == null) null else MonitorSnapshot(
+                    vin = vin,
+                    capturedAtMillis = tests?.capturedAtMillis ?: System.currentTimeMillis(),
+                    tests = tests?.tests.orEmpty(),
+                    performance = ipt,
+                )
+            }.collect { snapshot ->
+                if (snapshot != null && !snapshot.isEmpty) {
+                    preferences.recordMonitorSnapshot(connection.sessionKind.value, snapshot)
+                }
+            }
+        }
         // Changing cars ends the recording and drops the traces the old one left behind:
         // the simulation's last ten minutes must not appear on the chart of a real drive,
         // and a recording started in demo mode must not go on collecting real values.
@@ -95,7 +134,11 @@ object ObdHolder {
                 preferences.vehicles(SessionKind.Real),
                 preferences.vehicles(SessionKind.Demo),
             ) { kind, vin, real, demo ->
-                Garage.find(if (kind.demo) demo else real, vin)?.fuel ?: FuelType.Default
+                // Passed on unfilled rather than defaulted here: the consumption maths falls
+                // back to petrol on its own, and the extended table needs to be able to tell
+                // "the driver said petrol" from "the driver has not said", because it only
+                // asks a car about its particulate filter when it has been told there is one.
+                Garage.find(if (kind.demo) demo else real, vin)?.fuel
             }.collect(connection::setFuelType)
         }
         alerts.start()

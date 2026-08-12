@@ -144,6 +144,15 @@ fun MetricSheet(
                 modifier = Modifier.weight(1f),
             )
         }
+
+        // Under the numbers rather than over them: somebody who taps a tile is looking at
+        // the trace first, and reads what the reading actually is once they have.
+        Text(
+            text = stringResource(metric.descriptionRes),
+            style = MaterialTheme.typography.bodyMedium,
+            color = Smoke,
+            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+        )
     }
 }
 

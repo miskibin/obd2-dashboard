@@ -74,6 +74,13 @@ private const val LAMBDA = "λ"
 private const val MILLIAMP = "mA"
 private const val GRAMS_PER_SECOND = "g/s"
 private const val RPM = "rpm"
+private const val COUNT = "count"
+
+/** A bit-encoded channel that reads as on or off rather than as a quantity. */
+private const val FLAG = ""
+
+private const val ON = 1.0
+private const val OFF = 0.0
 
 private fun word(data: IntArray) = data[0] * 256.0 + data[1]
 
@@ -101,6 +108,10 @@ private fun tempCAt(data: IntArray, at: Int) = data[at] - 40.0
  * the sensor-array PIDs lead with.
  */
 private fun fitted(data: IntArray, sensor: Int) = (data[0] shr sensor) and 1 == 1
+
+/** Bit [index] of byte [at], as the on/off number a bit-encoded channel publishes. */
+private fun flagAt(data: IntArray, at: Int, index: Int): Double =
+    if ((data[at] shr index) and 1 == 1) ON else OFF
 
 /** A single-value PID, where the channel is just the PID itself. */
 private fun pid(
@@ -135,6 +146,7 @@ fun keyChannel(key: Int): Int = key shr 8
  */
 object Pids {
 
+    const val FUEL_SYSTEM_STATUS = 0x03
     const val ENGINE_LOAD = 0x04
     const val COOLANT_TEMP = 0x05
     const val SHORT_FUEL_TRIM_1 = 0x06
@@ -146,6 +158,7 @@ object Pids {
     const val INTAKE_AIR_TEMP = 0x0F
     const val MAF_RATE = 0x10
     const val THROTTLE_POSITION = 0x11
+    const val O2_SENSORS_PRESENT = 0x13
     const val RUN_TIME = 0x1F
     const val DISTANCE_WITH_MIL = 0x21
     const val FUEL_LEVEL = 0x2F
@@ -157,6 +170,9 @@ object Pids {
     const val FUEL_TYPE = 0x51
     const val OIL_TEMP = 0x5C
     const val FUEL_RATE = 0x5E
+    const val AUXILIARY_IO = 0x65
+    const val FRICTION_TORQUE = 0x8E
+    const val FUEL_RATE_MASS = 0x9D
     const val TRANSMISSION_GEAR = 0xA4
 
     /** `0114`–`011B`: narrow-band oxygen sensors 1-8, voltage and the trim applied to it. */
@@ -238,7 +254,99 @@ object Pids {
         ),
     )
 
+    /**
+     * `0103`: which loop each fuel system is running in, as the enumeration the standard
+     * defines (2 = closed loop, 4 = open loop under load, and so on).
+     *
+     * Byte B describes a second fuel system "if it exists", and a car with one system
+     * answers zero there — which is also the code for "the engine is off". The two cannot
+     * be told apart, so the second channel is only published when it carries something
+     * other than zero: a bank that is genuinely off is better missing than invented.
+     */
+    private fun fuelSystemStatus() = Pid(
+        id = FUEL_SYSTEM_STATUS,
+        name = "Fuel system 1 status",
+        unit = FLAG,
+        bytes = 2,
+        tier = PidTier.Medium,
+        channels = listOf(
+            PidChannel(0, "Fuel system 1 status", FLAG) { it[0].toDouble() },
+            PidChannel(1, "Fuel system 2 status", FLAG) {
+                if (it[1] == 0) NOT_USED else it[1].toDouble()
+            },
+        ),
+    )
+
+    /**
+     * `0165`: the bits the ECU exposes for the driver-facing auxiliaries.
+     *
+     * Byte A says which of the five the car implements and byte B carries their values, so
+     * every channel is gated on its own support bit rather than published as a zero the
+     * car never claimed. The gear in the top nibble of B is the gear the ECU is *asking
+     * for* — the shift indicator on the dash — and not the gear the box is in; that one is
+     * `01A4`.
+     */
+    private fun auxiliaryIo() = Pid(
+        id = AUXILIARY_IO,
+        name = "Recommended gear",
+        unit = FLAG,
+        bytes = 2,
+        tier = PidTier.Medium,
+        channels = listOf(
+            PidChannel(0, "Recommended gear", FLAG) {
+                if (fitted(it, AUX_GEAR_BIT)) (it[1] shr Byte.SIZE_BITS / 2).toDouble() else NOT_USED
+            },
+            PidChannel(1, "Glow plug lamp", FLAG) {
+                if (fitted(it, AUX_GLOW_PLUG_BIT)) flagAt(it, 1, AUX_GLOW_PLUG_BIT) else NOT_USED
+            },
+            PidChannel(2, "Manual gearbox in neutral", FLAG) {
+                if (fitted(it, AUX_MANUAL_NEUTRAL_BIT)) flagAt(it, 1, AUX_MANUAL_NEUTRAL_BIT) else NOT_USED
+            },
+            PidChannel(3, "Automatic gearbox in neutral", FLAG) {
+                if (fitted(it, AUX_AUTO_NEUTRAL_BIT)) flagAt(it, 1, AUX_AUTO_NEUTRAL_BIT) else NOT_USED
+            },
+            PidChannel(4, "Power take-off active", FLAG) {
+                if (fitted(it, AUX_PTO_BIT)) flagAt(it, 1, AUX_PTO_BIT) else NOT_USED
+            },
+        ),
+    )
+
+    /**
+     * `019D`: fuel flow by mass, which is what `015E`'s litres per hour are computed from.
+     *
+     * Four bytes carrying two rates: what the engine is burning and what the whole vehicle
+     * is, which differ on a car with a fuel-fired heater or a second consumer.
+     */
+    private fun fuelRateMass() = Pid(
+        id = FUEL_RATE_MASS,
+        name = "Engine fuel rate by mass",
+        unit = GRAMS_PER_SECOND,
+        bytes = 4,
+        tier = PidTier.Medium,
+        channels = listOf(
+            PidChannel(0, "Engine fuel rate by mass", GRAMS_PER_SECOND) {
+                wordAt(it, 0) / FUEL_RATE_MASS_DIVISOR
+            },
+            PidChannel(1, "Vehicle fuel rate by mass", GRAMS_PER_SECOND) {
+                wordAt(it, 2) / FUEL_RATE_MASS_DIVISOR
+            },
+        ),
+    )
+
+    /** Bit positions of byte A of `0165`, which byte B repeats as values. */
+    private const val AUX_PTO_BIT = 0
+    private const val AUX_AUTO_NEUTRAL_BIT = 1
+    private const val AUX_MANUAL_NEUTRAL_BIT = 2
+    private const val AUX_GLOW_PLUG_BIT = 3
+    private const val AUX_GEAR_BIT = 4
+
+    private const val FUEL_RATE_MASS_DIVISOR = 50.0
+
+    /** Percent-torque bytes are centred on 125, so 125 is nought and 100 is −25 %. */
+    private const val TORQUE_OFFSET = 125.0
+
     val entries: List<Pid> = buildList {
+        add(fuelSystemStatus())
         add(pid(ENGINE_LOAD, "Calculated engine load", PERCENT, 1, PidTier.Medium, ::ratio))
         add(pid(COOLANT_TEMP, "Engine coolant temperature", CELSIUS, 1, PidTier.Medium, ::tempC))
         add(pid(SHORT_FUEL_TRIM_1, "Short term fuel trim, bank 1", PERCENT, 1, PidTier.Medium, ::trim))
@@ -253,6 +361,9 @@ object Pids {
         add(pid(INTAKE_AIR_TEMP, "Intake air temperature", CELSIUS, 1, PidTier.Medium, ::tempC))
         add(pid(MAF_RATE, "MAF air flow rate", GRAMS_PER_SECOND, 2, PidTier.Fast) { word(it) / 100.0 })
         add(pid(THROTTLE_POSITION, "Throttle position", PERCENT, 1, PidTier.Fast, ::ratio))
+        add(pid(O2_SENSORS_PRESENT, "Oxygen sensors fitted", COUNT, 1, PidTier.Slow) {
+            Integer.bitCount(it[0]).toDouble()
+        })
         NARROW_BAND_O2.forEach { add(narrowBandO2(it)) }
         add(pid(RUN_TIME, "Run time since engine start", "s", 2, PidTier.Slow, ::word))
         add(pid(DISTANCE_WITH_MIL, "Distance travelled with MIL on", "km", 2, PidTier.Slow, ::word))
@@ -304,6 +415,7 @@ object Pids {
         add(pid(0x61, "Driver's demand engine torque", PERCENT, 1, PidTier.Slow) { it[0] - 125.0 })
         add(pid(0x62, "Actual engine torque", PERCENT, 1, PidTier.Slow) { it[0] - 125.0 })
         add(pid(0x63, "Engine reference torque", "N·m", 2, PidTier.Slow, ::word))
+        add(auxiliaryIo())
         add(
             Pid(0x66, "MAF sensor A", GRAMS_PER_SECOND, 5, PidTier.Slow, listOf(
                 PidChannel(0, "MAF sensor A", GRAMS_PER_SECOND) {
@@ -400,6 +512,10 @@ object Pids {
         )
         add(exhaustGasTemperature(0x78, bank = 1))
         add(exhaustGasTemperature(0x79, bank = 2))
+        add(pid(FRICTION_TORQUE, "Engine friction torque", PERCENT, 1, PidTier.Slow) {
+            it[0] - TORQUE_OFFSET
+        })
+        add(fuelRateMass())
         add(pid(0x9E, "Engine exhaust flow rate", "kg/h", 2, PidTier.Slow) { word(it) / 5.0 })
         add(
             Pid(TRANSMISSION_GEAR, "Transmission actual gear", "", 4, PidTier.Slow, listOf(
@@ -432,6 +548,31 @@ object Pids {
     )
 
     private const val EGT_SENSORS = 4
+
+    /**
+     * Whether the sensor a given oxygen-sensor PID reports on is physically fitted,
+     * according to the bitmask `0113` answered with.
+     *
+     * `0113` lists eight sensor positions — bank 1 sensors 1-4 in bits 0-3, bank 2 sensors
+     * 1-4 in bits 4-7 — and the three families of oxygen-sensor PIDs are laid out in the
+     * same order, so bit *n* governs `0114 + n`, `0124 + n` and `0134 + n` alike. Returns
+     * null for a PID that is not an oxygen sensor, which is the caller's cue to leave it
+     * alone: this bitmask says nothing about anything else.
+     *
+     * It matters because the support blocks routinely over-report. A four-cylinder car
+     * with two probes commonly lists all eight `0114`-`011B` as supported and then answers
+     * `NO DATA` to six of them, which is six timeouts per slow-tier sweep spent learning
+     * something the car already said in one byte.
+     */
+    fun o2SensorFitted(mask: Int, pid: Int): Boolean? {
+        val sensor = when (pid) {
+            in NARROW_BAND_O2 -> pid - NARROW_BAND_O2.first
+            in WIDE_RANGE_O2_VOLTAGE -> pid - WIDE_RANGE_O2_VOLTAGE.first
+            in WIDE_RANGE_O2_CURRENT -> pid - WIDE_RANGE_O2_CURRENT.first
+            else -> return null
+        }
+        return (mask shr sensor) and 1 == 1
+    }
 
     private val byId = entries.associateBy(Pid::id)
 

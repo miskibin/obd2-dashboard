@@ -102,4 +102,18 @@ class VinDecoderTest {
         assertNull(facts.manufacturer)
         assertEquals(2008, facts.modelYear)
     }
+
+    @Test
+    fun `the simulated car decodes as the Mazda the extended table is gated on`() {
+        // The demo VIN is not decoration: it is what decides whether the extended probe
+        // has anything to ask for, so it has to survive the same decoder a real one does.
+        val facts = VinDecoder.decode(
+            com.miskibin.obd2dashboard.obd.DemoElmTransport.VIN,
+            currentYear = 2026,
+        )!!
+
+        assertEquals("Mazda", facts.manufacturer)
+        assertEquals("Japan", facts.country)
+        assertEquals(2019, facts.modelYear)
+    }
 }
