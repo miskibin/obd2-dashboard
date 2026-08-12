@@ -133,13 +133,14 @@ fun ChartsScreen(
     // Anything the catalogue no longer knows about is dropped here rather than in the
     // middle of the plot, so the traces and the legend stay in step.
     val plotted = remember(chartMetrics) { chartMetrics.filter { Metrics[it] != null } }
-    val series = remember(historyRevision, plotted, window, now) {
+    val palette = SeriesColors
+    val series = remember(historyRevision, plotted, window, now, palette) {
         plotted.mapIndexed { index, id ->
             val metric = Metrics[id]
             ChartSeries(
                 key = id.storageKey,
                 label = metric?.let { context.getString(it.nameRes) }.orEmpty(),
-                color = SeriesColors[index % SeriesColors.size],
+                color = palette[index % palette.size],
                 unit = metric?.unit.orEmpty(),
                 decimals = metric?.decimals ?: 1,
                 samples = history.series(id, window.millis, now),

@@ -1,6 +1,7 @@
 package com.miskibin.obd2dashboard.ui.dashboard
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -39,6 +40,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.miskibin.obd2dashboard.R
 import com.miskibin.obd2dashboard.data.Metric
 import com.miskibin.obd2dashboard.data.NormalBand
@@ -51,11 +53,13 @@ import com.miskibin.obd2dashboard.ui.components.NO_VALUE
 import com.miskibin.obd2dashboard.ui.components.formatReading
 import com.miskibin.obd2dashboard.ui.theme.AmberSurface
 import com.miskibin.obd2dashboard.ui.theme.AmberText
+import com.miskibin.obd2dashboard.ui.theme.AshDim
 import com.miskibin.obd2dashboard.ui.theme.Chalk
-import com.miskibin.obd2dashboard.ui.theme.ChalkDim
 import com.miskibin.obd2dashboard.ui.theme.Dimens
+import com.miskibin.obd2dashboard.ui.theme.Fog
 import com.miskibin.obd2dashboard.ui.theme.InkRaised
 import com.miskibin.obd2dashboard.ui.theme.Moss
+import com.miskibin.obd2dashboard.ui.theme.NumberTextStyle
 import com.miskibin.obd2dashboard.ui.theme.PanelCorner
 import com.miskibin.obd2dashboard.ui.theme.SignalBorder
 import com.miskibin.obd2dashboard.ui.theme.SignalSurface
@@ -64,17 +68,22 @@ import com.miskibin.obd2dashboard.ui.theme.Slate
 import com.miskibin.obd2dashboard.ui.theme.SlateBorder
 import com.miskibin.obd2dashboard.ui.theme.SlateEdge
 import com.miskibin.obd2dashboard.ui.theme.Smoke
-import com.miskibin.obd2dashboard.ui.theme.SmokeDim
-import com.miskibin.obd2dashboard.ui.theme.Steel
 import com.miskibin.obd2dashboard.ui.theme.SteelLight
 
 /**
  * One live value, as a row rather than a tile.
  *
- * The tile grid this replaced spent most of its area on a sparkline too small to read —
- * thirty seconds of coolant temperature in twenty-six pixels is a texture, not a trace.
- * The row spends that space on the one thing that makes a number actionable instead: what
- * normal looks like. The trace is still there, one tap away, at a size worth drawing.
+ * Three things share the row, in the order they are read: what it is, what it has been
+ * doing, and what it is now. The label and the normal band are deliberately the quietest
+ * part — they are context, and context is read once — while the number is the largest
+ * thing on the line. Between them sits a minute of trace ([Sparkline]), which is what
+ * turns a column of digits into a readout that is visibly alive without adding a single
+ * gauge, tick or frame to the screen.
+ *
+ * The rule down the left is the row's colour: steel by default, the metric's own trace
+ * colour when it is one of the lines on the chart screen, amber when a rule it is bound to
+ * is being broken. The sparkline and the sheet behind the row take the same colour, so a
+ * value keeps its identity across all three places it appears.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -82,6 +91,10 @@ fun MetricRow(
     metric: Metric,
     value: Double?,
     band: NormalBand?,
+    accent: Color,
+    samples: List<Sample>,
+    windowMillis: Long,
+    nowMillis: Long,
     warn: Boolean,
     stale: Boolean,
     editing: Boolean,
@@ -102,6 +115,13 @@ fun MetricRow(
         animationSpec = tween(durationMillis = DIM_ANIMATION_MILLIS),
         label = "row-dim",
     )
+    // The colour crosses over on the same curve the value fades on, so a rule breaking
+    // reads as the row changing state rather than as a flash.
+    val rule by animateColorAsState(
+        targetValue = if (warn) AmberText else accent,
+        animationSpec = tween(durationMillis = DIM_ANIMATION_MILLIS),
+        label = "row-accent",
+    )
     val label = stringResource(metric.nameRes)
 
     Row(
@@ -109,22 +129,22 @@ fun MetricRow(
             .fillMaxWidth()
             .background(if (warn) AmberSurface else Color.Transparent)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(horizontal = Dimens.cardPaddingH, vertical = 11.dp),
+            .padding(horizontal = Dimens.cardPaddingH, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Box(
             modifier = Modifier
                 .width(3.dp)
-                .height(26.dp)
+                .height(28.dp)
                 .clip(RoundedCornerShape(2.dp))
-                .background((if (warn) AmberText else Steel).copy(alpha = dim)),
+                .background(rule.copy(alpha = dim)),
         )
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = if (warn) stringResource(R.string.dashboard_metric_high, label) else label,
-                style = MaterialTheme.typography.bodyLarge,
-                color = if (warn) AmberText else ChalkDim,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (warn) AmberText else AshDim,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.alpha(dim),
@@ -134,16 +154,34 @@ fun MetricRow(
                 Text(
                     text = bandLabel,
                     style = MaterialTheme.typography.labelMedium,
-                    color = SmokeDim,
+                    color = Fog,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 2.dp),
+                    modifier = Modifier.padding(top = 1.dp),
                 )
             }
         }
+        // While the list is being pruned the trace gives its width to the two controls:
+        // six rows of buttons and traces at once is the clutter this row is avoiding.
+        AnimatedVisibility(
+            visible = !editing,
+            enter = fadeIn(),
+            exit = fadeOut(),
+        ) {
+            Sparkline(
+                samples = samples,
+                color = rule,
+                idleColor = SlateEdge,
+                windowMillis = windowMillis,
+                nowMillis = nowMillis,
+                modifier = Modifier
+                    .size(width = TRACE_WIDTH.dp, height = TRACE_HEIGHT.dp)
+                    .alpha(dim),
+            )
+        }
         Text(
             text = if (value == null) NO_VALUE else formatReading(animated.toDouble(), metric.decimals),
-            style = MaterialTheme.typography.titleLarge,
+            style = RowValueTextStyle,
             color = if (warn) AmberText else Chalk,
             maxLines = 1,
             modifier = Modifier.alpha(dim),
@@ -216,6 +254,7 @@ fun MetricSheet(
     label: String,
     samples: List<Sample>,
     band: NormalBand?,
+    accent: Color,
     windowMillis: Long,
     nowMillis: Long,
     onDismiss: () -> Unit,
@@ -240,7 +279,7 @@ fun MetricSheet(
                     ChartSeries(
                         key = metric.id.storageKey,
                         label = label,
-                        color = Steel,
+                        color = accent,
                         unit = metric.unit,
                         decimals = metric.decimals,
                         samples = samples,
@@ -291,7 +330,7 @@ fun MetricSheet(
                 label = stringResource(R.string.metric_sheet_now),
                 value = formatReading(values.lastOrNull()?.toDouble(), metric.decimals),
                 unit = metric.unit,
-                accent = Steel,
+                accent = accent,
                 modifier = Modifier.weight(1f),
             )
             StatCard(
@@ -352,6 +391,21 @@ fun NormalBand?.describe(unit: String, decimals: Int): String? {
         else -> null
     }
 }
+
+/**
+ * The row's number, a size up from a title.
+ *
+ * Same face, same tabular figures as everything else that changes several times a second;
+ * the extra two points are what puts it above the label instead of beside it.
+ */
+private val RowValueTextStyle = NumberTextStyle.copy(
+    fontSize = 21.sp,
+    letterSpacing = (-0.3).sp,
+)
+
+/** Wide enough for a shape, narrow enough that the number stays the loudest thing. */
+private const val TRACE_WIDTH = 52
+private const val TRACE_HEIGHT = 22
 
 private const val BAND_SWATCH_ALPHA = 0.35f
 private const val DISABLED_ALPHA = 0.35f

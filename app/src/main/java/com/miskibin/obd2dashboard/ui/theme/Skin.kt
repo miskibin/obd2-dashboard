@@ -7,9 +7,9 @@ import androidx.compose.ui.graphics.Color
  * The ground the app is drawn on, and the roles that go with it.
  *
  * Rather than name a colour inside every card, the shared chrome — cards, headers,
- * grouped lists, the bottom bar — asks for a role and gets it from here, so a change of
- * ground is a change in one file. There is one ground today: the app is read through a
- * windscreen mount, and it is dark everywhere.
+ * grouped lists, the bottom bar — asks for a role and gets it from here. It is the same
+ * idea as [Palette] one level up: [Palette] answers "what is the app's amber?", this
+ * answers "what is a card?". Both are swapped together when the ground changes.
  */
 data class Skin(
     /** The shell behind the screen. */
@@ -34,20 +34,31 @@ data class Skin(
     val navIdle: Color,
 )
 
-/** The instrument ground: every screen in the app. */
-val GraphiteSkin = Skin(
-    background = Ink,
-    card = Slate,
-    cardBorder = SlateBorder,
-    divider = SlateBorder,
-    title = Chalk,
-    subtitle = Smoke,
-    prose = Ash,
-    quiet = Fog,
-    navBackground = InkRaised,
-    navBorder = SlateLine,
-    navSelected = Chalk,
-    navIdle = SmokeDim,
+/**
+ * The chrome of a ground, read off that ground's palette.
+ *
+ * Written once for both palettes on purpose: a skin that was hand-tuned per ground is a
+ * skin that drifts, and every role here has an obvious owner in [Palette].
+ */
+fun skinOf(palette: Palette) = Skin(
+    background = palette.ink,
+    card = palette.slate,
+    cardBorder = palette.slateBorder,
+    divider = palette.slateBorder,
+    title = palette.chalk,
+    subtitle = palette.smoke,
+    prose = palette.ash,
+    quiet = palette.fog,
+    navBackground = palette.inkRaised,
+    navBorder = palette.slateLine,
+    navSelected = palette.chalk,
+    navIdle = palette.smokeDim,
 )
+
+/** The instrument ground: the app at night, and wherever the driver asks for dark. */
+val GraphiteSkin = skinOf(DarkPalette)
+
+/** The paper ground: the same app in daylight. */
+val PaperSkin = skinOf(LightPalette)
 
 val LocalSkin = staticCompositionLocalOf { GraphiteSkin }

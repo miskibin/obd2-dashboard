@@ -333,11 +333,12 @@ private fun RelatedCard(related: List<RelatedCode>, descriptions: Map<String, St
 /** The half-minute either side of the code, from the app's own recording. */
 @Composable
 private fun TimelineCard(context: FaultContext) {
-    val traces = remember(context) {
+    val palette = SeriesColors
+    val traces = remember(context, palette) {
         DtcLog.TIMELINE_METRICS.mapIndexedNotNull { index, metric ->
             val samples = context.traces[metric].orEmpty()
             if (samples.size < 2) return@mapIndexedNotNull null
-            TimelineSeries(metric, SeriesColors[index % SeriesColors.size], samples)
+            TimelineSeries(metric, palette[index % palette.size], samples)
         }
     }
     if (traces.isEmpty()) return

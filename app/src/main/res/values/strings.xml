@@ -126,6 +126,10 @@
     <string name="settings_language_system">System</string>
     <string name="settings_language_english">English</string>
     <string name="settings_language_polish">Polski</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_theme_system">System</string>
+    <string name="settings_theme_dark">Dark</string>
+    <string name="settings_theme_light">Light</string>
     <string name="settings_polling">Polling</string>
     <string name="settings_polling_description">Keep asking the car for live values. Turn it off to save battery when you only need trouble codes.</string>
     <string name="settings_version">Version %1$s</string>

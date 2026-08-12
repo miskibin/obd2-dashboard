@@ -5,39 +5,86 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.ui.unit.dp
+import com.miskibin.obd2dashboard.data.AppTheme
 
-private val Obd2DarkColorScheme = darkColorScheme(
-    primary = Steel,
-    onPrimary = Ink,
-    primaryContainer = SteelDeep,
-    onPrimaryContainer = SteelLight,
-    secondary = Amber,
-    onSecondary = Ink,
-    secondaryContainer = AmberSurfaceStrong,
-    onSecondaryContainer = AmberText,
-    tertiary = Moss,
-    onTertiary = Ink,
-    tertiaryContainer = MossSurface,
-    onTertiaryContainer = MossText,
-    error = SignalLight,
-    onError = Ink,
-    errorContainer = SignalSurface,
-    onErrorContainer = SignalText,
-    background = Ink,
-    onBackground = Chalk,
-    surface = Slate,
-    onSurface = Chalk,
-    surfaceVariant = InkRaised,
-    onSurfaceVariant = Smoke,
-    surfaceContainer = InkRaised,
-    surfaceContainerHigh = Slate,
-    surfaceContainerHighest = SlateBorder,
-    outline = SlateEdge,
-    outlineVariant = SlateBorder,
-    scrim = Ink,
-)
+/**
+ * The Material scheme, filled from a [Palette].
+ *
+ * Almost nothing in the app asks Material for a colour — the screens read [Palette] roles
+ * directly — but the components that are Material's own (the sheet scrim, the slider, the
+ * switch, the text selection handles) need a scheme that agrees with the rest, or they
+ * arrive in Material's purple.
+ */
+private fun schemeOf(palette: Palette, dark: Boolean) = if (dark) {
+    darkColorScheme(
+        primary = palette.steel,
+        onPrimary = palette.ink,
+        primaryContainer = palette.steelDeep,
+        onPrimaryContainer = palette.steelLight,
+        secondary = palette.amber,
+        onSecondary = palette.ink,
+        secondaryContainer = palette.amberSurfaceStrong,
+        onSecondaryContainer = palette.amberText,
+        tertiary = palette.moss,
+        onTertiary = palette.ink,
+        tertiaryContainer = palette.mossSurface,
+        onTertiaryContainer = palette.mossText,
+        error = palette.signalLight,
+        onError = palette.ink,
+        errorContainer = palette.signalSurface,
+        onErrorContainer = palette.signalText,
+        background = palette.ink,
+        onBackground = palette.chalk,
+        surface = palette.slate,
+        onSurface = palette.chalk,
+        surfaceVariant = palette.inkRaised,
+        onSurfaceVariant = palette.smoke,
+        surfaceContainer = palette.inkRaised,
+        surfaceContainerHigh = palette.slate,
+        surfaceContainerHighest = palette.slateBorder,
+        outline = palette.slateEdge,
+        outlineVariant = palette.slateBorder,
+        scrim = palette.ink,
+    )
+} else {
+    lightColorScheme(
+        primary = palette.steel,
+        onPrimary = palette.slate,
+        primaryContainer = palette.steelDeep,
+        onPrimaryContainer = palette.steelLight,
+        secondary = palette.amber,
+        onSecondary = palette.slate,
+        secondaryContainer = palette.amberSurfaceStrong,
+        onSecondaryContainer = palette.amberText,
+        tertiary = palette.moss,
+        onTertiary = palette.slate,
+        tertiaryContainer = palette.mossSurface,
+        onTertiaryContainer = palette.mossText,
+        error = palette.signal,
+        onError = palette.slate,
+        errorContainer = palette.signalSurface,
+        onErrorContainer = palette.signalText,
+        background = palette.ink,
+        onBackground = palette.chalk,
+        surface = palette.slate,
+        onSurface = palette.chalk,
+        surfaceVariant = palette.inkRaised,
+        onSurfaceVariant = palette.smoke,
+        surfaceContainer = palette.inkRaised,
+        surfaceContainerHigh = palette.slate,
+        surfaceContainerHighest = palette.slateBorder,
+        outline = palette.slateEdge,
+        outlineVariant = palette.slateBorder,
+        // The scrim behind a bottom sheet has to darken the page on both grounds, so it is
+        // the one role that does not invert.
+        scrim = DarkPalette.ink,
+    )
+}
 
 /**
  * Corner radii, from a chip to a bottom sheet.
@@ -67,20 +114,36 @@ val ControlCorner = RoundedCornerShape(12.dp)
 val PillCorner = RoundedCornerShape(9.dp)
 
 /**
- * The app is dark-only on purpose: it is meant to sit on a windscreen mount, and a
- * light scheme would wash out at night and reflect into the windscreen.
- * [darkTheme] is accepted so previews and tests can be explicit, but both branches
- * resolve to the same scheme today.
+ * The app's one theme, on whichever ground [theme] asks for.
+ *
+ * The ground is a composition local rather than a build-time constant, so flipping the
+ * setting re-runs everything that reads a colour and the whole app changes under the
+ * driver's thumb — no activity restart, unlike the language override, which has to go
+ * through resources.
  */
 @Composable
 fun Obd2DashboardTheme(
-    @Suppress("UNUSED_PARAMETER") darkTheme: Boolean = isSystemInDarkTheme(),
+    theme: AppTheme = AppTheme.System,
     content: @Composable () -> Unit,
 ) {
-    MaterialTheme(
-        colorScheme = Obd2DarkColorScheme,
-        typography = Obd2Typography,
-        shapes = Obd2Shapes,
-        content = content,
-    )
+    val dark = when (theme) {
+        AppTheme.System -> isSystemInDarkTheme()
+        AppTheme.Dark -> true
+        AppTheme.Light -> false
+    }
+    val palette = if (dark) DarkPalette else LightPalette
+    val skin = if (dark) GraphiteSkin else PaperSkin
+    val scheme = remember(palette, dark) { schemeOf(palette, dark) }
+
+    CompositionLocalProvider(
+        LocalPalette provides palette,
+        LocalSkin provides skin,
+    ) {
+        MaterialTheme(
+            colorScheme = scheme,
+            typography = Obd2Typography,
+            shapes = Obd2Shapes,
+            content = content,
+        )
+    }
 }

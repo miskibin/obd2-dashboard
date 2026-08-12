@@ -347,11 +347,13 @@ private fun AppNavHost(
             val gear by viewModel.gear.collectAsStateWithLifecycle()
             val imperial by viewModel.imperialUnits.collectAsStateWithLifecycle()
             val recording by viewModel.recording.collectAsStateWithLifecycle()
+            val chartMetrics by viewModel.chartMetrics.collectAsStateWithLifecycle()
             DashboardScreen(
                 vehicleName = savedAdapter?.name?.takeIf(String::isNotBlank)
                     ?: stringResource(R.string.dashboard_vehicle_unknown),
                 connectionLabel = connectionState.label(),
                 tiles = tiles,
+                chartMetrics = chartMetrics,
                 snapshot = snapshot,
                 history = viewModel.history,
                 historyRevision = historyRevision,
@@ -492,10 +494,12 @@ private fun AppNavHost(
             val alertRules by viewModel.alertRules.collectAsStateWithLifecycle()
             val redline by viewModel.redline.collectAsStateWithLifecycle()
             val language = remember(context) { LocalePreference.current(context) }
+            val theme by viewModel.theme.collectAsStateWithLifecycle()
             val versionName = remember(context) { versionNameOf(context) }
             SettingsScreen(
                 savedAdapter = savedAdapter,
                 language = language,
+                theme = theme,
                 pollingEnabled = pollingEnabled,
                 alertRules = alertRules,
                 redline = redline,
@@ -503,6 +507,7 @@ private fun AppNavHost(
                 onBack = { navController.popBackStack() },
                 onForgetAdapter = viewModel::forgetAdapter,
                 onLanguageChange = { selected -> applyLanguage(context, selected) },
+                onThemeChange = viewModel::setTheme,
                 onPollingChange = viewModel::setPollingEnabled,
                 onRedlineChange = viewModel::setRedline,
                 onAlertRuleChange = viewModel::setAlertRule,

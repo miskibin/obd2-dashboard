@@ -1,13 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!--
-      Dark-only launch theme. The real UI is Compose; this exists so the window
-      background matches the dashboard before the first frame is drawn.
+      Launch theme only. The real UI is Compose, and the theme setting lives in DataStore
+      where a window background cannot read it; this follows the phone instead, which is
+      what the default "System" setting follows too, so the first frame matches for
+      everybody who has not overridden it.
     -->
-    <style name="Theme.Obd2Dashboard" parent="android:Theme.Material.NoActionBar">
+    <style name="Theme.Obd2Dashboard" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@color/dash_background</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
-        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightStatusBar">true</item>
     </style>
 </resources>

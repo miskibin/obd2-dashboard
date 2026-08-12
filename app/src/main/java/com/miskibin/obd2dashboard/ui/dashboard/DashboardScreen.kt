@@ -54,17 +54,20 @@ import com.miskibin.obd2dashboard.ui.components.EmptyState
 import com.miskibin.obd2dashboard.ui.components.MenuChoice
 import com.miskibin.obd2dashboard.ui.components.ScreenHeader
 import com.miskibin.obd2dashboard.ui.components.ScreenPadding
+import com.miskibin.obd2dashboard.ui.theme.AmberText
 import com.miskibin.obd2dashboard.ui.theme.CardCorner
 import com.miskibin.obd2dashboard.ui.theme.Dimens
 import com.miskibin.obd2dashboard.ui.theme.Fog
 import com.miskibin.obd2dashboard.ui.theme.PanelCorner
 import com.miskibin.obd2dashboard.ui.theme.PillCorner
+import com.miskibin.obd2dashboard.ui.theme.SeriesColors
 import com.miskibin.obd2dashboard.ui.theme.Signal
 import com.miskibin.obd2dashboard.ui.theme.Slate
 import com.miskibin.obd2dashboard.ui.theme.SlateBorder
 import com.miskibin.obd2dashboard.ui.theme.SlateEdge
 import com.miskibin.obd2dashboard.ui.theme.SlateLine
 import com.miskibin.obd2dashboard.ui.theme.Smoke
+import com.miskibin.obd2dashboard.ui.theme.Steel
 import com.miskibin.obd2dashboard.ui.theme.SteelLight
 import kotlinx.coroutines.delay
 
@@ -82,6 +85,7 @@ fun DashboardScreen(
     vehicleName: String,
     connectionLabel: String,
     tiles: List<MetricId>,
+    chartMetrics: List<MetricId>,
     snapshot: VehicleSnapshot,
     history: MetricHistory,
     historyRevision: Long,
@@ -117,6 +121,17 @@ fun DashboardScreen(
     // The hero card already draws revs and speed, so a row for either would say it twice.
     val rows = remember(tiles) { tiles.filterNot { it == Metrics.Rpm || it == Metrics.Speed } }
     LaunchedEffect(rows.size) { if (rows.isEmpty()) editing = false }
+
+    // A value that is also a line on the chart screen carries that line's colour here, so
+    // the eye can go from "the coolant row is climbing" to the trace without hunting for
+    // which of six lines is which. Everything else is steel: six colours in a list nobody
+    // asked to be colour-coded is noise.
+    val palette = SeriesColors
+    val steel = Steel
+    val accents = remember(chartMetrics, palette, steel) {
+        chartMetrics.withIndex().associate { (index, id) -> id to palette[index % palette.size] }
+            .withDefault { steel }
+    }
 
     val breached = remember(snapshot, alertRules) {
         alertRules.filter { rule ->
@@ -224,6 +239,12 @@ fun DashboardScreen(
                                 metric = metric,
                                 value = snapshot.valueOf(id),
                                 band = Metrics.bandFor(id, alertRules),
+                                accent = accents.getValue(id),
+                                samples = remember(historyRevision, id, now) {
+                                    history.series(id, METRIC_SHEET_WINDOW_MILLIS, now)
+                                },
+                                windowMillis = METRIC_SHEET_WINDOW_MILLIS,
+                                nowMillis = now,
                                 warn = id in breached,
                                 stale = now - snapshot.updatedAtOf(id) > STALE_AFTER_MILLIS,
                                 editing = editing,
@@ -289,6 +310,7 @@ fun DashboardScreen(
             label = stringResource(metric.nameRes),
             samples = samples,
             band = Metrics.bandFor(metricId, alertRules),
+            accent = if (metricId in breached) AmberText else accents.getValue(metricId),
             windowMillis = METRIC_SHEET_WINDOW_MILLIS,
             nowMillis = now,
             onDismiss = { openMetric = null },

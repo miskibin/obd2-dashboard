@@ -68,6 +68,9 @@ class AppPreferences(context: Context) {
     /** Whether the driver reads speed in miles; everything is polled in km/h regardless. */
     val imperialUnits: Flow<Boolean> = store.data.map { it[KEY_IMPERIAL] ?: false }
 
+    /** Which ground the app draws on; [AppTheme.System] follows the phone. */
+    val theme: Flow<AppTheme> = store.data.map { AppTheme.fromKey(it[KEY_THEME]) }
+
     suspend fun saveAdapter(address: String, name: String?, classic: Boolean = false) {
         store.edit { prefs ->
             prefs[KEY_ADAPTER_ADDRESS] = address
@@ -116,6 +119,10 @@ class AppPreferences(context: Context) {
         store.edit { it[KEY_IMPERIAL] = imperial }
     }
 
+    suspend fun setTheme(theme: AppTheme) {
+        store.edit { it[KEY_THEME] = theme.storageKey }
+    }
+
     /**
      * Records that these codes were present just now.
      *
@@ -150,6 +157,7 @@ class AppPreferences(context: Context) {
         val KEY_ALERTS = stringPreferencesKey("alert_rules")
         val KEY_DTC_LOG = stringPreferencesKey("dtc_log")
         val KEY_IMPERIAL = booleanPreferencesKey("imperial_units")
+        val KEY_THEME = stringPreferencesKey("theme")
 
         const val SEPARATOR = "|"
 

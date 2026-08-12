@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -91,6 +92,16 @@ fun HeroCard(state: HeroState, modifier: Modifier = Modifier) {
             .fillMaxWidth()
             .clip(CardCorner)
             .background(Slate)
+            // A wash of the accent down from the top edge, at an alpha low enough that it
+            // is never seen as a colour — only as the one card on the screen that is lit
+            // from somewhere. It is the whole difference between the hero reading as the
+            // headline and reading as the first row of the list, and it costs no ink.
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(barColor.copy(alpha = HERO_WASH_ALPHA), Color.Transparent),
+                    endY = HERO_WASH_HEIGHT,
+                ),
+            )
             .border(1.dp, SlateBorder, CardCorner)
             .padding(start = 15.dp, end = 15.dp, top = 13.dp, bottom = 11.dp)
             .alpha(dim),
@@ -217,11 +228,17 @@ private fun RedlineBar(fraction: Float, color: Color, modifier: Modifier = Modif
             .clip(RoundedCornerShape(5.dp))
             .background(SlateBorder),
     ) {
+        // The fill deepens towards its own head rather than being one flat block, so the
+        // bar reads as a level rising out of the track instead of a progress bar.
         Box(
             modifier = Modifier
                 .fillMaxHeight()
                 .fillMaxWidth(fraction)
-                .background(color),
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(color.copy(alpha = FILL_TAIL_ALPHA), color),
+                    ),
+                ),
         )
         // The marker sits where the driver should already be lifting, not at the very end
         // of the bar where the fill that reached it would hide it.
@@ -246,6 +263,11 @@ const val REDLINE_WARNING_FRACTION = 0.92f
 
 /** Where the tick is drawn on the bar. */
 private const val REDLINE_MARK_FRACTION = 0.96f
+
+/** How far down the card the wash reaches, in pixels — about the height of the number. */
+private const val HERO_WASH_HEIGHT = 300f
+private const val HERO_WASH_ALPHA = 0.09f
+private const val FILL_TAIL_ALPHA = 0.55f
 
 private const val VALUE_ANIMATION_MILLIS = 320
 private const val DIM_ANIMATION_MILLIS = 400

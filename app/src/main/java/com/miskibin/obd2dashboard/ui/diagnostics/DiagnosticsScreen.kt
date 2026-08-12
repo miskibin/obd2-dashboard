@@ -649,11 +649,13 @@ internal fun DtcKind.labelRes(): Int = when (this) {
 }
 
 /** Stored and permanent codes are faults now; a pending one is a fault the ECU is still deciding about. */
+@Composable
 internal fun DtcKind.tone(): Color = when (this) {
     DtcKind.Stored, DtcKind.Permanent -> SignalLight
     DtcKind.Pending -> AmberLight
 }
 
+@Composable
 internal fun DtcKind.toneBackground(): Color = when (this) {
     DtcKind.Stored, DtcKind.Permanent -> SignalSurfaceStrong
     DtcKind.Pending -> AmberSurfaceStrong

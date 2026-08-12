@@ -130,6 +130,10 @@
     <string name="settings_language_system">Systemowy</string>
     <string name="settings_language_english">English</string>
     <string name="settings_language_polish">Polski</string>
+    <string name="settings_theme">Motyw</string>
+    <string name="settings_theme_system">Systemowy</string>
+    <string name="settings_theme_dark">Ciemny</string>
+    <string name="settings_theme_light">Jasny</string>
     <string name="settings_polling">Odpytywanie</string>
     <string name="settings_polling_description">Ciągle pytaj auto o wartości na żywo. Wyłącz, aby oszczędzać baterię, gdy potrzebujesz tylko kodów błędów.</string>
     <string name="settings_version">Wersja %1$s</string>

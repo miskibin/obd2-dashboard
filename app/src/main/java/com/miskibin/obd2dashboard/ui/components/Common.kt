@@ -353,7 +353,7 @@ fun AccentButton(
         enabled = enabled,
         compact = compact,
         background = SteelDeep,
-        border = SteelBorderStroke,
+        border = BorderStroke(1.dp, SteelBorder),
         contentColor = SteelLight,
         leading = leading,
     )
@@ -425,8 +425,6 @@ fun SolidDangerButton(
         leading = null,
     )
 }
-
-private val SteelBorderStroke = BorderStroke(1.dp, SteelBorder)
 
 /**
  * All four buttons, one body.
@@ -538,6 +536,7 @@ fun ConnectionPill(
     }
 }
 
+@Composable
 private fun ConnectionState.accentColor(): Color = when (this) {
     // Demo gets its own colour: a steel dot must only ever mean a real car.
     is ConnectionState.Connected -> if (demo) Amber else Steel

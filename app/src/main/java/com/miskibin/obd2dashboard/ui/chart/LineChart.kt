@@ -48,6 +48,23 @@ data class ChartSeries(
 enum class ChartMode { Bands, Relative, Absolute }
 
 /**
+ * Everything the plot paints with that is not a series colour.
+ *
+ * A [DrawScope] is not a composition and cannot ask which ground it is drawing on, so the
+ * gridlines, the baseline, the band and the tick colour are read once at the top of
+ * [LineChart] and carried down. It is also the reason the chart cannot quietly go on using
+ * a dark grey on paper: there is nowhere left to hard-code one.
+ */
+private data class ChartInk(
+    val marker: Color,
+    val baseline: Color,
+    val gridStrong: Color,
+    val gridFaint: Color,
+    val band: Color,
+    val label: Color,
+)
+
+/**
  * Live scrolling line chart drawn straight onto a Canvas.
  *
  * Everything a charting library would bring — axes, ticks, smoothing, fills — is a few
@@ -67,6 +84,14 @@ fun LineChart(
 ) {
     val measurer = rememberTextMeasurer()
     val tickStyle = TickTextStyle.copy(color = Fog)
+    val ink = ChartInk(
+        marker = Signal,
+        baseline = SlateEdge,
+        gridStrong = SlateTrack,
+        gridFaint = SlateFaint,
+        band = Moss.copy(alpha = BAND_ALPHA),
+        label = Fog,
+    )
 
     Canvas(modifier = modifier) {
         val leftPadding = if (mode == ChartMode.Bands) 0f else LEFT_PADDING.dp.toPx()
@@ -93,7 +118,7 @@ fun LineChart(
         if (markerFraction != null) {
             val x = leftPadding + plotWidth * markerFraction.coerceIn(0f, 1f)
             drawLine(
-                color = Signal,
+                color = ink.marker,
                 start = Offset(x, topPadding),
                 end = Offset(x, topPadding + plotHeight),
                 strokeWidth = MARKER_WIDTH.dp.toPx(),
@@ -104,6 +129,7 @@ fun LineChart(
             ChartMode.Bands -> drawBands(
                 series = series,
                 measurer = measurer,
+                ink = ink,
                 windowMillis = windowMillis,
                 nowMillis = nowMillis,
                 left = leftPadding,
@@ -118,6 +144,7 @@ fun LineChart(
                     fractions = RELATIVE_TICKS.indices.map { 1f - it / (RELATIVE_TICKS.size - 1f) },
                     measurer = measurer,
                     labelStyle = tickStyle,
+                    ink = ink,
                     leftPadding = leftPadding,
                     topPadding = topPadding,
                     plotWidth = plotWidth,
@@ -153,6 +180,7 @@ fun LineChart(
                     drawNormalBand(
                         band = band,
                         ticks = ticks,
+                        color = ink.band,
                         left = leftPadding,
                         top = topPadding,
                         width = plotWidth,
@@ -164,6 +192,7 @@ fun LineChart(
                     fractions = ticks.values.map { ticks.fraction(it).toFloat() },
                     measurer = measurer,
                     labelStyle = tickStyle,
+                    ink = ink,
                     leftPadding = leftPadding,
                     topPadding = topPadding,
                     plotWidth = plotWidth,
@@ -198,6 +227,7 @@ fun LineChart(
 private fun DrawScope.drawBands(
     series: List<ChartSeries>,
     measurer: TextMeasurer,
+    ink: ChartInk,
     windowMillis: Long,
     nowMillis: Long,
     left: Float,
@@ -219,7 +249,7 @@ private fun DrawScope.drawBands(
         val high = values.maxOrNull() ?: 1f
 
         drawLine(
-            color = if (index == 0) SlateTrack else SlateFaint,
+            color = if (index == 0) ink.gridStrong else ink.gridFaint,
             start = Offset(left, bandTop),
             end = Offset(left + width, bandTop),
             strokeWidth = 1.dp.toPx(),
@@ -242,7 +272,7 @@ private fun DrawScope.drawBands(
         if (values.isEmpty()) return@forEachIndexed
         val range = measurer.measure(
             text = "${format(low, line.decimals)}–${format(high, line.decimals)} ${line.unit}".trim(),
-            style = BandLabelTextStyle.copy(color = Fog),
+            style = BandLabelTextStyle.copy(color = ink.label),
         )
         drawText(
             textLayoutResult = range,
@@ -250,7 +280,7 @@ private fun DrawScope.drawBands(
         )
     }
     drawLine(
-        color = SlateEdge,
+        color = ink.baseline,
         start = Offset(left, top + height),
         end = Offset(left + width, top + height),
         strokeWidth = 1.dp.toPx(),
@@ -267,6 +297,7 @@ private fun DrawScope.drawBands(
 private fun DrawScope.drawNormalBand(
     band: NormalBand,
     ticks: AxisTicks,
+    color: Color,
     left: Float,
     top: Float,
     width: Float,
@@ -278,7 +309,7 @@ private fun DrawScope.drawNormalBand(
     val bandTop = top + height * (1f - highFraction.toFloat())
     val bandHeight = height * (highFraction - lowFraction).toFloat()
     drawRect(
-        color = Moss.copy(alpha = BAND_ALPHA),
+        color = color,
         topLeft = Offset(left, bandTop),
         size = Size(width, bandHeight),
     )
@@ -362,6 +393,7 @@ private fun DrawScope.drawGrid(
     fractions: List<Float>,
     measurer: TextMeasurer,
     labelStyle: TextStyle,
+    ink: ChartInk,
     leftPadding: Float,
     topPadding: Float,
     plotWidth: Float,
@@ -372,9 +404,9 @@ private fun DrawScope.drawGrid(
         if (y < topPadding - 1f || y > topPadding + plotHeight + 1f) return@forEachIndexed
         drawLine(
             color = when {
-                fraction <= 0f -> SlateEdge
-                index % 2 == 0 -> SlateTrack
-                else -> SlateFaint
+                fraction <= 0f -> ink.baseline
+                index % 2 == 0 -> ink.gridStrong
+                else -> ink.gridFaint
             },
             start = Offset(leftPadding, y),
             end = Offset(leftPadding + plotWidth, y),

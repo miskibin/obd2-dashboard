@@ -385,6 +385,12 @@ private fun TripChart(
     durationSeconds: Double,
     modifier: Modifier = Modifier,
 ) {
+    // Everything the canvas paints with is read from the ground here: a DrawScope is not a
+    // composition, so it cannot ask which theme it is drawing on.
+    val gridline = SlateTrack
+    val eventTint = Amber.copy(alpha = EVENT_ALPHA)
+    val traceColors = traces.indices.map { traceColor(it) }
+
     Canvas(modifier = modifier) {
         val width = size.width
         val height = size.height
@@ -392,7 +398,7 @@ private fun TripChart(
 
         listOf(0.25f, 0.5f, 0.75f).forEach { fraction ->
             drawLine(
-                color = SlateTrack,
+                color = gridline,
                 start = Offset(0f, height * fraction),
                 end = Offset(width, height * fraction),
                 strokeWidth = 1.dp.toPx(),
@@ -403,7 +409,7 @@ private fun TripChart(
             val start = (event.startSeconds / durationSeconds).toFloat().coerceIn(0f, 1f)
             val end = (event.endSeconds / durationSeconds).toFloat().coerceIn(0f, 1f)
             drawRect(
-                color = Amber.copy(alpha = EVENT_ALPHA),
+                color = eventTint,
                 topLeft = Offset(width * start, 0f),
                 size = Size((width * (end - start)).coerceAtLeast(MIN_EVENT_WIDTH.dp.toPx()), height),
             )
@@ -413,7 +419,7 @@ private fun TripChart(
             drawTrace(
                 points = trace.points,
                 durationSeconds = durationSeconds,
-                color = traceColor(index),
+                color = traceColors[index],
                 strokeWidth = trace.metric.traceWidth().dp.toPx(),
             )
         }
@@ -445,7 +451,8 @@ private fun DrawScope.drawTrace(
 }
 
 /** The same palette the live chart uses, so a trace keeps its colour between the two. */
-private fun traceColor(index: Int): Color = SeriesColors[index % SeriesColors.size]
+@Composable
+private fun traceColor(index: Int): Color = SeriesColors.let { it[index % it.size] }
 
 /** Hairline traces: thicker lines blur together wherever four of them cross. */
 private fun MetricId.traceWidth(): Float = if (this == Metrics.Rpm) 1.5f else 1.2f

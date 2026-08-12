@@ -10,6 +10,7 @@ import com.miskibin.obd2dashboard.ble.DeviceKind
 import com.miskibin.obd2dashboard.ble.DiscoveredDevice
 import com.miskibin.obd2dashboard.data.AlertRule
 import com.miskibin.obd2dashboard.data.AlertRules
+import com.miskibin.obd2dashboard.data.AppTheme
 import com.miskibin.obd2dashboard.data.DtcLog
 import com.miskibin.obd2dashboard.data.DtcObservation
 import com.miskibin.obd2dashboard.data.FaultContext
@@ -94,6 +95,10 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
 
     val imperialUnits: StateFlow<Boolean> = preferences.imperialUnits
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    /** Which ground the app is drawn on, as chosen in Settings. */
+    val theme: StateFlow<AppTheme> = preferences.theme
+        .stateIn(viewModelScope, SharingStarted.Eagerly, AppTheme.System)
 
     /** When each code was first and last seen, since the car will not say. */
     val dtcLog: StateFlow<List<DtcObservation>> = preferences.dtcLog
@@ -290,6 +295,10 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setRedline(rpm: Int) {
         viewModelScope.launch { preferences.setRedline(rpm) }
+    }
+
+    fun setTheme(theme: AppTheme) {
+        viewModelScope.launch { preferences.setTheme(theme) }
     }
 
     // ---- tiles ------------------------------------------------------------------

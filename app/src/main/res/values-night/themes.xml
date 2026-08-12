@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      The launch window at night. See values/themes.xml — this only has to hold until
+      Compose draws its first frame.
+    -->
+    <style name="Theme.Obd2Dashboard" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/dash_background</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

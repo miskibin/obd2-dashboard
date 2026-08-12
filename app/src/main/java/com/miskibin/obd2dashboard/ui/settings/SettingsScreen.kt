@@ -44,6 +44,7 @@ import com.miskibin.obd2dashboard.R
 import com.miskibin.obd2dashboard.data.AlertComparison
 import com.miskibin.obd2dashboard.data.AlertRule
 import com.miskibin.obd2dashboard.data.AppLanguage
+import com.miskibin.obd2dashboard.data.AppTheme
 import com.miskibin.obd2dashboard.data.Metric
 import com.miskibin.obd2dashboard.data.Metrics
 import com.miskibin.obd2dashboard.data.SavedAdapter
@@ -88,6 +89,7 @@ const val REPOSITORY_URL = "https://github.com/miskibin/obd2-dashboard"
 fun SettingsScreen(
     savedAdapter: SavedAdapter?,
     language: AppLanguage,
+    theme: AppTheme,
     pollingEnabled: Boolean,
     alertRules: List<AlertRule>,
     redline: Int,
@@ -95,6 +97,7 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onForgetAdapter: () -> Unit,
     onLanguageChange: (AppLanguage) -> Unit,
+    onThemeChange: (AppTheme) -> Unit,
     onPollingChange: (Boolean) -> Unit,
     onRedlineChange: (Int) -> Unit,
     onAlertRuleChange: (AlertRule) -> Unit,
@@ -148,7 +151,7 @@ fun SettingsScreen(
                 }
             }
 
-            // No group box around this one: a segmented control already draws its own
+            // No group box around these two: a segmented control already draws its own
             // recessed track, and wrapping it in a card gave the language picker three
             // borders to say what one row of three words says.
             Column {
@@ -158,6 +161,20 @@ fun SettingsScreen(
                         Segment(stringResource(option.labelRes())) { onLanguageChange(option) }
                     },
                     selectedIndex = AppLanguage.entries.indexOf(language),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+
+            // Next to the language for the same reason: both are "how the app presents
+            // itself", both are picked once, and both take effect the moment they are
+            // tapped — this one without even a redraw of the activity.
+            Column {
+                SectionHeader(text = stringResource(R.string.settings_theme))
+                SegmentedControl(
+                    segments = AppTheme.entries.map { option ->
+                        Segment(stringResource(option.labelRes())) { onThemeChange(option) }
+                    },
+                    selectedIndex = AppTheme.entries.indexOf(theme),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -574,4 +591,11 @@ private fun AppLanguage.labelRes(): Int = when (this) {
     AppLanguage.System -> R.string.settings_language_system
     AppLanguage.English -> R.string.settings_language_english
     AppLanguage.Polish -> R.string.settings_language_polish
+}
+
+@StringRes
+private fun AppTheme.labelRes(): Int = when (this) {
+    AppTheme.System -> R.string.settings_theme_system
+    AppTheme.Dark -> R.string.settings_theme_dark
+    AppTheme.Light -> R.string.settings_theme_light
 }
