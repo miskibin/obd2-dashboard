@@ -38,6 +38,7 @@ import com.miskibin.obd2dashboard.data.VinFacts
 import com.miskibin.obd2dashboard.obd.FuelType
 import com.miskibin.obd2dashboard.ui.AppIcons
 import com.miskibin.obd2dashboard.ui.components.AccentButton
+import com.miskibin.obd2dashboard.ui.components.ESTIMATE_MARK
 import com.miskibin.obd2dashboard.ui.components.EmptyState
 import com.miskibin.obd2dashboard.ui.components.GroupedList
 import com.miskibin.obd2dashboard.ui.components.ScreenHeader
@@ -104,10 +105,21 @@ fun VehicleScreen(
                 .padding(bottom = Dimens.listBottom),
             verticalArrangement = Arrangement.spacedBy(Dimens.sectionGap),
         ) {
-            Group(title = stringResource(R.string.vehicle_identity)) {
-                ReadOnlyRow(R.string.vehicle_make, facts?.manufacturer)
-                ReadOnlyRow(R.string.vehicle_country, facts?.country)
-                ReadOnlyRow(R.string.vehicle_model_year, facts?.modelYear?.toString())
+            Column {
+                SectionHeader(text = stringResource(R.string.vehicle_identity))
+                GroupedList(modifier = Modifier.fillMaxWidth()) {
+                    ReadOnlyRow(R.string.vehicle_make, facts?.manufacturer)
+                    ReadOnlyRow(R.string.vehicle_country, facts?.country)
+                    // Marked, because it is the one row here that is worked out rather
+                    // than looked up: the year character repeats every thirty years and
+                    // nothing else in a VIN says which cycle this car is from.
+                    ReadOnlyRow(
+                        label = R.string.vehicle_model_year,
+                        value = facts?.modelYear?.toString(),
+                        estimated = facts?.modelYear != null,
+                    )
+                }
+                if (facts?.modelYear != null) Hint(stringResource(R.string.vehicle_year_estimated))
             }
 
             Column {
@@ -219,9 +231,15 @@ private fun Hint(text: String) {
     )
 }
 
-/** Something the VIN answered for, or the word for it having stayed silent. */
+/**
+ * Something the VIN answered for, or the word for it having stayed silent.
+ *
+ * [estimated] marks the value the decoder had to reason its way to rather than read: the
+ * marque and the country are table lookups on characters that mean one thing, the model
+ * year is the newest reading of a character that means one of three.
+ */
 @Composable
-private fun ReadOnlyRow(@StringRes label: Int, value: String?) {
+private fun ReadOnlyRow(@StringRes label: Int, value: String?, estimated: Boolean = false) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -238,7 +256,11 @@ private fun ReadOnlyRow(@StringRes label: Int, value: String?) {
             modifier = Modifier.weight(1f),
         )
         Text(
-            text = value ?: stringResource(R.string.vehicle_unknown),
+            text = when {
+                value == null -> stringResource(R.string.vehicle_unknown)
+                estimated -> ESTIMATE_MARK + value
+                else -> value
+            },
             style = MaterialTheme.typography.bodyLarge,
             color = if (value != null) SteelLight else Fog,
         )

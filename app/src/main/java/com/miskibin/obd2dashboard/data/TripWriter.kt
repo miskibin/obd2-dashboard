@@ -85,7 +85,19 @@ class TripWriter(private val file: File, private val startedAtMillis: Long) {
         if (known.add(id)) columns += id
     }
 
-    private fun columnOf(id: MetricId) = CsvColumn(id.storageKey, Metrics[id]?.unit.orEmpty())
+    /**
+     * A column's header.
+     *
+     * Every derived metric is marked, whatever it happened to be computed from on the row
+     * being written: the flag describes the column, and a fuel rate that was measured for
+     * the first minute of a drive and estimated for the rest is still a column a reader has
+     * to treat as an estimate.
+     */
+    private fun columnOf(id: MetricId) = CsvColumn(
+        key = id.storageKey,
+        unit = Metrics[id]?.unit.orEmpty(),
+        estimated = id is MetricId.Derived,
+    )
 
     /**
      * Replaces the first line with the full column set.

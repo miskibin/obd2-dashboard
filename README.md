@@ -17,15 +17,25 @@ works with ELM327-compatible clones). Inspired by Car Scanner ELM OBD2.
 - **Charts** — any parameter from the catalogue, up to six at once, in three axis
   modes: a strip each, one shared 0–100 % axis, or one shared axis in units
 - **Vehicle profile** — kept against the car's VIN rather than the dongle, so one
-  adapter moved between two cars is two profiles. The marque, country of assembly
-  and model year are decoded from the VIN by a bundled table, offline, with nothing
-  leaving the phone; the driver adds the five constants no OBD port reports — fuel
-  type, displacement, rated power, kerb mass, tank capacity. These are not trivia:
-  the fuel type is what the air-flow reading is divided by to become consumption,
-  and without it a diesel reads about twice its real figure
+  adapter moved between two cars is two profiles. The marque and country of assembly
+  are decoded from the VIN by a bundled table, offline, with nothing leaving the
+  phone; the model year is worked out from it and marked as worked out, because the
+  year character repeats every thirty years. The driver adds the fuel type — which
+  is what the air-flow reading is divided by to become consumption, and without
+  which a diesel reads about 80 % high — plus displacement, rated power, kerb mass
+  and tank capacity, which are stored against the car for later screens and are not
+  read by anything yet
 - **Trips** — every recording read back into distance, consumption, maxima and
   the events worth a badge (oil over its limit, the limiter reached), each with
-  the second it happened; export as CSV
+  the second it happened; export as CSV. Distance and consumption are integrals of
+  what the car reported rather than readings of anything, so both are shown as
+  estimates, and any stretch the recording could not account for is stated
+- **Says what it does not know** — every number the app worked out rather than read
+  carries a `~` on the tile, in the chart legend and in the CSV header, and the
+  detail sheet names the constant behind it: the assumed sea-level pressure behind
+  a boost figure on a car without PID 33, the assumed petrol behind a consumption
+  figure on a profile with no fuel type. Readings are dated by their own inputs, so
+  a value whose source has gone quiet dims instead of being restamped as fresh
 - **UI in English and Polish**
 
 Planned later: Android Auto screen with live engine parameters

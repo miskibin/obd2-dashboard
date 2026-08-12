@@ -230,6 +230,17 @@ private fun WhenCard(dtc: Dtc, observation: DtcObservation?) {
                 )
             }
         }
+        // Whose clock these are. A row reading "Seen 14:32" beside a fault code is taken
+        // for the moment the fault happened, and it is not: mode 03 carries no timestamp,
+        // so every time here is a time the app looked and found the code already there.
+        if (observation != null) {
+            Text(
+                text = stringResource(R.string.fault_when_note),
+                style = MaterialTheme.typography.labelMedium,
+                color = Fog,
+                modifier = Modifier.padding(top = 3.dp),
+            )
+        }
     }
 }
 

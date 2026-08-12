@@ -53,6 +53,35 @@ class TripAnalyzerTest {
     }
 
     @Test
+    fun `counts no gaps in a recording that has none`() {
+        assertEquals(0.0, analyze().skippedSeconds, 0.001)
+    }
+
+    /**
+     * A hole in the middle of a drive — a dropped link, a sleeping phone — is not
+     * integrated across, because doing so would invent kilometres the car never covered.
+     * What it must not do is disappear: the distance that comes back describes less of the
+     * drive than the driver took, and only this number says by how much.
+     */
+    @Test
+    fun `reports the time it could not account for`() {
+        val header = "timestamp,elapsed_s,$speedKey (km/h)"
+        val rows = (0..10).map { "2026-08-14T17:42:00.000,$it,60" } +
+            (100..110).map { "2026-08-14T17:43:40.000,$it,60" }
+        val file = File.createTempFile("gap-", ".csv").apply {
+            deleteOnExit()
+            writeText((listOf(header) + rows).joinToString("\n"))
+        }
+
+        val analysis = analyze(file)
+
+        // 90 seconds of hole, of which the analyser integrates the 5 it is allowed to.
+        assertEquals(85.0, analysis.skippedSeconds, 0.001)
+        // 21 counted seconds at 60 km/h, plus the one clamped step.
+        assertEquals(0.42, analysis.distanceKm ?: 0.0, 0.02)
+    }
+
+    @Test
     fun `collapses a long breach into one event with its duration`() {
         val event = analyze().events.single { it.metric == Metrics.OilTemp }
 

@@ -624,16 +624,50 @@ object DerivedMetrics {
     private const val MIN_CREDIBLE_LAMBDA = 0.5
 
     /**
+     * The derived values as plain numbers, for callers that only need the arithmetic.
+     *
      * @param fuel what is being burnt, which decides how much of it a given mass of air is.
      */
     fun compute(
         values: Map<Int, Double>,
         fuel: FuelType = FuelType.Default,
-    ): Map<String, Double> {
-        val derived = mutableMapOf<String, Double>()
+    ): Map<String, Double> = computeAll(values, fuel).mapValues { it.value.value }
+
+    /**
+     * The derived values with what each one is worth: whether every input came off the bus,
+     * which constant had to be supplied when one did not, and how old the oldest input is.
+     *
+     * @param fuel what is being burnt; null when the driver has not said, which is not the
+     * same as petrol even though petrol is what the maths then runs on.
+     * @param timestamps when each reading key was last refreshed, so a derived value can be
+     * dimmed on the age of what it was computed from rather than on the moment it was
+     * computed.
+     */
+    fun computeAll(
+        values: Map<Int, Double>,
+        fuel: FuelType? = null,
+        timestamps: Map<Int, Long> = emptyMap(),
+    ): Map<String, DerivedValue> {
+        val burnt = fuel ?: FuelType.Default
+        val derived = mutableMapOf<String, DerivedValue>()
+
+        fun age(sources: List<Int>): Long =
+            sources.mapNotNull(timestamps::get).minOrNull() ?: 0L
 
         values[Pids.INTAKE_MAP]?.let { map ->
-            derived[Boost.key] = map - (values[Pids.BAROMETRIC_PRESSURE] ?: SEA_LEVEL_KPA)
+            // Boost is manifold pressure above the air outside, and on a car that does not
+            // report PID 33 the app has no idea what the air outside is doing. Sea level is
+            // the least wrong constant available and it is wrong by about a kilopascal per
+            // hundred metres of altitude, so the value is published as assumed rather than
+            // quietly offered as a measurement of the turbo.
+            val ambient = values[Pids.BAROMETRIC_PRESSURE]
+            val sources = listOfNotNull(Pids.INTAKE_MAP, ambient?.let { Pids.BAROMETRIC_PRESSURE })
+            derived[Boost.key] = DerivedValue(
+                value = map - (ambient ?: SEA_LEVEL_KPA),
+                provenance = if (ambient != null) Provenance.Derived else Provenance.Assumed,
+                assumption = if (ambient != null) null else Assumption.SeaLevelPressure,
+                timestampMillis = age(sources),
+            )
         }
 
         // PID 5E when the car has it, and the air flow converted when it does not — which
@@ -645,16 +679,58 @@ object DerivedMetrics {
         // commanded value is what the ECU asked for and the sensor is what actually
         // happened. It also has range the commanded PID does not: 0144 saturates at 2.0,
         // so a diesel at idle reads as λ=2 there and as its real λ>5 here.
-        val fuelRate = values[Pids.FUEL_RATE] ?: values[Pids.MAF_RATE]?.let { maf ->
-            val lambda = measuredLambda(values)
-                ?: values[Pids.COMMANDED_EQUIV_RATIO]?.takeIf { it >= MIN_CREDIBLE_LAMBDA }
-                ?: fuel.nominalLambda
-            maf * SECONDS_PER_HOUR / (fuel.airMassPerLitre * lambda)
+        val reported = values[Pids.FUEL_RATE]
+        val rate: DerivedValue? = when {
+            reported != null -> DerivedValue(
+                value = reported,
+                // The ECU's own figure, passed through untouched: a measurement, not a guess.
+                provenance = Provenance.Measured,
+                timestampMillis = age(listOf(Pids.FUEL_RATE)),
+            )
+
+            else -> values[Pids.MAF_RATE]?.let { maf ->
+                val lambdaKey = lambdaSource(values)
+                val lambda = lambdaKey?.let(values::getValue) ?: burnt.nominalLambda
+                DerivedValue(
+                    value = maf * SECONDS_PER_HOUR / (burnt.airMassPerLitre * lambda),
+                    // Two separate ways this can stop being a straight computation, and the
+                    // fuel type is the one that costs the most: an unfilled profile runs a
+                    // diesel's air flow through petrol's chemistry and overstates it by
+                    // about four fifths.
+                    provenance = if (fuel == null || lambdaKey == null) {
+                        Provenance.Assumed
+                    } else {
+                        Provenance.Derived
+                    },
+                    assumption = when {
+                        fuel == null -> Assumption.FuelTypeUnset
+                        lambdaKey == null -> Assumption.NominalLambda
+                        else -> null
+                    },
+                    timestampMillis = age(listOfNotNull(Pids.MAF_RATE, lambdaKey)),
+                )
+            }
         }
-        if (fuelRate != null) {
-            derived[FuelRate.key] = fuelRate
+
+        if (rate != null) {
+            derived[FuelRate.key] = rate
             val speed = values[Pids.VEHICLE_SPEED]
-            if (speed != null && speed > 0.0) derived[FuelPer100Km.key] = fuelRate * 100.0 / speed
+            if (speed != null && speed > 0.0) {
+                derived[FuelPer100Km.key] = rate.copy(
+                    value = rate.value * 100.0 / speed,
+                    // Dividing a measured fuel rate by a measured speed is still arithmetic
+                    // the app did rather than a number the car reported.
+                    provenance = if (rate.provenance == Provenance.Assumed) {
+                        Provenance.Assumed
+                    } else {
+                        Provenance.Derived
+                    },
+                    timestampMillis = minOf(
+                        rate.timestampMillis,
+                        timestamps[Pids.VEHICLE_SPEED] ?: rate.timestampMillis,
+                    ),
+                )
+            }
         }
 
         return derived
@@ -662,13 +738,28 @@ object DerivedMetrics {
 
 
     /**
-     * Lambda as a wide-range sensor actually measured it.
+     * Which reading the mixture should be taken from, or null when the car reports none.
      *
-     * Sensor 1 of each set is the pre-catalyst probe, which is the one that describes what
-     * the engine burned; the post-catalyst sensors are reading exhaust that has already
-     * been through the converter.
+     * A wide-range sensor first: sensor 1 of each set is the pre-catalyst probe, which is
+     * the one that describes what the engine burned, while the post-catalyst sensors are
+     * reading exhaust that has already been through the converter. The commanded ratio is
+     * the fallback, and it is only believed above [MIN_CREDIBLE_LAMBDA] — an ECU that does
+     * not really implement PID 44 still answers it, usually with zero.
+     *
+     * Returns the key rather than the value so the caller can tell a mixture the car
+     * reported from the nominal one it had to fall back on, and can date the result by it.
      */
-    private fun measuredLambda(values: Map<Int, Double>): Double? =
-        (values[0x24] ?: values[0x34])?.takeIf { it > 0.0 }
+    private fun lambdaSource(values: Map<Int, Double>): Int? = when {
+        values[WIDE_RANGE_LAMBDA]?.let { it > 0.0 } == true -> WIDE_RANGE_LAMBDA
+        values[WIDE_RANGE_LAMBDA_CURRENT]?.let { it > 0.0 } == true -> WIDE_RANGE_LAMBDA_CURRENT
+        values[Pids.COMMANDED_EQUIV_RATIO]?.let { it >= MIN_CREDIBLE_LAMBDA } == true ->
+            Pids.COMMANDED_EQUIV_RATIO
+
+        else -> null
+    }
+
+    /** `0124`/`0134`: the pre-catalyst wide-range probe, in the two encodings it comes in. */
+    private const val WIDE_RANGE_LAMBDA = 0x24
+    private const val WIDE_RANGE_LAMBDA_CURRENT = 0x34
 
 }

@@ -47,9 +47,21 @@ data class TripPoint(val seconds: Double, val value: Double)
  * a single streamed pass and never holds more than the thinned traces in memory.
  */
 data class TripAnalysis(
+    /** Integrated from road speed; see [TripAnalyzer]. Never an odometer reading. */
     val distanceKm: Double?,
     val durationSeconds: Double,
+    /** Integrated from the fuel rate, which on most cars is itself derived from air flow. */
     val averageFuelPer100Km: Double?,
+    /**
+     * Time inside the recording that no distance or fuel was counted for, because the gap
+     * between two rows was too long to integrate across — a dropped link, a phone that
+     * slept, polling switched off at a set of lights.
+     *
+     * Kept and shown rather than silently absorbed: a drive whose middle ten minutes are
+     * missing produces a distance that is simply wrong, and the only honest thing the
+     * screen can do is say how much of the drive it could not account for.
+     */
+    val skippedSeconds: Double,
     val maxima: Map<MetricId, Double>,
     val events: List<TripEvent>,
     val traces: List<TripTrace>,
@@ -57,7 +69,7 @@ data class TripAnalysis(
     val isEmpty: Boolean get() = durationSeconds <= 0.0 && traces.all { it.points.isEmpty() }
 
     companion object {
-        val EMPTY = TripAnalysis(null, 0.0, null, emptyMap(), emptyList(), emptyList())
+        val EMPTY = TripAnalysis(null, 0.0, null, 0.0, emptyMap(), emptyList(), emptyList())
     }
 }
 
@@ -67,7 +79,15 @@ data class TripAnalysis(
  * Distance and fuel are integrated rather than read: no generic PID reports trip distance
  * or trip consumption, but road speed and fuel rate sampled ten times a second integrate
  * to both. The result is close enough to a trip computer to be worth showing and, like
- * everything else here, is only ever as good as what the car answered.
+ * everything else here, is only ever as good as what the car answered — which is why both
+ * are labelled as estimates wherever they appear, and why [TripAnalysis.skippedSeconds]
+ * exists to say how much of the drive went uncounted.
+ *
+ * Three things stand between these figures and a fuel-till receipt, and the screen says so
+ * rather than leaving a driver to discover them: road speed off the bus reads a few percent
+ * high by design (manufacturers may not under-read), the fuel rate is usually the
+ * MAF-derived estimate rather than PID 5E, and any gap longer than [MAX_STEP_SECONDS] is
+ * not integrated across at all.
  */
 object TripAnalyzer {
 
@@ -100,6 +120,7 @@ object TripAnalyzer {
         var previousElapsed = 0.0
         var distanceKm = 0.0
         var litres = 0.0
+        var skippedSeconds = 0.0
         var sawSpeed = false
         var sawFuelRate = false
         val maxima = HashMap<MetricId, Double>()
@@ -119,7 +140,12 @@ object TripAnalyzer {
                 }
                 previousElapsed = elapsed
                 elapsed = fields.getOrNull(ELAPSED_FIELD)?.toDoubleOrNull() ?: return@forEachIndexed
-                val step = (elapsed - previousElapsed).coerceIn(0.0, MAX_STEP_SECONDS)
+                val gap = (elapsed - previousElapsed).coerceAtLeast(0.0)
+                val step = gap.coerceAtMost(MAX_STEP_SECONDS)
+                // What the clamp threw away. Integrating across a five-minute hole would
+                // invent kilometres; pretending the hole was not there overstates how much
+                // of the drive these totals actually describe.
+                skippedSeconds += gap - step
 
                 columns.forEach { (metric, column) ->
                     val value = fields.getOrNull(column)?.toDoubleOrNull() ?: return@forEach
@@ -157,6 +183,7 @@ object TripAnalyzer {
 
                 else -> null
             },
+            skippedSeconds = skippedSeconds,
             maxima = maxima,
             events = breachTracker.finish(elapsed),
             traces = tracesOf(traceValues),

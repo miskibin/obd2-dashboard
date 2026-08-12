@@ -353,9 +353,15 @@ private fun AppNavHost(
             val supported by viewModel.supportedPids.collectAsStateWithLifecycle()
             val supportedExtended by viewModel.supportedExtended.collectAsStateWithLifecycle()
             val misfire by viewModel.misfire.collectAsStateWithLifecycle()
+            val vin by viewModel.vin.collectAsStateWithLifecycle()
+            val vehicle by viewModel.vehicle.collectAsStateWithLifecycle()
+            val facts by viewModel.vinFacts.collectAsStateWithLifecycle()
             DashboardScreen(
-                vehicleName = savedAdapter?.name?.takeIf(String::isNotBlank)
-                    ?: stringResource(R.string.dashboard_vehicle_unknown),
+                // The car, by the same rule every other screen uses: the driver's own name
+                // for it, then its VIN, and only then the dongle's. The dashboard used to
+                // take the adapter's name straight, so the header over a car's live data
+                // was the name of the plastic box in the footwell.
+                vehicleName = vehicleLabel(vehicle?.label(facts), vin, connectionState, savedAdapter),
                 connectionLabel = connectionState.label(),
                 tiles = tiles,
                 snapshot = snapshot,

@@ -24,12 +24,18 @@ import com.miskibin.obd2dashboard.R
 import com.miskibin.obd2dashboard.data.Metric
 import com.miskibin.obd2dashboard.data.NormalBand
 import com.miskibin.obd2dashboard.data.Sample
+import com.miskibin.obd2dashboard.obd.Assumption
+import com.miskibin.obd2dashboard.obd.Provenance
 import com.miskibin.obd2dashboard.ui.chart.ChartMode
 import com.miskibin.obd2dashboard.ui.chart.ChartSeries
 import com.miskibin.obd2dashboard.ui.chart.LineChart
 import com.miskibin.obd2dashboard.ui.components.DesignSheet
+import com.miskibin.obd2dashboard.ui.components.EstimateMark
 import com.miskibin.obd2dashboard.ui.components.formatReading
+import com.miskibin.obd2dashboard.ui.components.provenanceText
+import com.miskibin.obd2dashboard.ui.theme.AmberText
 import com.miskibin.obd2dashboard.ui.theme.Chalk
+import com.miskibin.obd2dashboard.ui.theme.Fog
 import com.miskibin.obd2dashboard.ui.theme.InkRaised
 import com.miskibin.obd2dashboard.ui.theme.Moss
 import com.miskibin.obd2dashboard.ui.theme.PanelCorner
@@ -50,6 +56,9 @@ fun MetricSheet(
     label: String,
     samples: List<Sample>,
     band: NormalBand?,
+    bandIsDriverSet: Boolean,
+    provenance: Provenance,
+    assumption: Assumption?,
     accent: Color,
     windowMillis: Long,
     nowMillis: Long,
@@ -115,6 +124,22 @@ fun MetricSheet(
                         color = Smoke,
                     )
                 }
+                // Where the band came from, which is not a detail: nothing in OBD2 reports
+                // what a given engine's normal running temperature is, so a car that is
+                // meant to sit at 103 °C would otherwise read as permanently too hot
+                // against a range the app made up for it.
+                Text(
+                    text = stringResource(
+                        if (bandIsDriverSet) {
+                            R.string.metric_sheet_band_rule
+                        } else {
+                            R.string.metric_sheet_band_generic
+                        },
+                    ),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Fog,
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                )
             }
         }
 
@@ -153,6 +178,23 @@ fun MetricSheet(
             color = Smoke,
             modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
         )
+
+        // What the app is claiming by showing this at all, and — where one was needed —
+        // which constant it had to supply. The paragraph above says what the parameter is
+        // in general; this says what *this* number, on *this* car, right now, is worth.
+        if (provenance.estimated) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
+            ) {
+                EstimateMark(provenance = provenance, assumption = assumption)
+                Text(
+                    text = provenanceText(provenance, assumption),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (provenance == Provenance.Assumed) AmberText else Smoke,
+                )
+            }
+        }
     }
 }
 

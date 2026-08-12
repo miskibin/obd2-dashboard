@@ -100,6 +100,8 @@
 
     <!-- Testy gotowości -->
     <string name="readiness_ready">Gotowy do badania technicznego</string>
+    <string name="readiness_blocked">Testy ukończone, ale auto i tak nie przejdzie</string>
+    <string name="readiness_scope">To dotyczy wyłącznie testów gotowości. Świecąca kontrolka silnika albo zapisany kod to negatywny wynik badania niezależnie od monitorów.</string>
     <string name="readiness_complete">Ukończony</string>
     <string name="readiness_incomplete">Nieukończony</string>
     <string name="readiness_ignition_spark">Zapłon iskrowy (benzyna)</string>
@@ -129,12 +131,13 @@
     <string name="vehicle_make">Marka</string>
     <string name="vehicle_country">Pochodzenie</string>
     <string name="vehicle_model_year">Rocznik</string>
+    <string name="vehicle_year_estimated">Rocznik jest wyliczony, a nie odczytany: dziesiąty znak VIN-u powtarza się co trzydzieści lat, więc pokazany jest najnowszy wariant, który nie jest w przyszłości. Marka i pochodzenie są odczytane z VIN-u wprost.</string>
     <string name="vehicle_unknown">Nierozpoznane</string>
     <string name="vehicle_fuel">Paliwo</string>
     <string name="vehicle_fuel_description">Spalanie liczone jest z przepływu powietrza, a ten staje się przepływem paliwa dopiero, gdy wiadomo jakiego.</string>
     <string name="vehicle_fuel_unset">Nie ustawiono — spalanie liczone jest jak dla benzyny, co przy dieslu zawyża wynik o połowę.</string>
     <string name="vehicle_specification">Dane techniczne</string>
-    <string name="vehicle_specification_description">Wszystkie cztery są w dowodzie rejestracyjnym. Zapisują się teraz, a odczytają, gdy pojawią się wielkości, które ich potrzebują: masa zamienia przyspieszenie na moc, a pojemność baku — wskazanie paliwa na zasięg.</string>
+    <string name="vehicle_specification_description">Wszystkie cztery są w dowodzie rejestracyjnym. Aplikacja jeszcze z nich nie korzysta — zapisuje je przy aucie na potrzeby ekranów, które ich będą wymagać. Na liczby, które widzisz dziś, wpływa tylko rodzaj paliwa powyżej.</string>
     <string name="vehicle_displacement">Pojemność skokowa</string>
     <string name="vehicle_power">Moc znamionowa</string>
     <string name="vehicle_mass">Masa własna</string>
@@ -402,7 +405,8 @@
     <string name="unit_mph">mph</string>
     <string name="action_move_up">Przesuń w górę</string>
     <string name="dashboard_speed_label">Prędkość</string>
-    <string name="dashboard_gear_label">Bieg</string>
+    <string name="dashboard_gear_label">Bieg · szac.</string>
+    <string name="dashboard_gear_estimated">Szacowany bieg: wyliczony z prędkości i obrotów, bo standardowe OBD2 nie ma PID-u z faktycznie włączonym biegiem.</string>
     <string name="dashboard_edit_list">Edytuj listę</string>
     <string name="dashboard_edit_list_on">włączone</string>
 
@@ -437,9 +441,19 @@
     <string name="car_zone_tyre_rl">Opona, tył lewy</string>
     <string name="car_zone_tyre_rr">Opona, tył prawy</string>
 
+    <!-- Skąd wzięła się liczba: odczyt z magistrali, wyliczenie, wyliczenie z podstawioną stałą -->
+    <string name="provenance_measured">Odczytane z auta.</string>
+    <string name="provenance_derived">Wyliczone przez aplikację z innych odczytów — auto samo tej wartości nie podaje.</string>
+    <string name="provenance_assumed">Wyliczone przez aplikację, z jednym założeniem: %1$s.</string>
+    <string name="assumption_sea_level">auto nie podaje ciśnienia powietrza na zewnątrz, więc przyjęto poziom morza (101,3 kPa) — to około 1 kPa za dużo na każde 100 m wysokości</string>
+    <string name="assumption_fuel_unset">nie ustawiono rodzaju paliwa, więc przyjęto benzynę — diesel wychodzi wtedy o jakieś 80 % za wysoko. Ustaw je na ekranie pojazdu</string>
+    <string name="assumption_nominal_lambda">auto nie podaje składu mieszanki, więc przyjęto typowy dla tego paliwa</string>
+
     <!-- Arkusz parametru -->
     <string name="metric_sheet_subtitle">Ostatnie 60 sekund</string>
     <string name="metric_sheet_band">Zakres normy %1$s</string>
+    <string name="metric_sheet_band_generic">Orientacyjny zakres dla silników tego typu, nie wartość odczytana z tego auta.</string>
+    <string name="metric_sheet_band_rule">Próg, który ustawiłeś dla alertu.</string>
     <string name="metric_sheet_now">Teraz</string>
     <string name="metric_sheet_min">Min</string>
     <string name="metric_sheet_max">Maks</string>
@@ -470,9 +484,13 @@
     <string name="nav_trips">Przejazdy</string>
     <string name="trips_subtitle">%1$d zapisanych · %2$s km</string>
     <string name="trips_subtitle_empty">Nic jeszcze nie nagrano</string>
-    <string name="trip_meta_distance">%1$s km</string>
+    <string name="trip_meta_distance">~%1$s km</string>
     <string name="trip_meta_duration">%1$s min</string>
-    <string name="trip_meta_fuel">śr. %1$s L/100 km</string>
+    <string name="trip_meta_fuel">śr. ~%1$s L/100 km</string>
+    <string name="trip_estimates_title">Skąd wzięły się te liczby</string>
+    <string name="trip_estimates_distance">Dystans jest sumowany z prędkości, a nie odczytany z licznika. Prędkościomierz auta z założenia zawyża o kilka procent, więc ta wartość zwykle wychodzi nieco za duża.</string>
+    <string name="trip_estimates_fuel">Średnie spalanie jest sumowane z chwilowego zużycia paliwa. Jeśli auto nie podaje PID 5E, to zużycie samo w sobie jest wyliczone z przepływu powietrza i rodzaju paliwa z profilu pojazdu.</string>
+    <string name="trip_estimates_gap">%1$s tego nagrania nie wchodzi do żadnej z tych liczb: przerwy między próbkami były za długie, żeby je sumować — zerwane połączenie, uśpiony telefon albo wyłączone odpytywanie.</string>
     <string name="trip_events">Zdarzenia</string>
     <string name="trip_export">Eksportuj CSV</string>
     <string name="trip_loading">Wczytuję nagranie…</string>
@@ -500,10 +518,11 @@
     <!-- Szczegóły błędu -->
     <string name="dtc_hint_recorded">±30 s z nagrania aplikacji</string>
     <string name="dtc_hint_frame_only">tylko zamrożona ramka ECU</string>
-    <string name="fault_when_last">Wystąpił</string>
-    <string name="fault_when_first">Pierwszy raz</string>
+    <string name="fault_when_last">Widziano</string>
+    <string name="fault_when_first">Pierwszy raz widziano</string>
     <string name="fault_when_count">Liczba wystąpień</string>
     <string name="fault_when_ecu">Zgłoszony przez</string>
+    <string name="fault_when_note">Czasy pochodzą z obserwacji aplikacji, nie z auta — sterownik nie podaje, kiedy zapisał kod. Kod zastany przy podłączeniu ma tu godzinę podłączenia.</string>
     <string name="fault_when_unknown">Auto nie podaje, kiedy kod został zapisany</string>
     <string name="fault_related">Kody towarzyszące</string>
     <string name="fault_related_window">±5 min wokół zdarzenia</string>
@@ -799,6 +818,7 @@
     <string name="monitors_section_catalyst">Pojemność tlenowa katalizatora</string>
     <string name="monitors_bank">Rząd %1$d</string>
     <string name="monitors_limit_low">dolny limit %1$s</string>
+    <string name="monitors_no_limit">auto nie podało progów zaliczenia dla tego testu</string>
     <string name="monitors_limit_high">górny limit %1$s</string>
     <string name="monitors_catalyst_note">Pojemność tlenowa mówi, ile tlenu katalizator jest jeszcze w stanie zmagazynować, i spada powoli przez całe jego życie. Sterownik zapala P0420, gdy zejdzie poniżej pokazanego tu limitu, więc wartość pełznąca w stronę tego limitu przez kilka kolejnych odczytów to ostrzeżenie, które przychodzi wiele miesięcy przed kontrolką.</string>
     <string name="monitors_section_oxygen">Sondy lambda</string>

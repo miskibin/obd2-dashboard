@@ -75,7 +75,7 @@ class PidSchedulerTest {
         assertEquals(65.0, snapshot[0x0D]!!, 0.001)
         assertEquals(15.0, snapshot[0x10]!!, 0.001)
         assertEquals("Engine RPM", snapshot.readings.getValue(0x0C).name)
-        assertEquals(49.0, snapshot.derived.getValue(DerivedMetrics.Boost.key), 0.001)
+        assertEquals(49.0, snapshot.derived.getValue(DerivedMetrics.Boost.key).value, 0.001)
     }
 
     @Test

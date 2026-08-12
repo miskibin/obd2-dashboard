@@ -53,10 +53,13 @@ import com.miskibin.obd2dashboard.data.MetricId
 import com.miskibin.obd2dashboard.data.Metrics
 import com.miskibin.obd2dashboard.data.RecordingState
 import com.miskibin.obd2dashboard.data.Sample
+import com.miskibin.obd2dashboard.data.assumptionOf
+import com.miskibin.obd2dashboard.data.provenanceOf
 import com.miskibin.obd2dashboard.data.valueOf
 import com.miskibin.obd2dashboard.obd.VehicleSnapshot
 import com.miskibin.obd2dashboard.ui.AppIcons
 import com.miskibin.obd2dashboard.ui.components.EmptyState
+import com.miskibin.obd2dashboard.ui.components.EstimateMark
 import com.miskibin.obd2dashboard.ui.components.MenuChoice
 import com.miskibin.obd2dashboard.ui.components.MenuLabel
 import com.miskibin.obd2dashboard.ui.components.ScreenHeader
@@ -402,6 +405,15 @@ private fun SeriesLegend(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
+                // A trace of something the app worked out is drawn in exactly the same ink
+                // as a trace of something a sensor said, so the legend is where the two
+                // have to be told apart.
+                if (id != null) {
+                    EstimateMark(
+                        provenance = snapshot.provenanceOf(id),
+                        assumption = snapshot.assumptionOf(id),
+                    )
+                }
                 if (values.isNotEmpty()) {
                     Text(
                         text = "${formatReading(values.min().toDouble(), line.decimals)}–" +

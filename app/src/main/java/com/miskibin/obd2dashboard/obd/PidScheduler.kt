@@ -33,9 +33,18 @@ data class ExtendedReading(
 /** Everything the dashboard renders, replaced wholesale on every update. */
 data class VehicleSnapshot(
     val readings: Map<Int, Reading> = emptyMap(),
-    val derived: Map<String, Double> = emptyMap(),
+    /** The values the app worked out, each carrying what it is worth; see [DerivedValue]. */
+    val derived: Map<String, DerivedValue> = emptyMap(),
     val extended: Map<String, ExtendedReading> = emptyMap(),
     val batteryVoltage: Double? = null,
+    /**
+     * When `ATRV` last answered.
+     *
+     * Its own timestamp rather than the snapshot's, because the voltage is read once every
+     * twenty cycles: dating it by the snapshot made it the one reading on the dashboard
+     * that could never go stale, however long the adapter had been silent about it.
+     */
+    val batteryAtMillis: Long = 0,
     val cycle: Long = 0,
     val updatedAtMillis: Long = 0,
 ) {
@@ -63,8 +72,14 @@ class PidScheduler(
     private val clock: () -> Long = System::currentTimeMillis,
     private val cycleDelayMillis: Long = DEFAULT_CYCLE_DELAY_MILLIS,
     private val pollingEnabled: () -> Boolean = { true },
-    /** Read per publish rather than held, so editing the profile takes effect mid-drive. */
-    private val fuel: () -> FuelType = { FuelType.Default },
+    /**
+     * Read per publish rather than held, so editing the profile takes effect mid-drive.
+     *
+     * Null means the driver has not said. The fuel maths still runs — on petrol, which is
+     * the commonest case — but what it produces is marked [Provenance.Assumed] rather than
+     * passed off as a computation the car's own numbers closed.
+     */
+    private val fuel: () -> FuelType? = { null },
 ) {
     private val _snapshot = MutableStateFlow(VehicleSnapshot())
     val snapshot: StateFlow<VehicleSnapshot> = _snapshot.asStateFlow()
@@ -281,7 +296,15 @@ class PidScheduler(
             val readings = current.readings + fresh
             current.copy(
                 readings = readings,
-                derived = DerivedMetrics.compute(readings.mapValues { it.value.value }, fuel()),
+                // Dated by their inputs, not by this moment: recomputing on every publish
+                // out of the whole reading map is right — a boost pressure should follow
+                // the newest manifold reading — but it must not restamp a value whose
+                // inputs have stopped arriving as though it had just been measured.
+                derived = DerivedMetrics.computeAll(
+                    values = readings.mapValues { it.value.value },
+                    fuel = fuel(),
+                    timestamps = readings.mapValues { it.value.timestampMillis },
+                ),
                 cycle = cycle,
                 updatedAtMillis = now,
             )
@@ -301,7 +324,10 @@ class PidScheduler(
     }
 
     private fun publishVoltage(volts: Double) {
-        _snapshot.update { it.copy(batteryVoltage = volts, updatedAtMillis = clock()) }
+        val now = clock()
+        _snapshot.update {
+            it.copy(batteryVoltage = volts, batteryAtMillis = now, updatedAtMillis = now)
+        }
     }
 
     private fun nextSlowSlice(): List<Pid> {

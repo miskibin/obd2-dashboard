@@ -94,6 +94,7 @@ import com.miskibin.obd2dashboard.ui.components.formatReading
 import com.miskibin.obd2dashboard.ui.label
 import com.miskibin.obd2dashboard.ui.theme.Amber
 import com.miskibin.obd2dashboard.ui.theme.AmberBorder
+import com.miskibin.obd2dashboard.ui.theme.AmberLight
 import com.miskibin.obd2dashboard.ui.theme.AshDim
 import com.miskibin.obd2dashboard.ui.theme.CardCorner
 import com.miskibin.obd2dashboard.ui.theme.Chalk
@@ -292,6 +293,11 @@ fun TripDetailScreen(
                         maxima = if (zoomed) traces.maximaIn(viewport) else analysis.maxima,
                         zoomed = zoomed,
                     )
+                }
+                // The two headline figures in the line under the title are both integrals,
+                // and the tildes in front of them are only a promise that this card keeps.
+                if (analysis.distanceKm != null || analysis.averageFuelPer100Km != null) {
+                    item(key = "estimates") { TripEstimates(analysis) }
                 }
             }
 
@@ -936,6 +942,64 @@ private fun TripStats(maxima: Map<MetricId, Double>, zoomed: Boolean) {
         }
     }
 }
+
+/**
+ * Where the distance and the consumption came from, in the words a driver would use.
+ *
+ * Both are integrals of things the car said a few times a second, and neither is a reading
+ * of anything: there is no trip-distance PID and no trip-consumption PID. On a screen that
+ * otherwise shows measurements, two integrals printed to one decimal look exactly like an
+ * odometer and a trip computer, so the difference is stated once, plainly, under them —
+ * along with any part of the drive that could not be counted at all.
+ */
+@Composable
+private fun TripEstimates(analysis: TripAnalysis) {
+    val skipped = analysis.skippedSeconds.takeIf { it >= MIN_REPORTED_GAP_SECONDS }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(PanelCorner)
+            .background(Slate)
+            .border(1.dp, SlateBorder, PanelCorner)
+            .padding(horizontal = 13.dp, vertical = 11.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.trip_estimates_title),
+            style = MaterialTheme.typography.titleSmall,
+            color = Chalk,
+        )
+        if (analysis.distanceKm != null) {
+            Text(
+                text = stringResource(R.string.trip_estimates_distance),
+                style = MaterialTheme.typography.bodySmall,
+                color = Smoke,
+            )
+        }
+        if (analysis.averageFuelPer100Km != null) {
+            Text(
+                text = stringResource(R.string.trip_estimates_fuel),
+                style = MaterialTheme.typography.bodySmall,
+                color = Smoke,
+            )
+        }
+        // Amber, and last, because it is the one line here that says a number on this
+        // screen is missing something rather than merely being approximate.
+        if (skipped != null) {
+            Text(
+                text = stringResource(
+                    R.string.trip_estimates_gap,
+                    formatDuration(skipped.toLong()),
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = AmberLight,
+            )
+        }
+    }
+}
+
+/** Below this, a gap is polling jitter rather than a hole in the drive. */
+private const val MIN_REPORTED_GAP_SECONDS = 10.0
 
 @Composable
 private fun EventCard(event: TripEvent, startedAtMillis: Long, onClick: () -> Unit) {

@@ -91,6 +91,29 @@ class Mode06Test {
         assertNull(unknown.cylinder)
     }
 
+    /**
+     * Plenty of control units send a record with both limits at zero for a test they
+     * implement but do not bound. Read literally that fails every reading above zero, so a
+     * cold start's single misfire used to light the card up as a failing monitor against
+     * limits the car never set.
+     */
+    @Test
+    fun `a test that arrived with no limits is not failed`() {
+        val unbounded = MonitorTest(0xA2, 0x0B, Mode06.UASID_COUNTS, rawValue = 3, rawMin = 0, rawMax = 0)
+
+        assertFalse("no window means nothing to judge against", unbounded.judgeable)
+        assertTrue(unbounded.passed)
+        assertEquals(3.0, unbounded.value, 0.0001)
+    }
+
+    @Test
+    fun `a test with real limits is still judged by them`() {
+        val over = MonitorTest(0xA2, 0x0B, Mode06.UASID_COUNTS, rawValue = 40, rawMin = 0, rawMax = 30)
+
+        assertTrue(over.judgeable)
+        assertFalse(over.passed)
+    }
+
     @Test
     fun `headroom says how close a reading is to the limit that would set a code`() {
         val healthy = MonitorTest(0x21, 0x82, 0x1E, rawValue = 85, rawMin = 30, rawMax = 250)

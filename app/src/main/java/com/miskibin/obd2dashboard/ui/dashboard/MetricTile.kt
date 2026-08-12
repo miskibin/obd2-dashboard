@@ -58,9 +58,12 @@ import com.miskibin.obd2dashboard.data.Metrics
 import com.miskibin.obd2dashboard.data.NormalBand
 import com.miskibin.obd2dashboard.data.Sample
 import com.miskibin.obd2dashboard.data.statusOf
+import com.miskibin.obd2dashboard.obd.Assumption
 import com.miskibin.obd2dashboard.obd.DerivedMetrics
 import com.miskibin.obd2dashboard.obd.Pids
+import com.miskibin.obd2dashboard.obd.Provenance
 import com.miskibin.obd2dashboard.ui.AppIcons
+import com.miskibin.obd2dashboard.ui.components.EstimateMark
 import com.miskibin.obd2dashboard.ui.components.NO_VALUE
 import com.miskibin.obd2dashboard.ui.components.dashedBorder
 import com.miskibin.obd2dashboard.ui.components.formatReading
@@ -116,6 +119,8 @@ fun MetricTile(
     accent: Color,
     samples: List<Sample>,
     status: MetricStatus,
+    provenance: Provenance,
+    assumption: Assumption?,
     stale: Boolean,
     editing: Boolean,
     canMoveUp: Boolean,
@@ -255,6 +260,18 @@ fun MetricTile(
                 maxLines = 1,
                 modifier = Modifier.alignByBaseline().alpha(dim),
             )
+            // Right against the unit, before the verdict: a value the app worked out has to
+            // say so where the number is, not only in the paragraph behind a tap. A tile is
+            // read in half a second and that is the whole time the distinction has.
+            if (value != null) {
+                EstimateMark(
+                    provenance = provenance,
+                    assumption = assumption,
+                    // Centred rather than on the baseline: a one-character pill has no
+                    // baseline of its own worth aligning a 26 sp number to.
+                    modifier = Modifier.align(Alignment.CenterVertically).alpha(dim),
+                )
+            }
             // The verdict takes whatever the number leaves, so a long one never pushes it
             // off the card — on the narrowest phone it ellipsises instead of disappearing.
             val state = band.statusOf(value)

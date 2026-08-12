@@ -181,7 +181,17 @@ fun DiagnosticsScreen(
             }
 
             diagnostics?.monitorStatus?.readiness?.let { readiness ->
-                item(key = "readiness") { ReadinessCard(readiness = readiness, language = language) }
+                item(key = "readiness") {
+                    ReadinessCard(
+                        readiness = readiness,
+                        // An inspection is failed by a lit lamp as surely as by a monitor
+                        // that has not run, and the two are read off different bytes: the
+                        // card must not answer the whole question from half of them.
+                        milOn = diagnostics.monitorStatus?.milOn == true,
+                        storedCodes = diagnostics.stored.size,
+                        language = language,
+                    )
+                }
             }
 
             // Readiness says which self-tests have run; this says what they found. It sits
@@ -434,11 +444,24 @@ private fun DtcCard(dtc: Dtc, language: String, recorded: Boolean, onClick: () -
  * three lines and a frame to say a good thing. It is a row now: a dot, the verdict, and a
  * chevron. The per-monitor table, which needs the reader to know what an evap monitor is,
  * is behind that chevron where it was already.
+ *
+ * The verdict needs more than [Readiness] to be true. Readiness says only that every
+ * self-test has finished since the last clear — a car with the lamp lit and a stored code
+ * can be perfectly "ready" and will still fail on the spot, and that was exactly what this
+ * row used to tell a driver in green. So the lamp and the stored count are read too, and
+ * the green sentence is kept for the case where all three agree.
  */
 @Composable
-private fun ReadinessCard(readiness: Readiness, language: String) {
+private fun ReadinessCard(
+    readiness: Readiness,
+    milOn: Boolean,
+    storedCodes: Int,
+    language: String,
+) {
     var expanded by remember { mutableStateOf(false) }
     val incomplete = readiness.incomplete.size
+    val blocked = milOn || storedCodes > 0
+    val passes = readiness.ready && !blocked
 
     Column(
         modifier = Modifier
@@ -460,17 +483,22 @@ private fun ReadinessCard(readiness: Readiness, language: String) {
                 modifier = Modifier
                     .size(9.dp)
                     .clip(CircleShape)
-                    .background(if (readiness.ready) Moss else AmberLight),
+                    .background(if (passes) Moss else AmberLight),
             )
             Text(
-                text = if (readiness.ready) {
-                    stringResource(R.string.readiness_ready)
-                } else {
-                    pluralStringResource(R.plurals.readiness_not_ready, incomplete, incomplete)
+                text = when {
+                    passes -> stringResource(R.string.readiness_ready)
+                    // Monitors done but something else in the way: the row still has to
+                    // say what it actually knows, which is that this half is finished.
+                    readiness.ready -> stringResource(R.string.readiness_blocked)
+                    else -> pluralStringResource(R.plurals.readiness_not_ready, incomplete, incomplete)
                 },
                 style = MaterialTheme.typography.bodyLarge,
-                color = if (readiness.ready) AshDim else Chalk,
-                maxLines = 1,
+                color = if (passes) AshDim else Chalk,
+                // Two lines, because the verdict that is not the happy one is a sentence:
+                // "ready" fits anywhere and "complete, but it would still fail" does not,
+                // and of the two the second is the one that must not be cut in half.
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
@@ -493,6 +521,12 @@ private fun ReadinessCard(readiness: Readiness, language: String) {
             ),
             style = MaterialTheme.typography.labelMedium,
             color = Smoke,
+        )
+        // What the table below does and does not answer, for the reader who opened it.
+        Text(
+            text = stringResource(R.string.readiness_scope),
+            style = MaterialTheme.typography.labelMedium,
+            color = Fog,
         )
         readiness.supported.forEach { monitor ->
             val complete = monitor.state == MonitorState.Complete

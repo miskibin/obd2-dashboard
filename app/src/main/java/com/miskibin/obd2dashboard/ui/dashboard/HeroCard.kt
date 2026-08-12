@@ -30,6 +30,8 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
@@ -268,10 +270,18 @@ private fun CardLabel(text: String) {
  * looking away from the road: there is no selector-position PID on generic OBD2, so
  * nothing is lit until speed ÷ revs means something, which is exactly what an unlit strip
  * should say.
+ *
+ * That it is an estimate is said twice, because a lit chip looks exactly as certain as a
+ * measured value: the label over the strip carries the abbreviation, and the strip itself
+ * carries the whole sentence for a screen reader, which cannot see the "· est." above it.
  */
 @Composable
 private fun GearStrip(gear: GearReading, modifier: Modifier = Modifier) {
-    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+    val description = stringResource(R.string.dashboard_gear_estimated)
+    Row(
+        modifier = modifier.semantics { contentDescription = description },
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
         (1..GearEstimator.MAX_GEARS).forEach { number ->
             val on = gear.gear == number
             Box(
@@ -397,8 +407,8 @@ private fun ScaleLabels(redline: Int, modifier: Modifier = Modifier) {
 /** Where the scale turns red, as a fraction of the configured redline. */
 const val REDLINE_WARNING_FRACTION = 0.92f
 
-/** How long a reading stays trusted before the dashboard dims it. */
-const val STALE_AFTER_MILLIS = 3_000L
+// How long a reading stays trusted now depends on how often the app asks for it, which is
+// a property of the metric rather than of this card; see Metrics.staleAfterMillis.
 
 /** The headline number: as large as a phone in a mount can carry without wrapping. */
 private val SpeedTextStyle = NumberTextStyle.copy(

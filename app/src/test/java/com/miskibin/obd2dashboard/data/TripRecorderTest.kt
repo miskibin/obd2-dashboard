@@ -202,7 +202,7 @@ class TripRecorderTest {
         }
         return VehicleSnapshot(
             readings = readings,
-            derived = DerivedMetrics.compute(readings.mapValues { it.value.value }),
+            derived = DerivedMetrics.computeAll(readings.mapValues { it.value.value }),
         )
     }
 }

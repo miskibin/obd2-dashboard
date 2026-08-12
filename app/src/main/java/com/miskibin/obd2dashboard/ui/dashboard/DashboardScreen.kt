@@ -50,7 +50,10 @@ import com.miskibin.obd2dashboard.data.MetricStatus
 import com.miskibin.obd2dashboard.data.Metrics
 import com.miskibin.obd2dashboard.data.MisfireReading
 import com.miskibin.obd2dashboard.data.RecordingState
+import com.miskibin.obd2dashboard.data.assumptionOf
 import com.miskibin.obd2dashboard.data.carZoneBindings
+import com.miskibin.obd2dashboard.data.isStale
+import com.miskibin.obd2dashboard.data.provenanceOf
 import com.miskibin.obd2dashboard.data.statusOf
 import com.miskibin.obd2dashboard.data.updatedAtOf
 import com.miskibin.obd2dashboard.data.valueOf
@@ -221,7 +224,7 @@ fun DashboardScreen(
                         if (imperial) R.string.unit_mph else R.string.unit_kmh,
                     ),
                     gear = gear,
-                    stale = now - snapshot.updatedAtOf(Metrics.Rpm) > STALE_AFTER_MILLIS,
+                    stale = snapshot.isStale(Metrics.Rpm, now),
                 ),
                 title = vehicleName,
                 subtitle = connectionLabel,
@@ -283,7 +286,9 @@ fun DashboardScreen(
                                     history.series(id, METRIC_SHEET_WINDOW_MILLIS, now)
                                 },
                                 status = band.statusOf(value) ?: MetricStatus.Normal,
-                                stale = now - snapshot.updatedAtOf(id) > STALE_AFTER_MILLIS,
+                                provenance = snapshot.provenanceOf(id),
+                                assumption = snapshot.assumptionOf(id),
+                                stale = snapshot.isStale(id, now),
                                 editing = editing,
                                 canMoveUp = index > 0,
                                 onClick = { openMetric = id },
@@ -352,6 +357,9 @@ fun DashboardScreen(
             label = metric.label(),
             samples = samples,
             band = band,
+            bandIsDriverSet = Metrics.bandIsDriverSet(metricId, alertRules),
+            provenance = snapshot.provenanceOf(metricId),
+            assumption = snapshot.assumptionOf(metricId),
             accent = if (status.breached) statusColor(status) else metricAccent(metricId),
             windowMillis = METRIC_SHEET_WINDOW_MILLIS,
             nowMillis = now,

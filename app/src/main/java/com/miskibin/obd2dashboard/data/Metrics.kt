@@ -2,9 +2,11 @@ package com.miskibin.obd2dashboard.data
 
 import androidx.annotation.StringRes
 import com.miskibin.obd2dashboard.R
+import com.miskibin.obd2dashboard.obd.Assumption
 import com.miskibin.obd2dashboard.obd.DerivedMetrics
 import com.miskibin.obd2dashboard.obd.ExtendedPids
 import com.miskibin.obd2dashboard.obd.Pids
+import com.miskibin.obd2dashboard.obd.Provenance
 import com.miskibin.obd2dashboard.obd.VehicleSnapshot
 import com.miskibin.obd2dashboard.obd.keyPid
 import com.miskibin.obd2dashboard.obd.sensorKey
@@ -348,6 +350,12 @@ object Metrics {
      * bands are what turn the row into an answer, and they are deliberately sparse: a band
      * is only shipped where one honestly exists across engines. Everything else shows the
      * reading and nothing more.
+     *
+     * They are a *general* guide and not this car's specification, and the sheet says so.
+     * Nothing in OBD2 reports what a given engine's normal coolant temperature is, and the
+     * figures differ by a good ten degrees between a thermostat that opens at 87 °C and one
+     * that opens at 105 — so a driver whose car runs hotter than the band by design needs
+     * to know the band came from the app rather than from the engine.
      */
     val normalBands: Map<MetricId, NormalBand> = mapOf(
         CoolantTemp to NormalBand(82.0, 98.0),
@@ -376,6 +384,14 @@ object Metrics {
             AlertComparison.Below -> NormalBand(rule.threshold, base?.max)
         }
     }
+
+    /**
+     * Whether the band shown for [id] is the driver's own threshold rather than the app's
+     * general guide, which is the difference between "you asked to be told past 110 °C" and
+     * "engines of this sort usually sit under 110 °C".
+     */
+    fun bandIsDriverSet(id: MetricId, rules: List<AlertRule>): Boolean =
+        rules.any { it.metric == id && it.enabled }
 
     fun byStorageKey(key: String): Metric? = MetricId.parse(key)?.let(::get)
 
@@ -1008,19 +1024,86 @@ object Metrics {
 /** Current value of [id], or null when the car has not reported it yet. */
 fun VehicleSnapshot.valueOf(id: MetricId): Double? = when (id) {
     is MetricId.Sensor -> readings[id.key]?.value
-    is MetricId.Derived -> derived[id.key]
+    is MetricId.Derived -> derived[id.key]?.value
     is MetricId.Extended -> extended[id.id]?.value
     MetricId.Battery -> batteryVoltage
 }
 
-/** When [id] was last refreshed, used to dim readings that have gone stale. */
+/**
+ * When [id] was last refreshed, used to dim readings that have gone stale.
+ *
+ * Every kind of value dates itself, and none of them by the snapshot: an extended parameter
+ * is read every few cycles at best and a tyre pressure once a quarter minute, the adapter
+ * voltage once every twenty cycles, and a derived value is only ever as fresh as the oldest
+ * reading behind it. Falling back on the snapshot's own timestamp — which moves whenever
+ * *anything* arrives — is how a value that had stopped being reported went on looking live.
+ */
 fun VehicleSnapshot.updatedAtOf(id: MetricId): Long = when (id) {
     is MetricId.Sensor -> readings[id.key]?.timestampMillis ?: 0L
-    // An extended parameter is read every few cycles at best, and a tyre pressure at most
-    // once a quarter minute, so the snapshot's own timestamp would say it was fresh long
-    // after it stopped being.
+    is MetricId.Derived -> derived[id.key]?.timestampMillis ?: 0L
     is MetricId.Extended -> extended[id.id]?.timestampMillis ?: 0L
-    else -> updatedAtMillis
+    MetricId.Battery -> batteryAtMillis
+}
+
+/**
+ * How old a reading of [id] may get before the dashboard stops trusting it.
+ *
+ * One threshold for everything would be wrong in both directions now that each value dates
+ * itself honestly. Whatever is on a tile or a chart line is polled every cycle whatever
+ * tier it belongs to, so three seconds without an answer is a link in trouble; the adapter
+ * voltage is asked for once every twentieth cycle and a tyre pressure once a quarter
+ * minute, and dimming those after three seconds would leave two tiles permanently greyed
+ * out for working exactly as designed.
+ *
+ * So the threshold is the app's own promise about the value: how often it even asks,
+ * doubled, with a floor at the three seconds a live gauge is judged by.
+ */
+fun staleAfterMillis(id: MetricId): Long = when (id) {
+    // Prioritised the moment they are shown, so they answer every cycle or not at all.
+    is MetricId.Sensor -> LIVE_STALE_MILLIS
+
+    // As old as the slowest input behind it, and the inputs are not all prioritised: boost
+    // rides on a barometric pressure that comes round once every five cycles.
+    is MetricId.Derived -> DERIVED_STALE_MILLIS
+
+    is MetricId.Extended -> maxOf(
+        SLOW_STALE_MILLIS,
+        (ExtendedPids[id.id]?.minIntervalMillis ?: 0L) * STALE_INTERVAL_FACTOR,
+    )
+
+    // `ATRV` rides along with the slow tier's sweep.
+    MetricId.Battery -> SLOW_STALE_MILLIS
+}
+
+/** Whether [id]'s value is old enough that the dashboard should stop presenting it as now. */
+fun VehicleSnapshot.isStale(id: MetricId, nowMillis: Long): Boolean =
+    nowMillis - updatedAtOf(id) > staleAfterMillis(id)
+
+/** What a value the app polls every cycle is judged by; see [staleAfterMillis]. */
+const val LIVE_STALE_MILLIS = 3_000L
+
+private const val DERIVED_STALE_MILLIS = 10_000L
+private const val SLOW_STALE_MILLIS = 40_000L
+private const val STALE_INTERVAL_FACTOR = 2L
+
+/**
+ * What the app is claiming by showing [id]: a reading, a computation, or a computation
+ * that only closed because a constant was supplied.
+ *
+ * Only the derived values can be anything but [Provenance.Measured], and which one they are
+ * depends on what the car answered this second — a fuel rate is measured on a car with PID
+ * 5E, derived on one with a wide-range probe, and assumed on one where the mixture or the
+ * fuel type had to come from somewhere else.
+ */
+fun VehicleSnapshot.provenanceOf(id: MetricId): Provenance = when (id) {
+    is MetricId.Derived -> derived[id.key]?.provenance ?: Provenance.Derived
+    else -> Provenance.Measured
+}
+
+/** The constant that had to be supplied for [id], or null when none was. */
+fun VehicleSnapshot.assumptionOf(id: MetricId): Assumption? = when (id) {
+    is MetricId.Derived -> derived[id.key]?.assumption
+    else -> null
 }
 
 /** Every metric the current snapshot actually carries a value for. */

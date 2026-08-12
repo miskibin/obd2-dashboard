@@ -94,8 +94,25 @@ data class MonitorTest(
     val min: Double get() = rawMin * scale
     val max: Double get() = rawMax * scale
 
-    /** The standard's own verdict: inside the window the ECU shipped with the reading. */
-    val passed: Boolean get() = rawValue in rawMin..rawMax
+    /**
+     * Whether the ECU shipped limits worth judging the reading against.
+     *
+     * A record with both limits at zero — which plenty of control units send for tests they
+     * implement but do not bound — states no window at all. Read literally it fails every
+     * reading above zero, and a misfire counter reporting a single event on a cold start
+     * would light the card up as a failing monitor on the strength of limits the car never
+     * set.
+     */
+    val judgeable: Boolean get() = rawMax > rawMin
+
+    /**
+     * The standard's own verdict: inside the window the ECU shipped with the reading.
+     *
+     * A test with no window passes, because the app has nothing to fail it on. The number
+     * is still shown — an unbounded reading is worth watching over months — it simply does
+     * not get a verdict attached to it.
+     */
+    val passed: Boolean get() = !judgeable || rawValue in rawMin..rawMax
 
     /**
      * How far through its allowed window the reading sits, 0 at the minimum and 1 at the

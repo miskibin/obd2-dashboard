@@ -367,10 +367,21 @@ class ConnectionManager(
      * The job reference is deliberately *kept* after cancelling: the next [connect] joins
      * it, so the radio the old session held is released before the new one asks for it.
      */
+    /**
+     * Ends the session and drops what it read.
+     *
+     * The clear is the point. A dropped link keeps its readings on purpose — the car is
+     * still there, the app is trying to get back to it, and wiping the screen would make a
+     * reconnect look like a car that had gone quiet. Somebody pressing disconnect is saying
+     * the opposite: this is over. Leaving the last frame up, dimmed, under the word
+     * "Disconnected", left a dashboard of numbers that were true half an hour ago and are
+     * not readings of anything now.
+     */
     fun disconnect() {
         ObdLog.log(LogTag.CONN, "disconnect requested")
         sessionJob?.cancel()
         setState(ConnectionState.Idle)
+        clearSessionData()
     }
 
     /** Cancels a connection attempt and leaves the screen able to say why nothing happened. */
@@ -578,7 +589,10 @@ class ConnectionManager(
         val newScheduler = PidScheduler(
             client = newClient,
             pollingEnabled = { _pollingEnabled.value },
-            fuel = { _fuel.value ?: FuelType.Default },
+            // Passed through as null when the driver has not said, rather than resolved to
+            // petrol here: the maths runs on petrol either way, but only the unresolved
+            // null reaches the dashboard as "this figure assumes a petrol engine".
+            fuel = { _fuel.value },
         ).also { scheduler = it }
         newScheduler.configure(supported)
         newScheduler.prioritize(priorityKeys)

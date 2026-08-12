@@ -5,10 +5,34 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-/** One column of a trip recording: a stable key plus the unit it was logged in. */
-data class CsvColumn(val key: String, val unit: String) {
-    /** e.g. `pid:0C (rpm)` — machine-stable key, human-readable unit. */
-    val header: String get() = if (unit.isBlank()) key else "$key ($unit)"
+/**
+ * One column of a trip recording: a stable key, the unit it was logged in, and whether the
+ * app worked the numbers out rather than reading them off the car.
+ *
+ * The mark goes in the header because a recording outlives the screen it was made on. A
+ * mechanic opening the file in a spreadsheet a week later has no tile to tap, and a column
+ * of consumption figures derived from air flow looks exactly like one the ECU reported.
+ */
+data class CsvColumn(val key: String, val unit: String, val estimated: Boolean = false) {
+    /** e.g. `pid:0C (rpm)`, or `derived:boost (kPa, estimated)` for a computed one. */
+    val header: String
+        get() {
+            val note = listOf(unit, if (estimated) ESTIMATED else "")
+                .filter(String::isNotBlank)
+                .joinToString(", ")
+            return if (note.isBlank()) key else "$key ($note)"
+        }
+
+    private companion object {
+        /**
+         * English, like the rest of a CSV header.
+         *
+         * [TripAnalyzer][com.miskibin.obd2dashboard.data.TripAnalyzer] reads a column back
+         * by everything before the first " (", so this never has to be parsed — and a file
+         * written by an older build still loads.
+         */
+        const val ESTIMATED = "estimated"
+    }
 }
 
 /**

@@ -98,6 +98,8 @@
 
     <!-- Readiness monitors -->
     <string name="readiness_ready">Ready for inspection</string>
+    <string name="readiness_blocked">Self-tests complete, but the car would still fail</string>
+    <string name="readiness_scope">This covers the self-tests only. A lit engine lamp or a stored code fails an inspection whatever the monitors say.</string>
     <string name="readiness_complete">Complete</string>
     <string name="readiness_incomplete">Not complete</string>
     <string name="readiness_ignition_spark">Spark ignition (petrol)</string>
@@ -125,12 +127,13 @@
     <string name="vehicle_make">Make</string>
     <string name="vehicle_country">Origin</string>
     <string name="vehicle_model_year">Model year</string>
+    <string name="vehicle_year_estimated">The model year is worked out, not read: the tenth character of a VIN repeats every thirty years, so the most recent reading that is not in the future is shown. Make and origin are read from the VIN directly.</string>
     <string name="vehicle_unknown">Not recognised</string>
     <string name="vehicle_fuel">Fuel</string>
     <string name="vehicle_fuel_description">Consumption is worked out from air flow, which only becomes fuel flow once this is known.</string>
     <string name="vehicle_fuel_unset">Not set — consumption is being worked out as if this were a petrol engine, which overstates a diesel by half again.</string>
     <string name="vehicle_specification">Specification</string>
-    <string name="vehicle_specification_description">All four are on the registration document. They are recorded now and read as the figures that need them arrive: mass is what turns acceleration into power, and tank size is what turns the fuel gauge into a range.</string>
+    <string name="vehicle_specification_description">All four are on the registration document. Nothing in the app reads them yet — they are stored against the car for the screens that will need them, and only the fuel type above changes a number you can see today.</string>
     <string name="vehicle_displacement">Displacement</string>
     <string name="vehicle_power">Rated power</string>
     <string name="vehicle_mass">Kerb mass</string>
@@ -396,7 +399,8 @@
     <string name="unit_mph">mph</string>
     <string name="action_move_up">Move up</string>
     <string name="dashboard_speed_label">Speed</string>
-    <string name="dashboard_gear_label">Gear</string>
+    <string name="dashboard_gear_label">Gear · est.</string>
+    <string name="dashboard_gear_estimated">Estimated gear: worked out from road speed and engine speed, because generic OBD2 has no PID for the gear actually engaged.</string>
     <string name="dashboard_edit_list">Edit the list</string>
     <string name="dashboard_edit_list_on">on</string>
 
@@ -431,9 +435,19 @@
     <string name="car_zone_tyre_rl">Tyre, rear left</string>
     <string name="car_zone_tyre_rr">Tyre, rear right</string>
 
+    <!-- Where a number came from: read off the bus, worked out, or worked out with a constant supplied -->
+    <string name="provenance_measured">Read from the car.</string>
+    <string name="provenance_derived">Worked out by the app from other readings — the car does not report this value itself.</string>
+    <string name="provenance_assumed">Worked out by the app, with one thing assumed: %1$s.</string>
+    <string name="assumption_sea_level">the car does not report outside air pressure, so sea level (101.3 kPa) was used — about 1 kPa too high per 100 m of altitude</string>
+    <string name="assumption_fuel_unset">the fuel type is not set, so petrol was assumed — a diesel then reads about 80 % too high. Set it on the vehicle screen</string>
+    <string name="assumption_nominal_lambda">the car reports no mixture, so a typical one for this fuel was used</string>
+
     <!-- Metric detail sheet -->
     <string name="metric_sheet_subtitle">Last 60 seconds</string>
     <string name="metric_sheet_band">Normal range %1$s</string>
+    <string name="metric_sheet_band_generic">A general guide for engines of this sort, not a figure read from this car.</string>
+    <string name="metric_sheet_band_rule">The threshold you set for the alert.</string>
     <string name="metric_sheet_now">Now</string>
     <string name="metric_sheet_min">Min</string>
     <string name="metric_sheet_max">Max</string>
@@ -462,9 +476,13 @@
     <string name="nav_trips">Trips</string>
     <string name="trips_subtitle">%1$d saved · %2$s km</string>
     <string name="trips_subtitle_empty">Nothing recorded yet</string>
-    <string name="trip_meta_distance">%1$s km</string>
+    <string name="trip_meta_distance">~%1$s km</string>
     <string name="trip_meta_duration">%1$s min</string>
-    <string name="trip_meta_fuel">avg %1$s L/100 km</string>
+    <string name="trip_meta_fuel">avg ~%1$s L/100 km</string>
+    <string name="trip_estimates_title">How these figures were arrived at</string>
+    <string name="trip_estimates_distance">Distance is added up from road speed, not read from an odometer. The car\'s own speed reading is a few percent optimistic by design, so this tends to run slightly long.</string>
+    <string name="trip_estimates_fuel">Average consumption is added up from the fuel rate. Unless the car reports PID 5E, that rate is itself worked out from air flow and the fuel type in the vehicle profile.</string>
+    <string name="trip_estimates_gap">%1$s of this recording is not counted in either figure: the gaps between samples were too long to add up across — a dropped link, a sleeping phone, or polling switched off.</string>
     <string name="trip_events">Events</string>
     <string name="trip_export">Export CSV</string>
     <string name="trip_loading">Reading the recording…</string>
@@ -494,6 +512,7 @@
     <string name="fault_when_first">First seen</string>
     <string name="fault_when_count">Times seen</string>
     <string name="fault_when_ecu">Reported by</string>
+    <string name="fault_when_note">These times are when the app saw the code, not when the car set it — the ECU does not report that. A code already stored when you plugged in is timed from the moment you plugged in.</string>
     <string name="fault_when_unknown">The car does not report when this code was set</string>
     <string name="fault_related">Related codes</string>
     <string name="fault_related_window">±5 min around the fault</string>
@@ -795,6 +814,7 @@
     <string name="monitors_section_catalyst">Catalyst oxygen storage</string>
     <string name="monitors_bank">Bank %1$d</string>
     <string name="monitors_limit_low">lowest allowed %1$s</string>
+    <string name="monitors_no_limit">the car sent no pass limits for this test</string>
     <string name="monitors_limit_high">highest allowed %1$s</string>
     <string name="monitors_catalyst_note">Oxygen storage is how much oxygen the converter can still hold, and it falls slowly over a converter\'s life. The ECU sets P0420 when it drops below the limit shown here, so a figure creeping towards that limit over several readings is the warning that arrives months before the light does.</string>
     <string name="monitors_section_oxygen">Oxygen sensors</string>

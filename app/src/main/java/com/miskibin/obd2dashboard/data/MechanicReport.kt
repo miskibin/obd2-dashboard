@@ -53,7 +53,14 @@ object MechanicReport {
         codes(DTC_PENDING, data.diagnostics?.pending.orEmpty(), language)
         codes(DTC_PERMANENT, data.diagnostics?.permanent.orEmpty(), language)
         freezeFrame(data.freezeFrame, language)
-        readiness(data.diagnostics?.monitorStatus?.readiness, language)
+        readiness(
+            readiness = data.diagnostics?.monitorStatus?.readiness,
+            // Same rule as the screen: "ready for inspection" is a claim about the whole
+            // car, and a report is read by somebody who cannot see the lamp.
+            blocked = data.diagnostics?.monitorStatus?.milOn == true ||
+                data.diagnostics?.stored?.isNotEmpty() == true,
+            language = language,
+        )
 
         appendLine()
         appendLine(RULE)
@@ -96,7 +103,7 @@ object MechanicReport {
         }
     }
 
-    private fun StringBuilder.readiness(readiness: Readiness?, language: String) {
+    private fun StringBuilder.readiness(readiness: Readiness?, blocked: Boolean, language: String) {
         section(READINESS, language)
         if (readiness == null) {
             appendLine(INDENT + UNKNOWN.forLanguage(language))
@@ -108,10 +115,12 @@ object MechanicReport {
         if (readiness.supported.isEmpty()) appendLine(INDENT + NONE.forLanguage(language))
         appendLine()
         appendLine(
-            INDENT + if (readiness.ready) {
-                READY.forLanguage(language)
-            } else {
-                NOT_READY.forLanguage(language).format(readiness.incomplete.size)
+            INDENT + when {
+                !readiness.ready ->
+                    NOT_READY.forLanguage(language).format(readiness.incomplete.size)
+
+                blocked -> BLOCKED.forLanguage(language)
+                else -> READY.forLanguage(language)
             },
         )
     }
@@ -199,6 +208,12 @@ object MechanicReport {
     private val INCOMPLETE = LocalizedText("NOT COMPLETE", "NIEUKOŃCZONY")
     private val NOT_SUPPORTED = LocalizedText("not supported", "nieobsługiwany")
     private val READY = LocalizedText("Ready for inspection", "Gotowy do badania")
+
+    /** Every self-test has run, but the lamp or a stored code fails the car anyway. */
+    private val BLOCKED = LocalizedText(
+        "Self-tests complete, but a code or the lamp fails it",
+        "Testy ukończone, ale kod lub kontrolka przesądzają o wyniku",
+    )
     private val NOT_READY = LocalizedText(
         "%1\$d monitor(s) not ready",
         "Nieukończone testy: %1\$d",

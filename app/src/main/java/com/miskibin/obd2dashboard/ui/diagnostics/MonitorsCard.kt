@@ -212,6 +212,10 @@ fun MonitorsCard(monitors: MonitorTests, performance: PerformanceTracking?) {
  * The limit is on the row rather than in a legend because it is what makes the value
  * readable: 0.85 g of oxygen storage is meaningless, and 0.85 g against a minimum of
  * 0.30 g is a converter with plenty of life in it.
+ *
+ * Which is exactly why a test that arrived with no limits says so instead of printing one.
+ * A record with both bounds at zero states no window at all, and "must stay under 0" is a
+ * rule this app would have invented on the car's behalf.
  */
 @Composable
 private fun TestRow(
@@ -238,7 +242,11 @@ private fun TestRow(
                 color = ChalkDim,
             )
             Text(
-                text = stringResource(limit, format(limitValue, test.unit)),
+                text = if (test.judgeable) {
+                    stringResource(limit, format(limitValue, test.unit))
+                } else {
+                    stringResource(R.string.monitors_no_limit)
+                },
                 style = MaterialTheme.typography.labelMedium,
                 color = Smoke,
             )

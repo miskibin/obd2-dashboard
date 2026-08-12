@@ -1,6 +1,8 @@
 package com.miskibin.obd2dashboard.data
 
 import com.miskibin.obd2dashboard.obd.DerivedMetrics
+import com.miskibin.obd2dashboard.obd.DerivedValue
+import com.miskibin.obd2dashboard.obd.Provenance
 import com.miskibin.obd2dashboard.obd.Pids
 import com.miskibin.obd2dashboard.obd.Reading
 import com.miskibin.obd2dashboard.obd.VehicleSnapshot
@@ -83,7 +85,9 @@ class TripWriterTest {
         writer.append(
             VehicleSnapshot(
                 readings = emptyMap(),
-                derived = mapOf(DerivedMetrics.Boost.key to 42.0),
+                derived = mapOf(
+                    DerivedMetrics.Boost.key to DerivedValue(42.0, Provenance.Derived),
+                ),
                 batteryVoltage = 13.9,
             ),
             start,
@@ -95,7 +99,8 @@ class TripWriterTest {
             writer.columnIds,
         )
         assertEquals(
-            listOf("timestamp", "elapsed_s", "derived:boost (kPa)", "battery (V)"),
+            // The derived column says so in its header: a recording outlives the screen.
+            listOf("timestamp", "elapsed_s", "derived:boost (kPa, estimated)", "battery (V)"),
             CsvFormat.splitRow(file.readLines().first()),
         )
     }

@@ -131,6 +131,26 @@ class MechanicReportTest {
         assertTrue(report.contains("STORED CODES\n  none"))
     }
 
+    /**
+     * Readiness is only half of what an inspection asks. A car whose self-tests have all
+     * run and whose lamp is lit fails on the spot, and this report is read by somebody who
+     * cannot see the lamp — so the green sentence is kept for the case where both agree.
+     */
+    @Test
+    fun `finished tests do not read as ready while a code is stored`() {
+        val lit = full.copy(
+            diagnostics = Diagnostics(
+                stored = listOf(Dtc("P0420", DtcKind.Stored)),
+                monitorStatus = MonitorStatus(true, 1, listOf(0x07, 0x65, 0x00)),
+            ),
+            freezeFrame = null,
+        )
+        val report = MechanicReport.build(lit, "en", utc)
+
+        assertFalse(report.contains("Ready for inspection"))
+        assertTrue(report.contains("Self-tests complete, but a code or the lamp fails it"))
+    }
+
     @Test
     fun `the polish report has the same shape in polish words`() {
         val polish = MechanicReport.build(full, "pl", utc)
