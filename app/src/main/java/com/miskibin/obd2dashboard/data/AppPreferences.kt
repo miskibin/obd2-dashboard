@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.miskibin.obd2dashboard.obd.ExtendedProbe
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -85,6 +86,19 @@ class AppPreferences(context: Context) {
      */
     fun vehicles(kind: SessionKind): Flow<List<Vehicle>> =
         store.data.map { Garage.decode(it[vehicleKey(kind)]) }
+
+    /**
+     * What the ECU's own self-tests said, every time this app has looked, per car.
+     *
+     * Mode 06 numbers are only worth anything as a series: one catalyst storage reading is
+     * a number and five of them across a year say whether the converter is on its way out.
+     */
+    fun monitorLog(kind: SessionKind): Flow<List<MonitorSnapshot>> =
+        store.data.map { MonitorLog.decode(it[monitorKey(kind)]) }
+
+    /** Which manufacturer-specific parameters each car has already answered for. */
+    fun extendedSupport(kind: SessionKind): Flow<Map<String, ExtendedProbe>> =
+        store.data.map { ExtendedSupport.decode(it[extendedKey(kind)]) }
 
     suspend fun saveAdapter(address: String, name: String?, classic: Boolean = false) {
         store.edit { prefs ->
@@ -165,12 +179,45 @@ class AppPreferences(context: Context) {
         }
     }
 
+    /** Stores one reading of the on-board monitors against the car it came from. */
+    suspend fun recordMonitorSnapshot(kind: SessionKind, snapshot: MonitorSnapshot) {
+        if (snapshot.isEmpty || snapshot.vin.isBlank()) return
+        val key = monitorKey(kind)
+        store.edit { prefs -> prefs[key] = MonitorLog.recordInto(prefs[key], snapshot) }
+    }
+
+    /**
+     * Remembers what one probe established, for one car.
+     *
+     * Verdicts that could change are dropped by [ExtendedSupport.remember] rather than
+     * filtered here, so there is one place that decides what "known" means.
+     */
+    suspend fun rememberExtendedProbe(
+        kind: SessionKind,
+        vin: String,
+        id: String,
+        probe: ExtendedProbe,
+    ) {
+        if (!ExtendedSupport.isDurable(probe)) return
+        val key = extendedKey(kind)
+        store.edit { prefs ->
+            val known = ExtendedSupport.decode(prefs[key])
+            prefs[key] = ExtendedSupport.encode(ExtendedSupport.remember(known, vin, id, probe))
+        }
+    }
+
     private companion object {
         fun dtcKey(kind: SessionKind): Preferences.Key<String> =
             stringPreferencesKey(DtcLog.storageKey(kind))
 
         fun vehicleKey(kind: SessionKind): Preferences.Key<String> =
             stringPreferencesKey(Garage.storageKey(kind))
+
+        fun monitorKey(kind: SessionKind): Preferences.Key<String> =
+            stringPreferencesKey(MonitorLog.storageKey(kind))
+
+        fun extendedKey(kind: SessionKind): Preferences.Key<String> =
+            stringPreferencesKey(ExtendedSupport.storageKey(kind))
 
         val KEY_ADAPTER_ADDRESS = stringPreferencesKey("adapter_address")
         val KEY_ADAPTER_NAME = stringPreferencesKey("adapter_name")

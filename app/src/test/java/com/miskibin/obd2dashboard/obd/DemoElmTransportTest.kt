@@ -39,16 +39,23 @@ class DemoElmTransportTest {
     }
 
     @Test
-    fun `reports a petrol-car support set across all three bitmask blocks`() = runTest {
+    fun `reports a petrol-car support set the whole bitmask chain long`() = runTest {
         val (client, _) = connect(backgroundScope)
         val supported = client.scanSupportedPids()
 
         assertTrue(supported.size >= 20)
         assertTrue(supported.containsAll(listOf(Pids.ENGINE_RPM, Pids.VEHICLE_SPEED)))
         assertTrue(supported.containsAll(listOf(Pids.COOLANT_TEMP, Pids.INTAKE_AIR_TEMP)))
-        // The chain bits are what make 0120 and 0140 happen at all.
-        assertTrue(0x20 in supported && 0x40 in supported)
-        assertFalse(0x60 in supported)
+        // The chain bits are what make 0120, 0140 and everything after them happen at all,
+        // and the parameters this car reports run as far as the 0x80 block.
+        assertTrue(listOf(0x20, 0x40, 0x60, 0x80).all { it in supported })
+        assertTrue(
+            supported.containsAll(
+                listOf(Pids.AUXILIARY_IO, Pids.FRICTION_TORQUE, Pids.FUEL_RATE_MASS),
+            ),
+        )
+        // The chain stops there: nothing past 0xA0 is claimed.
+        assertFalse(0xC0 in supported)
         assertTrue(supported.count { Pids[it] != null } >= 20)
     }
 
@@ -191,5 +198,152 @@ class DemoElmTransportTest {
         val warm = vehicle.sampleAt(200_000)
         assertTrue("warm coolant was ${warm.coolantC}", warm.coolantC in 87.0..92.0)
         assertTrue("battery was ${warm.batteryVolts}", warm.batteryVolts in 13.8..14.4)
+    }
+
+    // ---- the extended slice, through the same pipeline as everything else --------
+
+    @Test
+    fun `the simulated car is a Mazda 3 of the generation the tyre block needs`() = runTest {
+        val (client, _) = connect(backgroundScope)
+        val vin = client.readVin()!!
+
+        val vehicle = ExtendedVehicle(vin = vin, modelYear = BP_MODEL_YEAR)
+        assertTrue("the demo VIN must pass the marque gate", vehicle.isMazda)
+        // Gating that nothing exercised would be gating nobody could trust.
+        val candidates = ExtendedPids.candidatesFor(vehicle)
+        assertEquals(11, candidates.size)
+        assertEquals(setOf("7E0", "7E1", "726"), candidates.map(ExtendedPid::header).toSet())
+    }
+
+    @Test
+    fun `mode 06 reports a healthy catalyst and a misfiring second cylinder`() = runTest {
+        val (client, _) = connect(backgroundScope)
+        val monitors = client.readMonitorTests()
+
+        val misfires = monitors.misfires
+        assertEquals(listOf(1, 2, 3, 4), misfires.map { it.cylinder })
+        val cylinderTwo = misfires.single { it.cylinder == 2 }
+        assertEquals(12.0, cylinderTwo.value, 0.001)
+        assertFalse("cylinder 2 is over its limit", cylinderTwo.passed)
+        assertTrue(misfires.filter { it.cylinder != 2 }.all(MonitorTest::passed))
+
+        val catalyst = monitors.catalyst.single()
+        assertEquals(0.85, catalyst.value, 0.001)
+        assertEquals(0.30, catalyst.min, 0.001)
+        assertTrue("a healthy converter sits well clear of its floor", catalyst.headroom!! > 0.2)
+        // One failing test in the whole set, which is what the screen summarises.
+        assertEquals(1, monitors.failed.size)
+    }
+
+    @Test
+    fun `mode 09 reports how often each monitor has run`() = runTest {
+        val (client, _) = connect(backgroundScope)
+        val tracking = client.readPerformanceTracking()!!
+
+        assertEquals(210, tracking.obdConditions)
+        assertEquals(250, tracking.ignitionCycles)
+        val evap = tracking.monitors.single { it.monitor == TrackedMonitor.Evaporative }
+        assertEquals(6, evap.completions)
+        assertEquals(38, evap.conditions)
+        // A single-bank car reports nothing for bank 2, which is not the same as failing.
+        assertTrue(
+            tracking.monitors.single { it.monitor == TrackedMonitor.CatalystBank2 }.neverRun,
+        )
+    }
+
+    @Test
+    fun `the extended probe finds the engine and body parameters and is refused the tyre temperatures`() =
+        runTest {
+            val (client, _) = connect(backgroundScope)
+            val vehicle = ExtendedVehicle(DemoElmTransport.VIN, BP_MODEL_YEAR)
+
+            val verdicts = ExtendedPids.candidatesFor(vehicle)
+                .groupBy(ExtendedPid::header)
+                .flatMap { (header, group) ->
+                    client.withModule(header, group.first().receiveHeader) {
+                        group.map { it.id to client.probeExtended(it) }
+                    }
+                }
+                .toMap()
+
+            assertEquals(ExtendedProbe.Supported, verdicts[ExtendedPids.OIL_PRESSURE])
+            assertEquals(ExtendedProbe.Supported, verdicts[ExtendedPids.OIL_TEMPERATURE])
+            assertEquals(
+                ExtendedProbe.Supported,
+                verdicts[ExtendedPids.TRANSMISSION_FLUID_TEMPERATURE],
+            )
+            assertEquals(
+                ExtendedProbe.Supported,
+                verdicts[ExtendedPids.tyrePressureId("fl")],
+            )
+            // The tyre temperatures are refused outright, which is what puts the probe's
+            // give-up path under test without a car in the driveway.
+            ExtendedPids.WHEELS.forEach { wheel ->
+                assertEquals(
+                    "tyre temperature $wheel",
+                    ExtendedProbe.Absent,
+                    verdicts[ExtendedPids.tyreTemperatureId(wheel)],
+                )
+            }
+        }
+
+    @Test
+    fun `the extended readings are plausible for the car the simulation describes`() = runTest {
+        val (client, _) = connect(backgroundScope)
+
+        val engine = client.withModule("7E0", null) {
+            listOf(ExtendedPids.OIL_PRESSURE, ExtendedPids.OIL_TEMPERATURE)
+                .map { client.readExtended(ExtendedPids[it]!!) }
+        }
+        val fluid = client.withModule("7E1", null) {
+            client.readExtended(ExtendedPids[ExtendedPids.TRANSMISSION_FLUID_TEMPERATURE]!!)
+        }
+        val tyres = client.withModule("726", "72E") {
+            ExtendedPids.WHEELS.map {
+                client.readExtended(ExtendedPids[ExtendedPids.tyrePressureId(it)]!!)
+            }
+        }
+
+        val pressure = (engine[0] as ExtendedRead.Value).value
+        assertTrue("oil pressure was $pressure kPa", pressure in 150.0..500.0)
+        val oil = (engine[1] as ExtendedRead.Value).value
+        assertTrue("oil temperature was $oil", oil in 15.0..100.0)
+        val gearbox = (fluid as ExtendedRead.Value).value
+        assertTrue("gearbox oil was $gearbox", gearbox in 5.0..100.0)
+        tyres.forEach { read ->
+            val bar = (read as ExtendedRead.Value).value
+            assertTrue("tyre pressure was $bar bar", bar in 2.2..2.5)
+        }
+    }
+
+    @Test
+    fun `a body module reached without the header switch answers nothing`() = runTest {
+        val (client, _) = connect(backgroundScope)
+
+        // The whole point of ATSH and ATCRA: without them the request goes to the engine
+        // ECU, which has never heard of a tyre pressure.
+        val blind = client.readExtended(ExtendedPids[ExtendedPids.tyrePressureId("fl")]!!)
+
+        assertEquals(ExtendedRead.Silent, blind)
+    }
+
+    @Test
+    fun `mode 01 goes quiet while the adapter is pointed at another module`() = runTest {
+        val (client, _) = connect(backgroundScope)
+
+        val duringSwitch = client.withModule("726", "72E") {
+            client.readPid(Pids[Pids.ENGINE_RPM]!!)
+        }
+        // And works again the moment the headers are put back, which is what the restore
+        // in withModule exists for.
+        val after = client.readPid(Pids[Pids.ENGINE_RPM]!!)
+
+        assertTrue("rpm answered from the body module: $duringSwitch", duringSwitch !is PidRead.Value)
+        assertTrue(after is PidRead.Value)
+    }
+
+    private companion object {
+        /** `K` in position ten of the demo VIN, which is the 2019 model year. */
+        const val BP_MODEL_YEAR = 2019
     }
 }

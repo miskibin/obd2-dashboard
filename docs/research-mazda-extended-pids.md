@@ -148,6 +148,36 @@ Known-dead on ND3: `730/22 20xx,06xx`, `760/22 21xx,06xx`.
 4. Mode 09 `0908` IPT.
 5. Torque CSV import.
 
+### Shipped, and where the implementation departs from the notes above
+
+Items 1–4 are in; item 5 (Torque CSV import) is not.
+
+- **`01 65` layout confirmed.** OBDb's `SAEJ1979` signalset settles it: byte A bit 4
+  "recommended gear supported", byte B bits 7–4 the gear itself, and A/B bits 3–0 glow
+  plug lamp, manual-trans neutral, auto-trans neutral, PTO. Every channel is gated on its
+  own support bit. Wikipedia lists the PID as "auxiliary input/output supported" with no
+  bit table at all, so the note above was right and its source was worth chasing.
+- **`01 9D` is four bytes, not two**: engine fuel rate `(256A+B)/50` g/s *and* vehicle
+  fuel rate `(256C+D)/50`. Both ship as channels; the byte count matters because getting
+  it wrong desynchronises every PID after it in a multi-PID frame.
+- **`01 13` is used twice**: as a reading (how many probes the exhaust has) and, more
+  usefully, to stop the scheduler asking after the `0114`–`011B` the car lists in its
+  support block and does not actually have.
+- **Mode 06 scaling** comes from the *test* (misfires in counts, catalyst OSC ×0.01 g,
+  switch times ×0.001 s) rather than from a UAS identifier table. The standard's table has
+  ~60 entries and is not published anywhere checkable; an unknown identifier therefore
+  keeps its raw counts and its own pass limits rather than being multiplied by a guess.
+- **TPMS is reported in bar on both generations.** The captures are in psi (BP) and bar
+  (BM/BN); one metric that changes unit with the model year would be worse than the
+  conversion.
+- **No disconnect-side Mode 06 snapshot.** A session ends by being cancelled or by the
+  link dropping, so the moment there would be something to read is the moment there is no
+  longer anything to read it over. One snapshot per connection into a per-VIN history
+  gives the same series without the timeouts.
+- **Extended parameters are eleven-bit CAN only.** `ATSH 7DF` is that protocol's
+  functional address and nothing else, and a probe that could not put the header back
+  would leave every Mode 01 request going nowhere for the rest of the session.
+
 Sources: OBDb (github.com/OBDb), drewid74/2024-nd3-mazda-obdii, carscanner.info
 (profile changelog, custompids), agronick gist (Torque CSV), mazda-si.net,
 Mazdas247 threads (CX-9 TFT, TPMS), RLEscalambre & Total Car Diagnostics

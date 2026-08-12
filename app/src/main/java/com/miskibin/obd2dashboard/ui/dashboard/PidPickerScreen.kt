@@ -41,6 +41,7 @@ import com.miskibin.obd2dashboard.R
 import com.miskibin.obd2dashboard.data.Metric
 import com.miskibin.obd2dashboard.data.MetricId
 import com.miskibin.obd2dashboard.data.Metrics
+import com.miskibin.obd2dashboard.ui.chart.isAvailable
 import com.miskibin.obd2dashboard.ui.components.ScreenHeader
 import com.miskibin.obd2dashboard.ui.components.ScreenPadding
 import com.miskibin.obd2dashboard.ui.components.SectionHeader
@@ -68,6 +69,7 @@ import java.util.Locale
 fun PidPickerScreen(
     selected: List<MetricId>,
     supportedPids: Set<Int>,
+    supportedExtended: Set<String>,
     undecodedPids: Set<Int>,
     onToggle: (MetricId) -> Unit,
     onBack: () -> Unit,
@@ -90,8 +92,19 @@ fun PidPickerScreen(
     // An empty supported set means the app has never completed a handshake, so it cannot
     // claim anything is unsupported yet.
     val supportKnown = supportedPids.isNotEmpty()
-    val available = filtered.filter { (metric, _) -> metric.isSupported(supportedPids, supportKnown) }
-    val unavailable = filtered.filterNot { (metric, _) -> metric.isSupported(supportedPids, supportKnown) }
+    // A PID the car did not list stays on screen greyed out, because "your car does not
+    // report boost" is worth saying. A manufacturer-specific reading that belongs to
+    // another marque is not: it would be a row of things a Golf owner can never have, in a
+    // list they are scrolling to find something they can.
+    val offered = filtered.filter { (metric, _) ->
+        metric.id !is MetricId.Extended || metric.isAvailable(supportedPids, supportedExtended, supportKnown)
+    }
+    val available = offered.filter { (metric, _) ->
+        metric.isAvailable(supportedPids, supportedExtended, supportKnown)
+    }
+    val unavailable = offered.filterNot { (metric, _) ->
+        metric.isAvailable(supportedPids, supportedExtended, supportKnown)
+    }
 
     Column(modifier = modifier.fillMaxSize()) {
         // The same title block as every other screen, rather than a bespoke row: a back
@@ -287,11 +300,5 @@ private fun PickerRow(
         }
     }
 }
-
-private fun Metric.isSupported(supportedPids: Set<Int>, supportKnown: Boolean): Boolean =
-    when (val metricId = id) {
-        is MetricId.Sensor -> !supportKnown || metricId.pid in supportedPids
-        else -> true
-    }
 
 private const val DISABLED_ALPHA = 0.35f

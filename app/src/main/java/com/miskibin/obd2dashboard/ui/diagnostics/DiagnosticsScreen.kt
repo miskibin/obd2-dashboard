@@ -51,6 +51,8 @@ import com.miskibin.obd2dashboard.obd.DtcKind
 import com.miskibin.obd2dashboard.obd.FreezeFrame
 import com.miskibin.obd2dashboard.obd.IgnitionType
 import com.miskibin.obd2dashboard.obd.MonitorState
+import com.miskibin.obd2dashboard.obd.MonitorTests
+import com.miskibin.obd2dashboard.obd.PerformanceTracking
 import com.miskibin.obd2dashboard.obd.Readiness
 import com.miskibin.obd2dashboard.ui.AppIcons
 import com.miskibin.obd2dashboard.ui.DtcOperation
@@ -106,6 +108,8 @@ import com.miskibin.obd2dashboard.ui.theme.SteelLight
 fun DiagnosticsScreen(
     diagnostics: Diagnostics?,
     freezeFrame: FreezeFrame?,
+    monitors: MonitorTests?,
+    performance: PerformanceTracking?,
     operation: DtcOperation?,
     connected: Boolean,
     recordedCodes: Set<String>,
@@ -178,6 +182,20 @@ fun DiagnosticsScreen(
 
             diagnostics?.monitorStatus?.readiness?.let { readiness ->
                 item(key = "readiness") { ReadinessCard(readiness = readiness, language = language) }
+            }
+
+            // Readiness says which self-tests have run; this says what they found. It sits
+            // directly under it because they are two halves of one question. Either half is
+            // enough to be worth a card: plenty of cars answer mode 09's counters and not
+            // mode 06's results, and the counters are the more useful of the two.
+            val tests = monitors?.takeUnless(MonitorTests::isEmpty)
+            if (tests != null || performance != null) {
+                item(key = "monitors") {
+                    MonitorsCard(
+                        monitors = tests ?: MonitorTests(),
+                        performance = performance,
+                    )
+                }
             }
 
             // No standing caveat about clearing: the sentence that used to sit here is

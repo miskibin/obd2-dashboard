@@ -24,6 +24,21 @@ sealed interface PidRead {
     data class Failed(val error: ElmError) : PidRead
 }
 
+/** Outcome of a single manufacturer-specific read; see [ExtendedPid]. */
+sealed interface ExtendedRead {
+
+    data class Value(val pid: ExtendedPid, val value: Double) : ExtendedRead
+
+    /**
+     * The car answered, and the answer was a refusal. [code] is the ISO 14229 response
+     * code, which is what says whether asking again could ever help.
+     */
+    data class Refused(val code: Int) : ExtendedRead
+
+    /** Nothing came back, or nothing that could be read as this parameter. */
+    data object Silent : ExtendedRead
+}
+
 /**
  * Speaks OBD-II on top of [ElmSession]: builds requests, hands responses to
  * [ObdResponseParser] and returns decoded values.
@@ -204,12 +219,165 @@ class Obd2Client(
         return VinDecoder.decode(ObdResponseParser.frames(response.lines, protocol))
     }
 
+    // ---- mode 06 and mode 09 ----------------------------------------------------
+
+    /**
+     * Every on-board test result the car will part with.
+     *
+     * `0600` gives the mask of monitors this ECU implements and chains into `0620`,
+     * `0640`, … exactly as `0100` does; each monitor is then asked for on its own, because
+     * a monitor answers with a variable number of nine-byte records and there is no way to
+     * batch that. Twenty-odd requests, once per session — which is why it is read at a
+     * session boundary rather than in the polling loop.
+     */
+    suspend fun readMonitorTests(nowMillis: Long = System.currentTimeMillis()): MonitorTests =
+        MonitorTests(
+            tests = scanSupportedMonitors().flatMap { readMonitor(it) },
+            capturedAtMillis = nowMillis,
+        )
+
+    /**
+     * One monitor's test results, as a single request.
+     *
+     * Split out from [readMonitorTests] so a caller that shares the bus with a polling
+     * loop can take the lock once per request rather than once per sweep: twenty monitors
+     * behind one lock is twenty timeouts' worth of frozen gauges.
+     */
+    suspend fun readMonitor(mid: Int): List<MonitorTest> {
+        val response = session.request(Mode06.request(mid), DTC_TIMEOUT_MILLIS)
+        if (response !is ElmResponse.Ok) return emptyList()
+        return Mode06.parse(ObdResponseParser.frames(response.lines, protocol))
+            // An ECU that answers 06A2 with records for other monitors is answering
+            // something else; only what was asked for is kept.
+            .filter { it.mid == mid }
+    }
+
+    /** The monitor ids the car lists, walking the `0600`/`0620`/… chain. */
+    suspend fun scanSupportedMonitors(): Set<Int> {
+        val supported = sortedSetOf<Int>()
+        var base: Int? = 0x00
+        while (base != null) {
+            val response = session.request(Mode06.supportRequest(base), PID_TIMEOUT_MILLIS)
+            if (response !is ElmResponse.Ok) break
+            val block = ObdResponseParser.supportedIds(
+                ObdResponseParser.frames(response.lines, protocol),
+                Mode06.MODE,
+                base,
+            )
+            if (block.isEmpty()) break
+            supported += block
+            base = ObdResponseParser.nextSupportBlock(base, block)
+        }
+        // The block markers chain the query along; they are not monitors themselves.
+        return supported.filterTo(sortedSetOf()) {
+            it % ObdResponseParser.SUPPORT_BLOCK_SIZE != 0
+        }
+    }
+
+    /** `0908`: how often each monitor has actually run. Null when the car does not track it. */
+    suspend fun readPerformanceTracking(): PerformanceTracking? {
+        val response = session.request(PerformanceTrackingDecoder.request, DTC_TIMEOUT_MILLIS)
+        if (response !is ElmResponse.Ok) return null
+        return PerformanceTrackingDecoder
+            .parse(ObdResponseParser.frames(response.lines, protocol))
+            ?.takeUnless(PerformanceTracking::isEmpty)
+    }
+
+    // ---- manufacturer-specific reads --------------------------------------------
+
+    /**
+     * Points the adapter at one module for the duration of [block].
+     *
+     * Two settings, both of which have to be put back. `ATSH` replaces the functional
+     * broadcast address every Mode 01 request relies on, and `ATCRA` narrows the receive
+     * filter to one address — leave either in place and the next `010C` goes to the wrong
+     * ECU or its answer is filtered away, which looks exactly like a car that stopped
+     * responding. The restore therefore happens in a `finally`, and restoring `ATCRA`
+     * means clearing it rather than setting it to anything.
+     */
+    /**
+     * Whether this session can address a single module at all.
+     *
+     * `ATSH 7DF` is the eleven-bit CAN functional address and nothing else. On the
+     * twenty-nine-bit variants the broadcast address is `18DB33F1`, and on the five
+     * pre-CAN protocols it is three bytes of something else again, so restoring `7DF`
+     * afterwards would leave the adapter addressing an ECU that does not exist — every
+     * Mode 01 request after it going nowhere for the rest of the session. Until each of
+     * those has a default worth restoring, the extended parameters stay off them.
+     */
+    val canAddressModules: Boolean
+        get() = protocol.isCan && protocol.headerChars == CAN_11_BIT_HEADER_CHARS
+
+    suspend fun <T> withModule(header: String, receiveHeader: String?, block: suspend () -> T): T {
+        session.request(SET_HEADER + header, ElmSession.AT_TIMEOUT_MILLIS)
+        if (receiveHeader != null) {
+            session.request(SET_RECEIVE_FILTER + receiveHeader, ElmSession.AT_TIMEOUT_MILLIS)
+        }
+        try {
+            return block()
+        } finally {
+            if (receiveHeader != null) {
+                session.request(SET_RECEIVE_FILTER, ElmSession.AT_TIMEOUT_MILLIS)
+            }
+            session.request(SET_HEADER + FUNCTIONAL_HEADER, ElmSession.AT_TIMEOUT_MILLIS)
+        }
+    }
+
+    /**
+     * One extended read. The caller is responsible for having entered [ExtendedPid.header]
+     * with [withModule] first.
+     *
+     * A positive response repeats the identifier before the data — `62 04 15 …` — so the
+     * payload is located by the marker *and* the two identifier bytes rather than by
+     * offset, which is what keeps an answer to the previous request from being read as
+     * this one.
+     */
+    suspend fun readExtended(pid: ExtendedPid): ExtendedRead {
+        val response = session.request(pid.request, EXTENDED_TIMEOUT_MILLIS)
+        if (response is ElmResponse.Failure) return ExtendedRead.Silent
+        val frames = ObdResponseParser.frames(response.lines, protocol)
+        val payload = ObdResponseParser.afterMarker(frames, pid.responseMarker, *pid.didBytes)
+        if (payload != null && payload.size >= pid.bytes) {
+            val value = pid.decode(payload.take(pid.bytes).toIntArray())
+            return if (value.isFinite()) ExtendedRead.Value(pid, value) else ExtendedRead.Silent
+        }
+        val code = NegativeResponse.codeFor(frames, pid.service)
+        return if (code != null) ExtendedRead.Refused(code) else ExtendedRead.Silent
+    }
+
+    /** What one read established about whether this car will ever answer [pid]. */
+    suspend fun probeExtended(pid: ExtendedPid): ExtendedProbe = when (val read = readExtended(pid)) {
+        is ExtendedRead.Value -> ExtendedProbe.Supported
+        is ExtendedRead.Refused -> when {
+            NegativeResponse.isPermanent(read.code) -> ExtendedProbe.Absent
+            NegativeResponse.isTransient(read.code) -> ExtendedProbe.Retry
+            else -> ExtendedProbe.Unknown
+        }
+
+        ExtendedRead.Silent -> ExtendedProbe.Unknown
+    }
+
     private fun countDigit(hint: Int?): String =
         if (hint != null && hint in 1..MAX_COUNT_DIGIT) hint.toString(16).uppercase() else ""
 
     companion object {
         const val VOLTAGE_COMMAND = "ATRV"
+
+        /** The functional address every legislated request is broadcast to. */
+        const val FUNCTIONAL_HEADER = "7DF"
+
+        const val SET_HEADER = "ATSH"
+
+        /** `ATCRA<addr>` narrows the receive filter; `ATCRA` alone clears it again. */
+        const val SET_RECEIVE_FILTER = "ATCRA"
+
         const val PID_TIMEOUT_MILLIS = 1_500L
+
+        /** A module that has to go and fetch a value is slower than one reading a sensor. */
+        const val EXTENDED_TIMEOUT_MILLIS = 2_000L
+
+        /** `7E0`, `726`: the header length that `ATSH 7DF` is the broadcast address of. */
+        const val CAN_11_BIT_HEADER_CHARS = 3
         const val DTC_TIMEOUT_MILLIS = 3_000L
         const val CLEAR_TIMEOUT_MILLIS = 5_000L
         const val VIN_TIMEOUT_MILLIS = 3_000L

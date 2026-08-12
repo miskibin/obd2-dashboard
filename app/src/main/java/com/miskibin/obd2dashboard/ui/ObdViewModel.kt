@@ -33,6 +33,8 @@ import com.miskibin.obd2dashboard.data.presentMetrics
 import com.miskibin.obd2dashboard.data.valueOf
 import com.miskibin.obd2dashboard.obd.DerivedMetrics
 import com.miskibin.obd2dashboard.obd.Dtc
+import com.miskibin.obd2dashboard.obd.MonitorTests
+import com.miskibin.obd2dashboard.obd.PerformanceTracking
 import com.miskibin.obd2dashboard.obd.Pids
 import com.miskibin.obd2dashboard.obd.sensorKey
 import com.miskibin.obd2dashboard.service.ObdConnectionService
@@ -82,6 +84,20 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
     val diagnostics = connection.diagnostics
     val supportedPids: StateFlow<Set<Int>> = connection.supportedPids
     val undecodedPids: StateFlow<Set<Int>> = connection.undecodedPids
+
+    /** The on-board self-test results read when this session opened; see mode 06. */
+    val monitors: StateFlow<MonitorTests?> = connection.monitors
+
+    /** How often each of those self-tests has actually run; see mode 09 `0908`. */
+    val performance: StateFlow<PerformanceTracking?> = connection.performance
+
+    /**
+     * The manufacturer-specific parameters the connected car answered for.
+     *
+     * Empty on every car the extended table does not recognise, which is what keeps the
+     * parameter picker from offering a Mazda's oil pressure to somebody in a Golf.
+     */
+    val supportedExtended: StateFlow<Set<String>> = connection.supportedExtended
     val vin: StateFlow<String?> = connection.vin
     val recording = recorder.state
     val alertEvents = ObdHolder.alerts.events
@@ -555,6 +571,10 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
         supportedPids.value.forEach { pid ->
             Pids[pid]?.channels?.forEach { add(MetricId.Sensor(sensorKey(pid, it.index))) }
         }
+        // Extended parameters are read every few cycles at best, so a recording started in
+        // the first seconds of a drive would otherwise miss the column entirely and only
+        // gain it once the first value happened to land.
+        supportedExtended.value.forEach { add(MetricId.Extended(it)) }
         addAll(DerivedMetrics.all.map { MetricId.Derived(it.key) })
         add(MetricId.Battery)
     }.distinct()

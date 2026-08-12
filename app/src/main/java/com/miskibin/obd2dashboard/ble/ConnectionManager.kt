@@ -14,12 +14,18 @@ import com.miskibin.obd2dashboard.obd.ElmInitConfig
 import com.miskibin.obd2dashboard.obd.ElmInitializer
 import com.miskibin.obd2dashboard.obd.ElmSession
 import com.miskibin.obd2dashboard.obd.ElmTransport
+import com.miskibin.obd2dashboard.obd.ExtendedPid
+import com.miskibin.obd2dashboard.obd.ExtendedPids
+import com.miskibin.obd2dashboard.obd.ExtendedProbe
+import com.miskibin.obd2dashboard.obd.ExtendedVehicle
 import com.miskibin.obd2dashboard.obd.FreezeFrame
 import com.miskibin.obd2dashboard.obd.FuelType
 import com.miskibin.obd2dashboard.obd.InitOutcome
+import com.miskibin.obd2dashboard.obd.MonitorTests
 import com.miskibin.obd2dashboard.obd.Obd2Client
 import com.miskibin.obd2dashboard.obd.ObdProtocol
 import com.miskibin.obd2dashboard.obd.ObdResponseParser
+import com.miskibin.obd2dashboard.obd.PerformanceTracking
 import com.miskibin.obd2dashboard.obd.PidScheduler
 import com.miskibin.obd2dashboard.obd.PidTier
 import com.miskibin.obd2dashboard.obd.Pids
@@ -81,6 +87,27 @@ sealed interface ConnectionState {
 }
 
 /**
+ * What the app already knows about which manufacturer-specific parameters a car answers.
+ *
+ * The connection layer has no business reading preferences and the preference layer has no
+ * business knowing about probes, so the two meet here: [ConnectionManager] asks what is
+ * known before it sends anything and reports what it learned afterwards, and whoever owns
+ * the storage decides where that goes. The default remembers nothing, which costs one
+ * probe per connection and is exactly what a test wants.
+ */
+interface ExtendedMemory {
+
+    suspend fun known(vin: String): Map<String, ExtendedProbe>
+
+    suspend fun remember(vin: String, id: String, probe: ExtendedProbe)
+
+    object None : ExtendedMemory {
+        override suspend fun known(vin: String): Map<String, ExtendedProbe> = emptyMap()
+        override suspend fun remember(vin: String, id: String, probe: ExtendedProbe) = Unit
+    }
+}
+
+/**
  * Owns the whole connection lifecycle: scan → radio link → ELM327 init → PID polling,
  * plus the reconnect loop that a dongle which sleeps after 30 minutes makes unavoidable.
  *
@@ -120,6 +147,24 @@ class ConnectionManager(
     val supportedPids: StateFlow<Set<Int>> = _supportedPids.asStateFlow()
 
     /**
+     * What the ECU's own self-tests said when this session opened.
+     *
+     * Read once, at a session boundary, rather than polled: Mode 06 costs twenty-odd
+     * requests and its numbers move over months. Null until the read has happened, and
+     * null on a car that does not implement it — which most pre-CAN cars do not.
+     */
+    private val _monitors = MutableStateFlow<MonitorTests?>(null)
+    val monitors: StateFlow<MonitorTests?> = _monitors.asStateFlow()
+
+    /** `0908`: how often each monitor has actually run since the codes were cleared. */
+    private val _performance = MutableStateFlow<PerformanceTracking?>(null)
+    val performance: StateFlow<PerformanceTracking?> = _performance.asStateFlow()
+
+    /** The manufacturer-specific parameters this car answered the connect probe for. */
+    private val _supportedExtended = MutableStateFlow<Set<String>>(emptySet())
+    val supportedExtended: StateFlow<Set<String>> = _supportedExtended.asStateFlow()
+
+    /**
      * The PIDs the car offers that this app has no decoder for.
      *
      * Worth keeping and showing rather than discarding: a support scan that finds sixty
@@ -148,6 +193,21 @@ class ConnectionManager(
      */
     private val _sessionKind = MutableStateFlow(SessionKind.Real)
     val sessionKind: StateFlow<SessionKind> = _sessionKind.asStateFlow()
+
+    /**
+     * Where probe results are remembered between connections; see [ExtendedMemory].
+     * Installed by whoever owns the preference store, which the connection layer does not.
+     */
+    var extendedMemory: ExtendedMemory = ExtendedMemory.None
+
+    /**
+     * The model year of the connected car, as its VIN gives it.
+     *
+     * Set by whoever decodes the VIN, because that table lives above this layer. It only
+     * decides which generation's tyre-pressure block to probe, so an unset year simply
+     * means neither is tried.
+     */
+    var modelYear: (String) -> Int? = { null }
 
     private var scanJob: Job? = null
     private var sessionJob: Job? = null
@@ -400,6 +460,9 @@ class ConnectionManager(
         _freezeFrame.value = null
         _vin.value = null
         _supportedPids.value = emptySet()
+        _monitors.value = null
+        _performance.value = null
+        _supportedExtended.value = emptySet()
     }
 
     /** The two conditions that make a connect pointless before it is attempted. */
@@ -524,16 +587,16 @@ class ConnectionManager(
         // profile edit would be saved against.
         _vin.value = null
 
-        // The VIN identifies which car this is, and the vehicle profile hangs off it. It
-        // costs one request, but a car that ignores mode 09 makes that request sit on the
-        // scheduler's gate for the full VIN timeout with every gauge held still, so a
-        // device that has already stayed silent is not asked again on reconnect.
-        if (device.address != vinSilentAddress) {
-            vinJob = scope.launch {
-                val vin = runCatching { readVin() }.getOrNull()
-                if (vin == null) vinSilentAddress = device.address
-            }
-        }
+        // Everything that is read once per session rather than polled: the VIN, the
+        // on-board monitor results, and the probe for whatever extended parameters this
+        // particular car turns out to answer.
+        //
+        // On its own coroutine, and after the gauges are already live, because all of it
+        // sits on the scheduler's gate. Doing it before the dashboard appears would mean
+        // thirty seconds of held-still needles to learn things that do not change during
+        // a drive; doing it after means the dashboard works from the first second and the
+        // extras arrive a moment later.
+        vinJob = scope.launch { openingReads(device, newClient, newScheduler) }
 
         coroutineScope {
             // Without this the link can drop silently: the scheduler goes on asking, every
@@ -545,6 +608,95 @@ class ConnectionManager(
             newScheduler.run()
             linkWatch.cancel()
         }
+    }
+
+    /**
+     * The once-per-session reads, in the order the later ones depend on the earlier.
+     *
+     * The VIN comes first because everything after it is filed under the car it names: the
+     * monitor snapshot is only worth keeping if there is a car to keep it for, and the
+     * extended probe cannot even be composed without knowing whose car this is. A car that
+     * ignores mode 09 costs the full VIN timeout with every gauge held still, so a device
+     * that has already stayed silent about it is not asked again on reconnect.
+     */
+    private suspend fun openingReads(
+        device: DiscoveredDevice,
+        active: Obd2Client,
+        owner: PidScheduler,
+    ) {
+        val vin = if (device.address == vinSilentAddress) {
+            null
+        } else {
+            runCatching { readVin() }.getOrNull().also { if (it == null) vinSilentAddress = device.address }
+        }
+        runCatching { readMonitors(active, owner) }
+        runCatching { probeExtended(vin, active, owner) }
+    }
+
+    /**
+     * Mode 06 and mode 09, once, under the scheduler's own lock.
+     *
+     * The disconnect-side snapshot the research notes suggest is deliberately not taken: a
+     * session ends by being cancelled or by the link dropping, so the moment there would be
+     * something to read is the moment there is no longer anything to read it over. One
+     * snapshot per connection into a per-car history gives the same series with none of the
+     * timeouts.
+     */
+    private suspend fun readMonitors(active: Obd2Client, owner: PidScheduler) {
+        // One request per turn of the lock, not one sweep: a car that lists twenty monitors
+        // and answers half of them would otherwise hold every gauge still for the best part
+        // of a minute.
+        val capturedAt = System.currentTimeMillis()
+        val monitors = owner.exclusive { active.scanSupportedMonitors() }
+        val tests = monitors.flatMap { mid -> owner.exclusive { active.readMonitor(mid) } }
+        _monitors.value = MonitorTests(tests, capturedAt).takeUnless(MonitorTests::isEmpty)
+        _performance.value = owner.exclusive { active.readPerformanceTracking() }
+    }
+
+    /**
+     * Finds out which manufacturer-specific parameters this car answers, and tells the
+     * scheduler to start polling them.
+     *
+     * Nothing is sent to a car the table does not recognise: [ExtendedPids.candidatesFor]
+     * returns an empty list for anything that is not the marque these entries were captured
+     * from, and an empty list means not one extended request leaves the phone. What is
+     * asked is grouped by module so the adapter's header is switched once per module rather
+     * than once per parameter, and every verdict that cannot change is remembered against
+     * the VIN so the next connection asks nothing at all.
+     */
+    private suspend fun probeExtended(vin: String?, active: Obd2Client, owner: PidScheduler) {
+        if (vin.isNullOrBlank()) return
+        // Addressing one module means replacing the broadcast header and putting it back,
+        // and `7DF` is only the right thing to put back on eleven-bit CAN.
+        if (!active.canAddressModules) return
+        val vehicle = ExtendedVehicle(vin = vin, modelYear = modelYear(vin))
+        val candidates = ExtendedPids.candidatesFor(vehicle)
+        if (candidates.isEmpty()) return
+
+        val known = extendedMemory.known(vin)
+        val supported = known.filterValues { it == ExtendedProbe.Supported }.keys.toMutableSet()
+        val unknown = candidates.filter { it.id !in known }
+        ObdLog.log(
+            LogTag.CONN,
+            "extended probe: ${unknown.size} to try, ${supported.size} already known good",
+        )
+
+        unknown.groupBy(ExtendedPid::header).forEach { (header, group) ->
+            owner.exclusive {
+                active.withModule(header, group.first().receiveHeader) {
+                    group.forEach { pid ->
+                        val probe = active.probeExtended(pid)
+                        if (probe == ExtendedProbe.Supported) supported += pid.id
+                        extendedMemory.remember(vin, pid.id, probe)
+                    }
+                }
+            }
+        }
+
+        _supportedExtended.value = supported
+        // Handed over under the same lock the polling loop takes, which is what publishes
+        // it to the thread that will read it.
+        owner.exclusive { owner.configureExtended(candidates.filter { it.id in supported }) }
     }
 
     /** BLE or classic, decided by what the device actually is rather than by what the app is. */

@@ -79,10 +79,20 @@ object ObdResponseParser {
      * Union of the supported-PID bitmasks reported by every ECU that answered
      * `01<base>`; [base] is `0x00`, `0x20`, `0x40`, …
      */
-    fun supportedPids(frames: List<ObdFrame>, base: Int): Set<Int> {
+    fun supportedPids(frames: List<ObdFrame>, base: Int): Set<Int> =
+        supportedIds(frames, MODE_CURRENT_DATA, base)
+
+    /**
+     * The same bitmask walk for any service that publishes one.
+     *
+     * Mode 06 numbers its monitors in exactly the way mode 01 numbers its PIDs — `0600`
+     * answers a four-byte mask, the last bit of which chains into `0620` — so the two
+     * differ only in which response marker to look behind.
+     */
+    fun supportedIds(frames: List<ObdFrame>, mode: Int, base: Int): Set<Int> {
         val supported = sortedSetOf<Int>()
         for (frame in frames) {
-            val mask = values(listOf(frame), MODE_CURRENT_DATA, listOf(base)) { SUPPORT_MASK_BYTES }[base]
+            val mask = values(listOf(frame), mode, listOf(base)) { SUPPORT_MASK_BYTES }[base]
             if (mask != null && mask.size == SUPPORT_MASK_BYTES) supported += decodeSupportMask(base, mask)
         }
         return supported

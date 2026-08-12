@@ -329,4 +329,81 @@ class PidDecodingTest {
 
         assertEquals(1.6436, openLoop.getValue(DerivedMetrics.FuelRate.key), 0.001)
     }
+
+    // ---- the parameters added for sensor parity --------------------------------
+
+    private fun channels(response: String, pid: Int): List<Double> {
+        val frames = ObdResponseParser.frames(listOf(response), ObdProtocol.Automatic)
+        val data = ObdResponseParser.values(frames, MODE_CURRENT_DATA, listOf(pid)).getValue(pid)
+        return Pids[pid]!!.channels.map { it.decode(data) }
+    }
+
+    @Test
+    fun `fuel system status is the standard's enumeration, per system`() {
+        // 02 00: system one is in closed loop and there is no second system to speak of.
+        val closedLoop = channels("41030200", Pids.FUEL_SYSTEM_STATUS)
+
+        assertEquals(2.0, closedLoop[0], 0.001)
+        // Zero in byte B means "no second fuel system" and "engine off" alike, so it is
+        // published as neither rather than as one of them.
+        assertTrue(closedLoop[1].isNaN())
+        assertEquals(4.0, channels("41030404", Pids.FUEL_SYSTEM_STATUS)[1], 0.001)
+    }
+
+    @Test
+    fun `the oxygen sensor map is counted, not shown as a bitmask`() {
+        // 03: bank 1 sensors 1 and 2. 33: one probe on each of the two banks.
+        assertEquals(2.0, decode("411303", Pids.O2_SENSORS_PRESENT), 0.001)
+        assertEquals(2.0, decode("411311", Pids.O2_SENSORS_PRESENT), 0.001)
+        assertEquals(8.0, decode("4113FF", Pids.O2_SENSORS_PRESENT), 0.001)
+    }
+
+    @Test
+    fun `the map governs the oxygen sensor PIDs of all three families`() {
+        val twoProbes = 0x03
+
+        assertEquals(true, Pids.o2SensorFitted(twoProbes, 0x14))
+        assertEquals(true, Pids.o2SensorFitted(twoProbes, 0x15))
+        assertEquals(false, Pids.o2SensorFitted(twoProbes, 0x16))
+        // The wide-range families are the same eight positions, numbered from their own
+        // starting PID.
+        assertEquals(true, Pids.o2SensorFitted(twoProbes, 0x24))
+        assertEquals(false, Pids.o2SensorFitted(twoProbes, 0x36))
+        // Everything else is none of this bitmask's business.
+        assertNull(Pids.o2SensorFitted(twoProbes, Pids.ENGINE_RPM))
+    }
+
+    @Test
+    fun `the auxiliary bits are each gated on their own support bit`() {
+        // A = 10: only the recommended gear is implemented. B = 40: fourth gear.
+        val gearOnly = channels("41651040", Pids.AUXILIARY_IO)
+
+        assertEquals(4.0, gearOnly[0], 0.001)
+        assertTrue("an unsupported bit must not read as off", gearOnly.drop(1).all { it.isNaN() })
+
+        // A = 0F: everything but the gear. B = 0A: glow plug off, manual neutral on,
+        // auto neutral off, power take-off engaged... as the bits fall.
+        val bits = channels("41650F0A", Pids.AUXILIARY_IO)
+        assertTrue(bits[0].isNaN())
+        assertEquals(1.0, bits[1], 0.001)
+        assertEquals(0.0, bits[2], 0.001)
+        assertEquals(1.0, bits[3], 0.001)
+        assertEquals(0.0, bits[4], 0.001)
+    }
+
+    @Test
+    fun `friction torque is a percentage centred on 125`() {
+        assertEquals(0.0, decode("418E7D", Pids.FRICTION_TORQUE), 0.001)
+        assertEquals(-25.0, decode("418E64", Pids.FRICTION_TORQUE), 0.001)
+    }
+
+    @Test
+    fun `fuel rate by mass carries the engine's flow and the whole vehicle's`() {
+        // 0x03E8 = 1000 → 20.00 g/s; 0x04B0 = 1200 → 24.00 g/s.
+        val rates = channels("419D03E804B0", Pids.FUEL_RATE_MASS)
+
+        assertEquals(20.0, rates[0], 0.001)
+        assertEquals(24.0, rates[1], 0.001)
+        assertEquals(4, Pids[Pids.FUEL_RATE_MASS]!!.bytes)
+    }
 }

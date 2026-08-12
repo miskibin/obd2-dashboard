@@ -3,6 +3,7 @@ package com.miskibin.obd2dashboard.data
 import androidx.annotation.StringRes
 import com.miskibin.obd2dashboard.R
 import com.miskibin.obd2dashboard.obd.DerivedMetrics
+import com.miskibin.obd2dashboard.obd.ExtendedPids
 import com.miskibin.obd2dashboard.obd.Pids
 import com.miskibin.obd2dashboard.obd.VehicleSnapshot
 import com.miskibin.obd2dashboard.obd.keyPid
@@ -44,6 +45,17 @@ sealed interface MetricId {
         override val storageKey: String get() = DERIVED_PREFIX + key
     }
 
+    /**
+     * A manufacturer-specific reading, keyed by [com.miskibin.obd2dashboard.obd.ExtendedPid.id].
+     *
+     * Identified by name rather than by number because the number is not the identity: two
+     * generations of the same car report tyre pressure from different modules at different
+     * identifiers, and to everything above this they are the same reading.
+     */
+    data class Extended(val id: String) : MetricId {
+        override val storageKey: String get() = EXTENDED_PREFIX + id
+    }
+
     /** Adapter-reported battery voltage (`ATRV`), which is not a PID. */
     data object Battery : MetricId {
         override val storageKey: String get() = BATTERY_KEY
@@ -52,6 +64,7 @@ sealed interface MetricId {
     companion object {
         private const val PID_PREFIX = "pid:"
         private const val DERIVED_PREFIX = "derived:"
+        private const val EXTENDED_PREFIX = "ext:"
         private const val BATTERY_KEY = "battery"
 
         fun parse(raw: String): MetricId? = when {
@@ -61,6 +74,9 @@ sealed interface MetricId {
 
             raw.startsWith(DERIVED_PREFIX) ->
                 raw.removePrefix(DERIVED_PREFIX).takeIf(String::isNotEmpty)?.let(::Derived)
+
+            raw.startsWith(EXTENDED_PREFIX) ->
+                raw.removePrefix(EXTENDED_PREFIX).takeIf(String::isNotEmpty)?.let(::Extended)
 
             else -> null
         }
@@ -185,6 +201,16 @@ object Metrics {
         (0x14..0x1B).map { sensorKey(it, 0) }.toSet() +
             (0x24..0x2B).map { sensorKey(it, 1) }.toSet()
 
+    /**
+     * The id prefixes that mark a tyre reading, which the four wheels share a paragraph on.
+     *
+     * Declared up here with [O2_VOLTAGE_KEYS] and for the same reason: [catalog] reads them
+     * while it is being built, and a property of an `object` initialised further down is
+     * still null at that point.
+     */
+    private val TYRE_PRESSURE_PREFIX = ExtendedPids.tyrePressureId("")
+    private val TYRE_TEMPERATURE_PREFIX = ExtendedPids.tyreTemperatureId("")
+
     val Rpm = MetricId.Sensor(Pids.ENGINE_RPM)
     val Speed = MetricId.Sensor(Pids.VEHICLE_SPEED)
     val CoolantTemp = MetricId.Sensor(Pids.COOLANT_TEMP)
@@ -262,6 +288,22 @@ object Metrics {
                 1,
             ),
         )
+        // The manufacturer-specific readings sit in the same catalogue as everything else,
+        // so a tile, a chart line and a recording column reach them by the ordinary route.
+        // They are only ever *offered* on a car whose probe answered for them; see
+        // Metric.isAvailable.
+        ExtendedPids.metrics.forEach { pid ->
+            add(
+                Metric(
+                    id = MetricId.Extended(pid.id),
+                    nameRes = extendedNameRes(pid.id),
+                    hintRes = extendedHintRes(pid.id),
+                    descriptionRes = extendedDescriptionRes(pid.id),
+                    unit = pid.unit,
+                    decimals = pid.decimals,
+                ),
+            )
+        }
     }
 
     private val byId: Map<MetricId, Metric> = catalog.associateBy(Metric::id)
@@ -334,6 +376,12 @@ object Metrics {
             else -> MetricGroup.Vehicle
         }
 
+        is MetricId.Extended -> when {
+            id.id == ExtendedPids.OIL_PRESSURE -> MetricGroup.Engine
+            id.id.startsWith(TYRE_PRESSURE_PREFIX) -> MetricGroup.Vehicle
+            else -> MetricGroup.Temperature
+        }
+
         is MetricId.Sensor -> when (id.pid) {
             Pids.COOLANT_TEMP, Pids.INTAKE_AIR_TEMP, Pids.OIL_TEMP, Pids.AMBIENT_AIR_TEMP,
             in 0x3C..0x3F, 0x67, 0x68, 0x6B, 0x77, 0x78, 0x79,
@@ -381,6 +429,18 @@ object Metrics {
      * strings that differ only by a digit.
      */
     private fun nameOf(pid: Int, channel: Int): Pair<Int, List<Int>> = when (pid) {
+        // Two fuel systems, named by their number rather than by two near-identical strings.
+        Pids.FUEL_SYSTEM_STATUS -> R.string.metric_fuel_system to listOf(channel + 1)
+
+        // `0165` packs five unrelated things behind one support byte, so each channel is a
+        // metric in its own right rather than a numbered member of a family.
+        Pids.AUXILIARY_IO -> auxiliaryNameRes(channel) to emptyList()
+
+        Pids.FUEL_RATE_MASS -> {
+            val res = if (channel == 0) R.string.metric_pid_9d else R.string.metric_pid_9d_vehicle
+            res to emptyList()
+        }
+
         in 0x14..0x1B -> {
             val sensor = pid - 0x14 + 1
             val res = if (channel == 0) R.string.metric_o2_voltage else R.string.metric_o2_trim
@@ -425,6 +485,11 @@ object Metrics {
      */
     @StringRes
     private fun hintOf(pid: Int, channel: Int): Int = when (pid) {
+        Pids.FUEL_SYSTEM_STATUS -> R.string.metric_hint_pid_03
+        Pids.AUXILIARY_IO -> auxiliaryHintRes(channel)
+        Pids.FUEL_RATE_MASS ->
+            if (channel == 0) R.string.metric_hint_pid_9d else R.string.metric_hint_pid_9d_vehicle
+
         in 0x14..0x1B ->
             if (channel == 0) R.string.metric_hint_o2_voltage else R.string.metric_hint_o2_trim
 
@@ -461,6 +526,14 @@ object Metrics {
      */
     @StringRes
     private fun descriptionOf(pid: Int, channel: Int): Int = when (pid) {
+        Pids.FUEL_SYSTEM_STATUS -> R.string.metric_desc_pid_03
+        Pids.AUXILIARY_IO -> auxiliaryDescriptionRes(channel)
+        // Both channels are a fuel flow by mass; what differs is whose, which the two
+        // paragraphs say. Sharing one would leave a driver wondering why the car reports
+        // the same number twice — which on most cars it does, and for a reason.
+        Pids.FUEL_RATE_MASS ->
+            if (channel == 0) R.string.metric_desc_pid_9d else R.string.metric_desc_pid_9d_vehicle
+
         in 0x14..0x1B ->
             if (channel == 0) R.string.metric_desc_o2_voltage else R.string.metric_desc_o2_trim
 
@@ -484,6 +557,93 @@ object Metrics {
         else -> descriptionResFor(pid)
     }
 
+    /**
+     * The five channels of `0165`, which share a PID and nothing else.
+     *
+     * Written out per channel rather than derived, because the recommended gear is a shift
+     * indicator, the glow plug lamp is a diesel warning light and the power take-off is
+     * fitted to a van — three unrelated things that happen to be bit-encoded into one
+     * two-byte answer.
+     */
+    @StringRes
+    private fun auxiliaryNameRes(channel: Int): Int = when (channel) {
+        AUX_RECOMMENDED_GEAR -> R.string.metric_pid_65_gear
+        AUX_GLOW_PLUG -> R.string.metric_pid_65_glow_plug
+        AUX_MANUAL_NEUTRAL -> R.string.metric_pid_65_manual_neutral
+        AUX_AUTO_NEUTRAL -> R.string.metric_pid_65_auto_neutral
+        else -> R.string.metric_pid_65_pto
+    }
+
+    @StringRes
+    private fun auxiliaryHintRes(channel: Int): Int = when (channel) {
+        AUX_RECOMMENDED_GEAR -> R.string.metric_hint_pid_65_gear
+        AUX_GLOW_PLUG -> R.string.metric_hint_pid_65_glow_plug
+        AUX_MANUAL_NEUTRAL, AUX_AUTO_NEUTRAL -> R.string.metric_hint_pid_65_neutral
+        else -> R.string.metric_hint_pid_65_pto
+    }
+
+    @StringRes
+    private fun auxiliaryDescriptionRes(channel: Int): Int = when (channel) {
+        AUX_RECOMMENDED_GEAR -> R.string.metric_desc_pid_65_gear
+        AUX_GLOW_PLUG -> R.string.metric_desc_pid_65_glow_plug
+        AUX_MANUAL_NEUTRAL, AUX_AUTO_NEUTRAL -> R.string.metric_desc_pid_65_neutral
+        else -> R.string.metric_desc_pid_65_pto
+    }
+
+    private const val AUX_RECOMMENDED_GEAR = 0
+    private const val AUX_GLOW_PLUG = 1
+    private const val AUX_MANUAL_NEUTRAL = 2
+    private const val AUX_AUTO_NEUTRAL = 3
+
+    /**
+     * The name of one manufacturer-specific reading.
+     *
+     * Each tyre gets a name of its own — "front left" is not a number that could be
+     * substituted into a template — while the sentence explaining what a tyre pressure is
+     * is written once and shared by all four, the same way the oxygen sensor family shares
+     * one paragraph.
+     */
+    @StringRes
+    private fun extendedNameRes(id: String): Int = when (id) {
+        ExtendedPids.OIL_PRESSURE -> R.string.metric_ext_oil_pressure
+        ExtendedPids.OIL_TEMPERATURE -> R.string.metric_ext_oil_temperature
+        ExtendedPids.TRANSMISSION_FLUID_TEMPERATURE -> R.string.metric_ext_atf_temperature
+        ExtendedPids.tyrePressureId(FRONT_LEFT) -> R.string.metric_ext_tyre_pressure_fl
+        ExtendedPids.tyrePressureId(FRONT_RIGHT) -> R.string.metric_ext_tyre_pressure_fr
+        ExtendedPids.tyrePressureId(REAR_LEFT) -> R.string.metric_ext_tyre_pressure_rl
+        ExtendedPids.tyrePressureId(REAR_RIGHT) -> R.string.metric_ext_tyre_pressure_rr
+        ExtendedPids.tyreTemperatureId(FRONT_LEFT) -> R.string.metric_ext_tyre_temperature_fl
+        ExtendedPids.tyreTemperatureId(FRONT_RIGHT) -> R.string.metric_ext_tyre_temperature_fr
+        ExtendedPids.tyreTemperatureId(REAR_LEFT) -> R.string.metric_ext_tyre_temperature_rl
+        ExtendedPids.tyreTemperatureId(REAR_RIGHT) -> R.string.metric_ext_tyre_temperature_rr
+        else -> R.string.metric_unknown
+    }
+
+    @StringRes
+    private fun extendedHintRes(id: String): Int = when {
+        id == ExtendedPids.OIL_PRESSURE -> R.string.metric_hint_ext_oil_pressure
+        id == ExtendedPids.OIL_TEMPERATURE -> R.string.metric_hint_ext_oil_temperature
+        id == ExtendedPids.TRANSMISSION_FLUID_TEMPERATURE -> R.string.metric_hint_ext_atf_temperature
+        id.startsWith(TYRE_PRESSURE_PREFIX) -> R.string.metric_hint_ext_tyre_pressure
+        id.startsWith(TYRE_TEMPERATURE_PREFIX) -> R.string.metric_hint_ext_tyre_temperature
+        else -> R.string.metric_hint_unknown
+    }
+
+    @StringRes
+    private fun extendedDescriptionRes(id: String): Int = when {
+        id == ExtendedPids.OIL_PRESSURE -> R.string.metric_desc_ext_oil_pressure
+        id == ExtendedPids.OIL_TEMPERATURE -> R.string.metric_desc_ext_oil_temperature
+        id == ExtendedPids.TRANSMISSION_FLUID_TEMPERATURE -> R.string.metric_desc_ext_atf_temperature
+        id.startsWith(TYRE_PRESSURE_PREFIX) -> R.string.metric_desc_ext_tyre_pressure
+        id.startsWith(TYRE_TEMPERATURE_PREFIX) -> R.string.metric_desc_ext_tyre_temperature
+        else -> R.string.metric_desc_unknown
+    }
+
+    private const val FRONT_LEFT = "fl"
+    private const val FRONT_RIGHT = "fr"
+    private const val REAR_LEFT = "rl"
+    private const val REAR_RIGHT = "rr"
+
     /** `0155` and `0156` report banks 1 and 3; `0157` and `0158` report banks 2 and 4. */
     private fun secondaryBank(pid: Int, channel: Int): Int =
         if (pid == 0x55 || pid == 0x56) 1 + channel * 2 else 2 + channel * 2
@@ -504,6 +664,7 @@ object Metrics {
         0x0F -> R.string.metric_pid_0f
         0x10 -> R.string.metric_pid_10
         0x11 -> R.string.metric_pid_11
+        0x13 -> R.string.metric_pid_13
         0x1F -> R.string.metric_pid_1f
         0x21 -> R.string.metric_pid_21
         0x22 -> R.string.metric_pid_22
@@ -546,6 +707,7 @@ object Metrics {
         0x61 -> R.string.metric_pid_61
         0x62 -> R.string.metric_pid_62
         0x63 -> R.string.metric_pid_63
+        0x8E -> R.string.metric_pid_8e
         0x9E -> R.string.metric_pid_9e
         0xA4 -> R.string.metric_pid_a4
         0xA6 -> R.string.metric_pid_a6
@@ -569,6 +731,7 @@ object Metrics {
         0x0F -> R.string.metric_hint_pid_0f
         0x10 -> R.string.metric_hint_pid_10
         0x11 -> R.string.metric_hint_pid_11
+        0x13 -> R.string.metric_hint_pid_13
         0x1F -> R.string.metric_hint_pid_1f
         0x21 -> R.string.metric_hint_pid_21
         0x22 -> R.string.metric_hint_pid_22
@@ -611,6 +774,7 @@ object Metrics {
         0x61 -> R.string.metric_hint_pid_61
         0x62 -> R.string.metric_hint_pid_62
         0x63 -> R.string.metric_hint_pid_63
+        0x8E -> R.string.metric_hint_pid_8e
         0x9E -> R.string.metric_hint_pid_9e
         0xA4 -> R.string.metric_hint_pid_a4
         0xA6 -> R.string.metric_hint_pid_a6
@@ -634,6 +798,7 @@ object Metrics {
         0x0F -> R.string.metric_desc_pid_0f
         0x10 -> R.string.metric_desc_pid_10
         0x11 -> R.string.metric_desc_pid_11
+        0x13 -> R.string.metric_desc_pid_13
         0x1F -> R.string.metric_desc_pid_1f
         0x21 -> R.string.metric_desc_pid_21
         0x22 -> R.string.metric_desc_pid_22
@@ -676,6 +841,7 @@ object Metrics {
         0x61 -> R.string.metric_desc_pid_61
         0x62 -> R.string.metric_desc_pid_62
         0x63 -> R.string.metric_desc_pid_63
+        0x8E -> R.string.metric_desc_pid_8e
         0x9E -> R.string.metric_desc_pid_9e
         0xA4 -> R.string.metric_desc_pid_a4
         0xA6 -> R.string.metric_desc_pid_a6
@@ -687,12 +853,17 @@ object Metrics {
 fun VehicleSnapshot.valueOf(id: MetricId): Double? = when (id) {
     is MetricId.Sensor -> readings[id.key]?.value
     is MetricId.Derived -> derived[id.key]
+    is MetricId.Extended -> extended[id.id]?.value
     MetricId.Battery -> batteryVoltage
 }
 
 /** When [id] was last refreshed, used to dim readings that have gone stale. */
 fun VehicleSnapshot.updatedAtOf(id: MetricId): Long = when (id) {
     is MetricId.Sensor -> readings[id.key]?.timestampMillis ?: 0L
+    // An extended parameter is read every few cycles at best, and a tyre pressure at most
+    // once a quarter minute, so the snapshot's own timestamp would say it was fresh long
+    // after it stopped being.
+    is MetricId.Extended -> extended[id.id]?.timestampMillis ?: 0L
     else -> updatedAtMillis
 }
 
@@ -700,5 +871,6 @@ fun VehicleSnapshot.updatedAtOf(id: MetricId): Long = when (id) {
 fun VehicleSnapshot.presentMetrics(): List<MetricId> = buildList {
     readings.keys.forEach { add(MetricId.Sensor(it)) }
     derived.keys.forEach { add(MetricId.Derived(it)) }
+    extended.keys.forEach { add(MetricId.Extended(it)) }
     if (batteryVoltage != null) add(MetricId.Battery)
 }

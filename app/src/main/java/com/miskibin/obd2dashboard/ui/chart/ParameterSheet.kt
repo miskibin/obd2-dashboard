@@ -59,17 +59,21 @@ import com.miskibin.obd2dashboard.ui.theme.Steel
 fun ParameterSheet(
     selected: List<MetricId>,
     supportedPids: Set<Int>,
+    supportedExtended: Set<String>,
     maxSeries: Int,
     onToggle: (MetricId) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
     val supportKnown = supportedPids.isNotEmpty()
-    val groups = remember(context, supportedPids, selected) {
+    val groups = remember(context, supportedPids, supportedExtended, selected) {
         MetricGroup.entries.map { group ->
             group to Metrics.catalog
                 .filter { Metrics.groupOf(it.id) == group }
-                .filter { it.id in selected || it.isAvailable(supportedPids, supportKnown) }
+                .filter {
+                    it.id in selected ||
+                        it.isAvailable(supportedPids, supportedExtended, supportKnown)
+                }
                 .sortedBy { it.label(context) }
         }.filter { (_, items) -> items.isNotEmpty() }
     }
@@ -198,11 +202,23 @@ private fun MetricGroup.titleRes(): Int = when (this) {
     MetricGroup.Vehicle -> R.string.metric_group_vehicle
 }
 
-/** A metric the car answers for, or one whose support is not known yet. */
-fun Metric.isAvailable(supportedPids: Set<Int>, supportKnown: Boolean): Boolean =
-    when (val metricId = id) {
-        is MetricId.Sensor -> !supportKnown || metricId.pid in supportedPids
-        else -> true
-    }
+/**
+ * A metric the car answers for, or one whose support is not known yet.
+ *
+ * An extended parameter is held to a stricter rule than a PID: it is offered only once the
+ * connect-time probe has actually seen the car answer for it, never merely because support
+ * is unknown. A PID the car turns out not to have costs one wasted request; a manufacturer
+ * identifier offered to the wrong marque would be a reading that either never arrives or —
+ * worse — arrives decoded with somebody else's formula.
+ */
+fun Metric.isAvailable(
+    supportedPids: Set<Int>,
+    supportedExtended: Set<String>,
+    supportKnown: Boolean,
+): Boolean = when (val metricId = id) {
+    is MetricId.Sensor -> !supportKnown || metricId.pid in supportedPids
+    is MetricId.Extended -> metricId.id in supportedExtended
+    else -> true
+}
 
 private const val PICKER_MAX_HEIGHT = 360
