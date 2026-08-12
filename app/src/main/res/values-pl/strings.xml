@@ -122,7 +122,38 @@
     <string name="alert_channel_name">Alerty z pojazdu</string>
     <string name="alert_channel_description">Ostrzega, gdy temperatura płynu, napięcie lub inna obserwowana wartość wyjdzie poza bezpieczny zakres.</string>
 
+    <!-- Profil pojazdu -->
+    <string name="vehicle_title">Pojazd</string>
+    <string name="vehicle_identity">Z numeru VIN</string>
+    <string name="vehicle_make">Marka</string>
+    <string name="vehicle_country">Kraj produkcji</string>
+    <string name="vehicle_model_year">Rocznik</string>
+    <string name="vehicle_unknown">Nierozpoznane</string>
+    <string name="vehicle_fuel">Paliwo</string>
+    <string name="vehicle_fuel_description">Spalanie liczone jest z przepływu powietrza, a ten staje się przepływem paliwa dopiero, gdy wiadomo jakiego.</string>
+    <string name="vehicle_fuel_unset">Nie ustawiono — spalanie liczone jest jak dla benzyny, co przy dieslu zawyża wynik o połowę.</string>
+    <string name="vehicle_specification">Dane techniczne</string>
+    <string name="vehicle_specification_description">Wszystkie cztery są w dowodzie rejestracyjnym. Pojemność i moc opisują silnik; masa zamienia przyspieszenie na moc, a pojemność baku — wskazanie paliwa na zasięg.</string>
+    <string name="vehicle_displacement">Pojemność skokowa</string>
+    <string name="vehicle_power">Moc znamionowa</string>
+    <string name="vehicle_mass">Masa własna</string>
+    <string name="vehicle_tank">Pojemność baku</string>
+    <string name="vehicle_name">Nazwa</string>
+    <string name="vehicle_name_placeholder">Jak nazywasz to auto</string>
+    <string name="vehicle_no_vin_title">Brak numeru VIN</string>
+    <string name="vehicle_no_vin_message">Profil zapisywany jest przy numerze VIN auta, odczytywanym przy połączeniu. Połącz się z autem — a jeśli nadal to widzisz, jego sterownik nie odpowiada na pytanie o VIN, co w starszych pojazdach jest normalne.</string>
+    <string name="fuel_petrol">Benzyna</string>
+    <string name="fuel_diesel">Diesel</string>
+    <string name="fuel_lpg">LPG</string>
+    <string name="fuel_ethanol">E85</string>
+    <string name="unit_litres">l</string>
+    <string name="unit_kilowatts">kW</string>
+    <string name="unit_kilograms">kg</string>
+
     <!-- Ustawienia -->
+    <string name="settings_vehicle">Pojazd</string>
+    <string name="settings_vehicle_profile">Profil pojazdu</string>
+    <string name="settings_vehicle_description">Paliwo, silnik i masa — to, do czego odnoszą się odczyty</string>
     <string name="settings_adapter">Zapisany adapter</string>
     <string name="settings_adapter_none">Nic jeszcze nie zapisano</string>
     <string name="settings_forget_adapter">Zapomnij ten adapter</string>

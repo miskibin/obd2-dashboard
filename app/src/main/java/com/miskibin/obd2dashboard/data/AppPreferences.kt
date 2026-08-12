@@ -71,6 +71,9 @@ class AppPreferences(context: Context) {
     /** Which ground the app draws on; [AppTheme.System] follows the phone. */
     val theme: Flow<AppTheme> = store.data.map { AppTheme.fromKey(it[KEY_THEME]) }
 
+    /** Every car the app has been plugged into, keyed by VIN rather than by adapter. */
+    val vehicles: Flow<List<Vehicle>> = store.data.map { Garage.decode(it[KEY_VEHICLES]) }
+
     suspend fun saveAdapter(address: String, name: String?, classic: Boolean = false) {
         store.edit { prefs ->
             prefs[KEY_ADAPTER_ADDRESS] = address
@@ -123,6 +126,15 @@ class AppPreferences(context: Context) {
         store.edit { it[KEY_THEME] = theme.storageKey }
     }
 
+    /** Replaces the profile for this VIN, leaving every other car in the garage alone. */
+    suspend fun saveVehicle(vehicle: Vehicle) {
+        store.edit { prefs ->
+            prefs[KEY_VEHICLES] = Garage.encode(
+                Garage.merge(Garage.decode(prefs[KEY_VEHICLES]), vehicle),
+            )
+        }
+    }
+
     /**
      * Records that these codes were present just now.
      *
@@ -158,6 +170,7 @@ class AppPreferences(context: Context) {
         val KEY_DTC_LOG = stringPreferencesKey("dtc_log")
         val KEY_IMPERIAL = booleanPreferencesKey("imperial_units")
         val KEY_THEME = stringPreferencesKey("theme")
+        val KEY_VEHICLES = stringPreferencesKey("vehicles")
 
         const val SEPARATOR = "|"
 

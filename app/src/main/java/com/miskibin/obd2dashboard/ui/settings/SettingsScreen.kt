@@ -104,6 +104,7 @@ fun SettingsScreen(
     onRestoreDefaultAlerts: () -> Unit,
     onOpenRepository: () -> Unit,
     onOpenConnectionLog: () -> Unit,
+    onOpenVehicle: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var editing by remember { mutableStateOf<AlertRule?>(null) }
@@ -122,6 +123,18 @@ fun SettingsScreen(
                 .padding(bottom = Dimens.listBottom),
             verticalArrangement = Arrangement.spacedBy(Dimens.sectionGap),
         ) {
+            // First, and above the adapter: everything below this line describes how the
+            // app behaves, and this is the only row that describes the car. It is also what
+            // the fuel, consumption and range figures are computed against, so a driver who
+            // never finds it is reading numbers derived from a guess.
+            Group(title = stringResource(R.string.settings_vehicle)) {
+                NavigationRow(
+                    title = stringResource(R.string.settings_vehicle_profile),
+                    subtitle = stringResource(R.string.settings_vehicle_description),
+                    onClick = onOpenVehicle,
+                )
+            }
+
             Group(title = stringResource(R.string.settings_adapter)) {
                 Row(
                     modifier = Modifier

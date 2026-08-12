@@ -66,6 +66,7 @@ object Pids {
     const val DISTANCE_SINCE_CLEARED = 0x31
     const val BAROMETRIC_PRESSURE = 0x33
     const val CONTROL_MODULE_VOLTAGE = 0x42
+    const val COMMANDED_EQUIV_RATIO = 0x44
     const val AMBIENT_AIR_TEMP = 0x46
     const val OIL_TEMP = 0x5C
     const val FUEL_RATE = 0x5E
@@ -102,7 +103,13 @@ object Pids {
         Pid(0x3F, "Catalyst temperature B2S2", CELSIUS, 2, PidTier.Slow) { word(it) / 10.0 - 40.0 },
         Pid(CONTROL_MODULE_VOLTAGE, "Control module voltage", "V", 2, PidTier.Medium) { word(it) / 1000.0 },
         Pid(0x43, "Absolute load value", PERCENT, 2, PidTier.Slow) { word(it) * 100.0 / 255.0 },
-        Pid(0x44, "Commanded air-fuel equivalence ratio", "λ", 2, PidTier.Slow) { 2.0 * word(it) / 65536.0 },
+        // Medium rather than slow: λ stopped being a curiosity when the fuel rate started
+        // being divided by it. On the slow tier's round robin it refreshes about every
+        // thirty seconds, which is fine for a trip average and visibly wrong on the live
+        // consumption tile of a diesel pulling away.
+        Pid(COMMANDED_EQUIV_RATIO, "Commanded air-fuel equivalence ratio", "λ", 2, PidTier.Medium) {
+            2.0 * word(it) / 65536.0
+        },
         Pid(0x45, "Relative throttle position", PERCENT, 1, PidTier.Medium, ::ratio),
         Pid(AMBIENT_AIR_TEMP, "Ambient air temperature", CELSIUS, 1, PidTier.Slow, ::tempC),
         Pid(0x47, "Absolute throttle position B", PERCENT, 1, PidTier.Slow, ::ratio),
@@ -153,18 +160,42 @@ object DerivedMetrics {
     /** Barometric pressure at sea level, used when PID 33 is unsupported. */
     const val SEA_LEVEL_KPA = 101.3
 
-    private const val STOICHIOMETRIC_AFR = 14.7
-    private const val PETROL_DENSITY_G_PER_L = 820.0
+    private const val SECONDS_PER_HOUR = 3600.0
 
-    fun compute(values: Map<Int, Double>): Map<String, Double> {
+    /**
+     * Below this a λ reading is a placeholder, not a mixture.
+     *
+     * An ECU that does not really implement PID 44 still answers it, usually with zero, and
+     * dividing by that produces an infinite fuel rate. The upper end needs no guard: the
+     * PID's own encoding saturates at 2.0, which is also why the fuel rate of a diesel at
+     * idle — genuinely leaner than that — is still overstated, just no longer by a factor
+     * of five.
+     */
+    private const val MIN_CREDIBLE_LAMBDA = 0.5
+
+    /**
+     * @param fuel what is being burnt, which decides how much of it a given mass of air is.
+     */
+    fun compute(
+        values: Map<Int, Double>,
+        fuel: FuelType = FuelType.Default,
+    ): Map<String, Double> {
         val derived = mutableMapOf<String, Double>()
 
         values[Pids.INTAKE_MAP]?.let { map ->
             derived[Boost.key] = map - (values[Pids.BAROMETRIC_PRESSURE] ?: SEA_LEVEL_KPA)
         }
 
-        val fuelRate = values[Pids.FUEL_RATE]
-            ?: values[Pids.MAF_RATE]?.let { it * 3600.0 / (STOICHIOMETRIC_AFR * PETROL_DENSITY_G_PER_L) }
+        // PID 5E when the car has it, and the air flow converted when it does not — which
+        // is most cars. The conversion is air mass ÷ (air per litre × λ): the ratio alone
+        // would assume every engine burns everything it breathes, which is true of a petrol
+        // engine under closed loop and of nothing else.
+        val fuelRate = values[Pids.FUEL_RATE] ?: values[Pids.MAF_RATE]?.let { maf ->
+            val lambda = values[Pids.COMMANDED_EQUIV_RATIO]
+                ?.takeIf { it >= MIN_CREDIBLE_LAMBDA }
+                ?: fuel.nominalLambda
+            maf * SECONDS_PER_HOUR / (fuel.airMassPerLitre * lambda)
+        }
         if (fuelRate != null) {
             derived[FuelRate.key] = fuelRate
             val speed = values[Pids.VEHICLE_SPEED]

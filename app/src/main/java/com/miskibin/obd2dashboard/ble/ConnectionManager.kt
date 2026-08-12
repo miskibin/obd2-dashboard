@@ -14,6 +14,7 @@ import com.miskibin.obd2dashboard.obd.ElmInitializer
 import com.miskibin.obd2dashboard.obd.ElmSession
 import com.miskibin.obd2dashboard.obd.ElmTransport
 import com.miskibin.obd2dashboard.obd.FreezeFrame
+import com.miskibin.obd2dashboard.obd.FuelType
 import com.miskibin.obd2dashboard.obd.InitOutcome
 import com.miskibin.obd2dashboard.obd.Obd2Client
 import com.miskibin.obd2dashboard.obd.ObdProtocol
@@ -117,6 +118,7 @@ class ConnectionManager(
     private var sessionJob: Job? = null
     private var mirrorJob: Job? = null
     private var keepAliveJob: Job? = null
+    private var vinJob: Job? = null
 
     private var transport: ElmTransport? = null
     private var session: ElmSession? = null
@@ -129,6 +131,9 @@ class ConnectionManager(
 
     private val _pollingEnabled = MutableStateFlow(true)
     val pollingEnabled: StateFlow<Boolean> = _pollingEnabled.asStateFlow()
+
+    /** What the vehicle profile says is in the tank; see [com.miskibin.obd2dashboard.data.Vehicle]. */
+    private val _fuel = MutableStateFlow(FuelType.Default)
 
     fun startScan() {
         if (scanJob?.isActive == true) return
@@ -248,6 +253,10 @@ class ConnectionManager(
 
     fun setPollingEnabled(enabled: Boolean) {
         _pollingEnabled.value = enabled
+    }
+
+    fun setFuelType(fuel: FuelType) {
+        _fuel.value = fuel
     }
 
     suspend fun refreshDiagnostics(): Diagnostics? {
@@ -402,12 +411,19 @@ class ConnectionManager(
         val newScheduler = PidScheduler(
             client = newClient,
             pollingEnabled = { _pollingEnabled.value },
+            fuel = { _fuel.value },
         ).also { scheduler = it }
         newScheduler.configure(supported)
         mirrorJob = scope.launch { newScheduler.snapshot.collect { _snapshot.value = it } }
 
         setState(ConnectionState.Connected(device, info, demo))
         keepAliveJob = scope.launch { keepAlive(newClient, newScheduler) }
+
+        // The VIN identifies which car this is, and the vehicle profile — fuel type
+        // included, which the fuel maths above needs — hangs off it. Asked for once per
+        // session, through the same gate the gauges use, so it costs one cycle rather than
+        // a pause; failing costs nothing but a nameless car.
+        vinJob = scope.launch { runCatching { readVin() } }
 
         coroutineScope {
             // Without this the link can drop silently: the scheduler goes on asking, every
@@ -461,8 +477,10 @@ class ConnectionManager(
     private suspend fun tearDownSession(reason: String) {
         keepAliveJob?.cancel()
         mirrorJob?.cancel()
+        vinJob?.cancel()
         keepAliveJob = null
         mirrorJob = null
+        vinJob = null
         scheduler = null
         client = null
         session?.close()

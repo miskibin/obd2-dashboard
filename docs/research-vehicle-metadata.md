@@ -369,22 +369,28 @@ driver; this changes how the header looks.
 
 ## 8. What I'd build, in order
 
-1. **`Vehicle` profile entity, keyed by VIN, persisted in `AppPreferences`.**
+Steps 1–4 are **done** — see `data/Vehicle.kt`, `data/VinDecoder.kt`, `obd/FuelType.kt` and
+`ui/vehicle/VehicleScreen.kt`. The rest is still a plan.
+
+1. ✅ **`Vehicle` profile entity, keyed by VIN, persisted in `AppPreferences`.**
    Holds decoded facts + driver-entered facts. Nothing else on this list has anywhere to live
    until this exists. Also lets the app hold *several* cars.
 
-2. **Offline WMI + year decode** (§2.2). ~400-entry bundled table. Turns the header from
-   `8W123456` into `Volkswagen · 2008 · Wolfsburg`, instantly, offline, privately.
+2. ✅ **Offline WMI + year decode** (§2.2). Bundled table. Turns the header from
+   `8W123456` into `Volkswagen`, instantly, offline, privately — and dates the 2011 Audi that
+   vPIC put in 1981 correctly, by reading the 30-year year cycle as the most recent car that
+   could have an OBD2 port.
 
-3. **Vehicle setup: fuel type, displacement, kerb mass, rated power, tank capacity.**
-   Pre-filled from the bundled table where the WMI+year narrows it down, driver-confirmed.
-   Five fields, one time.
+3. ✅ **Vehicle setup: fuel type, displacement, kerb mass, rated power, tank capacity.**
+   Five fields, one time, off the registration document.
 
-4. **Fix the fuel maths using fuel type + λ** (§3.1). This is a bug fix, not a feature — the
-   app currently reports diesel consumption that can be 2× reality.
+4. ✅ **Fix the fuel maths using fuel type + λ** (§3.1). A bug fix, not a feature. PID `44`
+   moved from the slow tier to the medium one in the process: λ stopped being a curiosity
+   the moment the fuel rate started being divided by it.
 
 5. **Fuel level → litres + range** (§3.2), using the driver's own measured L/100 km. Degrades
-   cleanly when PID `2F` is unsupported.
+   cleanly when PID `2F` is unsupported. **Next up** — the profile now carries the tank size
+   it needs.
 
 6. **Factory vs. real consumption** on the trips screen (§3.4).
 

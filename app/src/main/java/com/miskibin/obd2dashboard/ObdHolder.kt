@@ -11,15 +11,18 @@ import com.miskibin.obd2dashboard.ble.ConnectionManager
 import com.miskibin.obd2dashboard.ble.DeviceKind
 import com.miskibin.obd2dashboard.ble.DiscoveredDevice
 import com.miskibin.obd2dashboard.data.AppPreferences
+import com.miskibin.obd2dashboard.data.Garage
 import com.miskibin.obd2dashboard.log.LogTag
 import com.miskibin.obd2dashboard.log.ObdLog
 import com.miskibin.obd2dashboard.data.MetricHistory
 import com.miskibin.obd2dashboard.data.TripRecorder
 import com.miskibin.obd2dashboard.data.TripRepository
+import com.miskibin.obd2dashboard.obd.FuelType
 import com.miskibin.obd2dashboard.service.AlertMonitor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -68,6 +71,15 @@ object ObdHolder {
 
         scope.launch { connection.snapshot.collect(history::record) }
         scope.launch { preferences.pollingEnabled.collect(connection::setPollingEnabled) }
+        // The fuel maths runs inside the polling loop, which has no idea which car it is
+        // talking to; this is the one wire that tells it. Both sides move — the VIN when a
+        // session opens, the garage when the profile is edited — so it is a combine rather
+        // than a read at connect time, and editing the profile changes the gauges at once.
+        scope.launch {
+            combine(connection.vin, preferences.vehicles) { vin, garage ->
+                Garage.find(garage, vin)?.fuel ?: FuelType.Default
+            }.collect(connection::setFuelType)
+        }
         alerts.start()
     }
 

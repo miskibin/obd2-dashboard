@@ -16,6 +16,13 @@ works with ELM327-compatible clones). Inspired by Car Scanner ELM OBD2.
   last minute plotted against that range
 - **Charts** — any parameter from the catalogue, up to six at once, in three axis
   modes: a strip each, one shared 0–100 % axis, or one shared axis in units
+- **Vehicle profile** — kept against the car's VIN rather than the dongle, so one
+  adapter moved between two cars is two profiles. The marque, country of assembly
+  and model year are decoded from the VIN by a bundled table, offline, with nothing
+  leaving the phone; the driver adds the five constants no OBD port reports — fuel
+  type, displacement, rated power, kerb mass, tank capacity. These are not trivia:
+  the fuel type is what the air-flow reading is divided by to become consumption,
+  and without it a diesel reads about twice its real figure
 - **Trips** — every recording read back into distance, consumption, maxima and
   the events worth a badge (oil over its limit, the limiter reached), each with
   the second it happened; export as CSV
