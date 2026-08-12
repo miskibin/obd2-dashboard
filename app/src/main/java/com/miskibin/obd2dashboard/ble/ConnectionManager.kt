@@ -120,6 +120,14 @@ class ConnectionManager(
     private var keepAliveJob: Job? = null
     private var vinJob: Job? = null
 
+    /**
+     * A device whose ECU did not answer mode 09, so the reconnect loop stops paying for it.
+     *
+     * Cleared whenever the driver connects deliberately: the same dongle in a different car
+     * is a different ECU, and that is exactly the case where the answer changes.
+     */
+    private var vinSilentAddress: String? = null
+
     private var transport: ElmTransport? = null
     private var session: ElmSession? = null
     private var client: Obd2Client? = null
@@ -204,6 +212,7 @@ class ConnectionManager(
     fun connect(device: DiscoveredDevice) {
         val previous = sessionJob
         previous?.cancel()
+        vinSilentAddress = null
         sessionJob = scope.launch {
             // The previous session's socket has to be gone before the next one opens:
             // a connectGatt issued against an unclosed client is a permanent 133.
@@ -222,6 +231,7 @@ class ConnectionManager(
     fun connectDemo() {
         val previous = sessionJob
         previous?.cancel()
+        vinSilentAddress = null
         sessionJob = scope.launch {
             previous?.join()
             stopScanAndSettle()
@@ -419,11 +429,23 @@ class ConnectionManager(
         setState(ConnectionState.Connected(device, info, demo))
         keepAliveJob = scope.launch { keepAlive(newClient, newScheduler) }
 
-        // The VIN identifies which car this is, and the vehicle profile — fuel type
-        // included, which the fuel maths above needs — hangs off it. Asked for once per
-        // session, through the same gate the gauges use, so it costs one cycle rather than
-        // a pause; failing costs nothing but a nameless car.
-        vinJob = scope.launch { runCatching { readVin() } }
+        // Whatever VIN is held belongs to the *previous* session. Dropping it before the
+        // new one answers means the worst case is a car the app cannot name, rather than
+        // one it names wrongly — and a wrong VIN is not cosmetic here: it picks the profile,
+        // and therefore the fuel type the consumption is computed with, and it is what a
+        // profile edit would be saved against.
+        _vin.value = null
+
+        // The VIN identifies which car this is, and the vehicle profile hangs off it. It
+        // costs one request, but a car that ignores mode 09 makes that request sit on the
+        // scheduler's gate for the full VIN timeout with every gauge held still, so a
+        // device that has already stayed silent is not asked again on reconnect.
+        if (device.address != vinSilentAddress) {
+            vinJob = scope.launch {
+                val vin = runCatching { readVin() }.getOrNull()
+                if (vin == null) vinSilentAddress = device.address
+            }
+        }
 
         coroutineScope {
             // Without this the link can drop silently: the scheduler goes on asking, every

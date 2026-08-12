@@ -1,6 +1,13 @@
 package com.miskibin.obd2dashboard.data
 
-/** What the VIN says about itself, before anybody is asked and before anything is sent. */
+/**
+ * What the VIN says about itself, before anybody is asked and before anything is sent.
+ *
+ * [country] is the country that issued the manufacturer's identifier, not provably the one
+ * the car was screwed together in. For most marques they are the same place, which is why
+ * it is worth showing at all — but a Tesla built in Brandenburg carries a Dutch-issued code,
+ * so the screen calls this the car's origin rather than claiming a factory.
+ */
 data class VinFacts(
     val manufacturer: String? = null,
     val country: String? = null,
@@ -66,11 +73,17 @@ object VinDecoder {
     /**
      * Resolves the year character to the most recent year it can mean.
      *
-     * The character repeats every thirty years, so `B` is 1981, 2011 and 2041 at once. The
-     * app only ever meets it on a car with an OBD2 port, which did not exist before the
-     * mid-nineties, so the newest reading that is not in the future is right for every car
-     * this will run against. One year of headroom is allowed because a model year starts
-     * during the calendar year before it.
+     * The character repeats every thirty years, so `B` is 1981, 2011 and 2041 at once, and
+     * nothing else in the VIN says which. Taking the newest reading that is not in the
+     * future settles it for almost every car: the app only meets cars with an OBD2 port,
+     * and the alternative is always thirty years older than one. One year of headroom is
+     * allowed because a model year opens during the calendar year before it.
+     *
+     * The exception is the two characters currently pointing at the mid-nineties — a
+     * genuine 1996 or 1997 car reads as this year or next, because both readings are cars
+     * that could be plugged in. It is the right way round: a 2026 model is what somebody is
+     * far more likely to be sitting in than a thirty-year-old one, and the driver can
+     * always name the car themselves.
      */
     private fun modelYear(code: Char, currentYear: Int): Int? {
         val index = YEAR_CYCLE.indexOf(code).takeIf { it >= 0 } ?: return null
@@ -103,10 +116,11 @@ object VinDecoder {
         Region(range[0], range[1], range[4], country)
 
     /**
-     * ISO 3780's region table, trimmed to the places a car in Europe is built.
+     * ISO 3780's region table, trimmed to the places a car in Europe comes from.
      *
-     * An unlisted range gives no country rather than a guess: "assembled somewhere" is not
-     * worth a line on the screen, and a wrong country is worse than a missing one.
+     * These are the countries that *issue* manufacturer identifiers, which is usually but
+     * not always where the car was assembled — see [VinFacts]. An unlisted range gives no
+     * country rather than a guess: a wrong one is worse than a missing one.
      */
     private val REGIONS: List<Region> = listOf(
         region("AA-AH", "South Africa"),

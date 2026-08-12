@@ -70,6 +70,16 @@ class VinDecoderTest {
         assertNotNull(decode("WVWZZZ1KZ8W123456"))
     }
 
+    /**
+     * The cost of the rule above, stated rather than hidden: the two characters currently
+     * pointing at the mid-nineties are genuinely ambiguous between two cars that could both
+     * be plugged in, and the newer reading wins.
+     */
+    @Test
+    fun `reads a mid-nineties car as the current model year`() {
+        assertEquals(2026, VinDecoder.decode("WVWZZZ1KZTW123456", currentYear = 2026)?.modelYear)
+    }
+
     @Test
     fun `refuses anything that is not a VIN`() {
         assertNull(decode(""))

@@ -122,14 +122,14 @@
     <string name="vehicle_title">Vehicle</string>
     <string name="vehicle_identity">From the VIN</string>
     <string name="vehicle_make">Make</string>
-    <string name="vehicle_country">Assembled in</string>
+    <string name="vehicle_country">Origin</string>
     <string name="vehicle_model_year">Model year</string>
     <string name="vehicle_unknown">Not recognised</string>
     <string name="vehicle_fuel">Fuel</string>
     <string name="vehicle_fuel_description">Consumption is worked out from air flow, which only becomes fuel flow once this is known.</string>
     <string name="vehicle_fuel_unset">Not set — consumption is being worked out as if this were a petrol engine, which overstates a diesel by half again.</string>
     <string name="vehicle_specification">Specification</string>
-    <string name="vehicle_specification_description">All four are on the registration document. Displacement and power describe the engine; mass turns acceleration into power, and tank size turns the fuel gauge into a range.</string>
+    <string name="vehicle_specification_description">All four are on the registration document. They are recorded now and read as the figures that need them arrive: mass is what turns acceleration into power, and tank size is what turns the fuel gauge into a range.</string>
     <string name="vehicle_displacement">Displacement</string>
     <string name="vehicle_power">Rated power</string>
     <string name="vehicle_mass">Kerb mass</string>

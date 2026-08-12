@@ -67,7 +67,7 @@ object Garage {
 
     fun encode(vehicles: List<Vehicle>): String = vehicles.joinToString(SEPARATOR) { vehicle ->
         listOf(
-            vehicle.vin,
+            sanitise(vehicle.vin),
             vehicle.name?.let(::sanitise).orEmpty(),
             vehicle.fuel?.storageKey.orEmpty(),
             vehicle.displacementLitres?.toString().orEmpty(),
@@ -94,9 +94,15 @@ object Garage {
         }
     }
 
-    /** A name the driver typed must not be able to end its own record. */
-    private fun sanitise(name: String): String =
-        name.filterNot { it.toString() == SEPARATOR || it.toString() == FIELD }.trim()
+    /**
+     * Nothing written into a field may be able to end its own record.
+     *
+     * This guards the VIN as well as the name, and the VIN is the one that needs it: it is
+     * not typed but reassembled from raw ECU bytes and mapped straight to characters, so a
+     * garbled `0902` reply can put a separator anywhere in it. A name is merely free text.
+     */
+    private fun sanitise(value: String): String =
+        value.filterNot { it.toString() == SEPARATOR || it.toString() == FIELD }.trim()
 
     private const val SEPARATOR = "|"
     private const val FIELD = ":"

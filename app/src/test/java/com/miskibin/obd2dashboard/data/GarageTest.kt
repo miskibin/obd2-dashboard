@@ -45,6 +45,22 @@ class GarageTest {
         assertEquals("Golf  1.9  TDI", Garage.decode(Garage.encode(listOf(awkward))).single().name)
     }
 
+    /**
+     * The VIN is not typed — it is reassembled from raw ECU bytes and mapped straight to
+     * characters, so a garbled `0902` reply can put a separator in it. Unguarded, that
+     * splits the record and takes the rest of the garage with it.
+     */
+    @Test
+    fun `a garbled VIN cannot split its own record`() {
+        val garbled = Vehicle(vin = "WVW:ZZ1|Z8W123456", tankLitres = 55)
+        val restored = Garage.decode(Garage.encode(listOf(garbled, golf)))
+
+        assertEquals(2, restored.size)
+        assertEquals("WVWZZ1Z8W123456", restored.first().vin)
+        assertEquals(55, restored.first().tankLitres)
+        assertEquals(golf, restored.last())
+    }
+
     @Test
     fun `merge replaces the car with this VIN and leaves the rest alone`() {
         val skoda = Vehicle(vin = "TMBJJ7NE0J0123456")
