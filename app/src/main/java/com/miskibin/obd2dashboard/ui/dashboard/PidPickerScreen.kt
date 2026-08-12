@@ -1,5 +1,6 @@
 package com.miskibin.obd2dashboard.ui.dashboard
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -132,6 +133,7 @@ fun PidPickerScreen(
                         PickerRow(
                             name = name,
                             unit = metric.unit,
+                            descriptionRes = metric.descriptionRes,
                             selected = metric.id in selected,
                             enabled = true,
                             onClick = { onToggle(metric.id) },
@@ -154,6 +156,7 @@ fun PidPickerScreen(
                         PickerRow(
                             name = name,
                             unit = metric.unit,
+                            descriptionRes = metric.descriptionRes,
                             selected = metric.id in selected,
                             enabled = false,
                             onClick = {},
@@ -192,55 +195,95 @@ fun PidPickerScreen(
     }
 }
 
+/**
+ * One parameter, with its description folded away behind the marker on the right.
+ *
+ * The description is what makes a list of forty acronyms choosable by somebody who does not
+ * already know them, but shown on every row it would bury the list it is explaining. Behind
+ * a tap it costs one line of width and stays out of the way of scanning.
+ */
 @Composable
 private fun PickerRow(
     name: String,
     unit: String,
+    @StringRes descriptionRes: Int,
     selected: Boolean,
     enabled: Boolean,
     onClick: () -> Unit,
 ) {
-    Row(
+    var expanded by remember { mutableStateOf(false) }
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(PanelCorner)
             .background(Slate)
             .border(1.dp, SlateBorder, PanelCorner)
-            .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
-            .alpha(if (enabled) 1f else DISABLED_ALPHA)
-            .heightIn(min = 50.dp)
-            .padding(horizontal = 13.dp, vertical = Dimens.rowPaddingV),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+            .alpha(if (enabled) 1f else DISABLED_ALPHA),
     ) {
-        // A filled box beats a tick alone: it reads as "chosen" from the corner of the
-        // eye, which is how a list of forty parameters gets scanned.
-        Box(
+        Row(
             modifier = Modifier
-                .size(18.dp)
-                .clip(RoundedCornerShape(5.dp))
-                .background(if (selected) Steel else Color.Transparent)
-                .border(1.5.dp, if (selected) Steel else SlateEdge, RoundedCornerShape(5.dp)),
-            contentAlignment = Alignment.Center,
+                .fillMaxWidth()
+                .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
+                .heightIn(min = 50.dp)
+                .padding(horizontal = 13.dp, vertical = Dimens.rowPaddingV),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            if (selected) {
+            // A filled box beats a tick alone: it reads as "chosen" from the corner of the
+            // eye, which is how a list of forty parameters gets scanned.
+            Box(
+                modifier = Modifier
+                    .size(18.dp)
+                    .clip(RoundedCornerShape(5.dp))
+                    .background(if (selected) Steel else Color.Transparent)
+                    .border(1.5.dp, if (selected) Steel else SlateEdge, RoundedCornerShape(5.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (selected) {
+                    Text(
+                        text = "✓",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Ink,
+                    )
+                }
+            }
+            Text(
+                text = name,
+                style = MaterialTheme.typography.bodyLarge,
+                color = if (selected) Chalk else AshDim,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            if (unit.isNotBlank()) {
+                Text(text = unit, style = MaterialTheme.typography.labelMedium, color = Fog)
+            }
+            // The same bordered-box-with-a-glyph the tick uses, so the row gains an
+            // affordance rather than a new kind of control.
+            Box(
+                modifier = Modifier
+                    .size(18.dp)
+                    .clip(RoundedCornerShape(5.dp))
+                    .border(1.dp, SlateEdge, RoundedCornerShape(5.dp))
+                    .clickable { expanded = !expanded },
+                contentAlignment = Alignment.Center,
+            ) {
                 Text(
-                    text = "✓",
+                    text = "i",
                     style = MaterialTheme.typography.labelSmall,
-                    color = Ink,
+                    color = if (expanded) Steel else Smoke,
                 )
             }
         }
-        Text(
-            text = name,
-            style = MaterialTheme.typography.bodyLarge,
-            color = if (selected) Chalk else AshDim,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-        if (unit.isNotBlank()) {
-            Text(text = unit, style = MaterialTheme.typography.labelMedium, color = Fog)
+        if (expanded) {
+            Text(
+                text = stringResource(descriptionRes),
+                style = MaterialTheme.typography.bodySmall,
+                color = Smoke,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 13.dp, end = 13.dp, bottom = 11.dp),
+            )
         }
     }
 }

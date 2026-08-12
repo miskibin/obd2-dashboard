@@ -75,11 +75,17 @@ sealed interface MetricId {
  * who has never seen the acronym before. "Air flow (MAF) 22 g/s" tells a mechanic
  * something and an owner nothing; "how much air is going in" is the same reading with the
  * jargon paid for.
+ *
+ * [descriptionRes] is the paragraph behind that line, for the driver who tapped the tile
+ * because the subtitle made them curious: what the sensor physically measures, why it is
+ * worth looking at, and what a typical or a worrying value looks like. The hint has to fit
+ * under a name on a tile, so it can only ever gesture at the answer; this is the answer.
  */
 data class Metric(
     val id: MetricId,
     @param:StringRes val nameRes: Int,
     @param:StringRes val hintRes: Int,
+    @param:StringRes val descriptionRes: Int,
     val unit: String,
     val decimals: Int,
     /**
@@ -208,6 +214,7 @@ object Metrics {
                         id = MetricId.Sensor(key),
                         nameRes = nameRes,
                         hintRes = hintOf(pid.id, channel.index),
+                        descriptionRes = descriptionOf(pid.id, channel.index),
                         unit = channel.unit,
                         decimals = decimalsFor(key, channel.unit),
                         nameArgs = args,
@@ -220,6 +227,7 @@ object Metrics {
                 MetricId.Derived(DerivedMetrics.Boost.key),
                 R.string.metric_boost,
                 R.string.metric_hint_boost,
+                R.string.metric_desc_boost,
                 "kPa",
                 0,
             ),
@@ -229,6 +237,7 @@ object Metrics {
                 MetricId.Derived(DerivedMetrics.FuelRate.key),
                 R.string.metric_fuel_rate,
                 R.string.metric_hint_fuel_rate,
+                R.string.metric_desc_fuel_rate,
                 "L/h",
                 1,
             ),
@@ -238,6 +247,7 @@ object Metrics {
                 MetricId.Derived(DerivedMetrics.FuelPer100Km.key),
                 R.string.metric_fuel_per_100km,
                 R.string.metric_hint_fuel_per_100km,
+                R.string.metric_desc_fuel_per_100km,
                 "L/100km",
                 1,
             ),
@@ -247,6 +257,7 @@ object Metrics {
                 MetricId.Battery,
                 R.string.metric_battery,
                 R.string.metric_hint_battery,
+                R.string.metric_desc_battery,
                 "V",
                 1,
             ),
@@ -439,6 +450,40 @@ object Metrics {
         else -> hintResFor(pid)
     }
 
+    /**
+     * The paragraph explaining one channel; see [Metric.descriptionRes].
+     *
+     * Families share one description rather than getting one per sensor: what an oxygen
+     * sensor is does not change between the second one and the sixth, and the channel's own
+     * nuance — which bank it sits on, that a wide-range probe's second channel is a signal
+     * voltage and not the narrow-band switch — is written into the text instead. Splitting
+     * it per sensor would be dozens of paragraphs that differ by a digit, in every language.
+     */
+    @StringRes
+    private fun descriptionOf(pid: Int, channel: Int): Int = when (pid) {
+        in 0x14..0x1B ->
+            if (channel == 0) R.string.metric_desc_o2_voltage else R.string.metric_desc_o2_trim
+
+        in 0x24..0x2B ->
+            if (channel == 0) R.string.metric_desc_o2_lambda
+            else R.string.metric_desc_o2_wide_voltage
+
+        in 0x34..0x3B ->
+            if (channel == 0) R.string.metric_desc_o2_lambda else R.string.metric_desc_o2_current
+
+        0x55, 0x57 -> R.string.metric_desc_secondary_trim_short
+        0x56, 0x58 -> R.string.metric_desc_secondary_trim_long
+        0x66 -> R.string.metric_desc_maf_sensor
+        0x67 -> R.string.metric_desc_ect_sensor
+        0x68 -> R.string.metric_desc_iat_sensor
+        0x6B -> R.string.metric_desc_egr_temp
+        0x73 -> R.string.metric_desc_exhaust_pressure
+        0x74 -> R.string.metric_desc_turbo_speed
+        0x77 -> R.string.metric_desc_charge_air_temp
+        0x78, 0x79 -> R.string.metric_desc_exhaust_gas_temp
+        else -> descriptionResFor(pid)
+    }
+
     /** `0155` and `0156` report banks 1 and 3; `0157` and `0158` report banks 2 and 4. */
     private fun secondaryBank(pid: Int, channel: Int): Int =
         if (pid == 0x55 || pid == 0x56) 1 + channel * 2 else 2 + channel * 2
@@ -570,6 +615,71 @@ object Metrics {
         0xA4 -> R.string.metric_hint_pid_a4
         0xA6 -> R.string.metric_hint_pid_a6
         else -> R.string.metric_hint_unknown
+    }
+
+    /** The paragraph behind the subtitle; see [Metric.descriptionRes]. */
+    @StringRes
+    private fun descriptionResFor(pid: Int): Int = when (pid) {
+        0x04 -> R.string.metric_desc_pid_04
+        0x05 -> R.string.metric_desc_pid_05
+        0x06 -> R.string.metric_desc_pid_06
+        0x07 -> R.string.metric_desc_pid_07
+        0x08 -> R.string.metric_desc_pid_08
+        0x09 -> R.string.metric_desc_pid_09
+        0x0A -> R.string.metric_desc_pid_0a
+        0x0B -> R.string.metric_desc_pid_0b
+        0x0C -> R.string.metric_desc_pid_0c
+        0x0D -> R.string.metric_desc_pid_0d
+        0x0E -> R.string.metric_desc_pid_0e
+        0x0F -> R.string.metric_desc_pid_0f
+        0x10 -> R.string.metric_desc_pid_10
+        0x11 -> R.string.metric_desc_pid_11
+        0x1F -> R.string.metric_desc_pid_1f
+        0x21 -> R.string.metric_desc_pid_21
+        0x22 -> R.string.metric_desc_pid_22
+        0x23 -> R.string.metric_desc_pid_23
+        0x2C -> R.string.metric_desc_pid_2c
+        0x2D -> R.string.metric_desc_pid_2d
+        0x2E -> R.string.metric_desc_pid_2e
+        0x2F -> R.string.metric_desc_pid_2f
+        0x30 -> R.string.metric_desc_pid_30
+        0x31 -> R.string.metric_desc_pid_31
+        0x32 -> R.string.metric_desc_pid_32
+        0x33 -> R.string.metric_desc_pid_33
+        0x3C -> R.string.metric_desc_pid_3c
+        0x3D -> R.string.metric_desc_pid_3d
+        0x3E -> R.string.metric_desc_pid_3e
+        0x3F -> R.string.metric_desc_pid_3f
+        0x42 -> R.string.metric_desc_pid_42
+        0x43 -> R.string.metric_desc_pid_43
+        0x44 -> R.string.metric_desc_pid_44
+        0x45 -> R.string.metric_desc_pid_45
+        0x46 -> R.string.metric_desc_pid_46
+        0x47 -> R.string.metric_desc_pid_47
+        0x48 -> R.string.metric_desc_pid_48
+        0x49 -> R.string.metric_desc_pid_49
+        0x4A -> R.string.metric_desc_pid_4a
+        0x4B -> R.string.metric_desc_pid_4b
+        0x4C -> R.string.metric_desc_pid_4c
+        0x4D -> R.string.metric_desc_pid_4d
+        0x4E -> R.string.metric_desc_pid_4e
+        0x51 -> R.string.metric_desc_pid_51
+        0x52 -> R.string.metric_desc_pid_52
+        0x53 -> R.string.metric_desc_pid_53
+        0x54 -> R.string.metric_desc_pid_54
+        0x59 -> R.string.metric_desc_pid_59
+        0x5A -> R.string.metric_desc_pid_5a
+        0x5B -> R.string.metric_desc_pid_5b
+        0x5C -> R.string.metric_desc_pid_5c
+        0x5D -> R.string.metric_desc_pid_5d
+        0x5E -> R.string.metric_desc_pid_5e
+        0x61 -> R.string.metric_desc_pid_61
+        0x62 -> R.string.metric_desc_pid_62
+        0x63 -> R.string.metric_desc_pid_63
+        0x9E -> R.string.metric_desc_pid_9e
+        0xA4 -> R.string.metric_desc_pid_a4
+        0xA6 -> R.string.metric_desc_pid_a6
+        else -> R.string.metric_desc_unknown
     }
 }
 
