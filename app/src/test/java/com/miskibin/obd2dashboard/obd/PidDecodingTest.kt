@@ -2,6 +2,7 @@ package com.miskibin.obd2dashboard.obd
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -112,8 +113,9 @@ class PidDecodingTest {
     fun `fuel rate is estimated from MAF when PID 5E is missing`() {
         val derived = DerivedMetrics.compute(mapOf(0x10 to 5.0, 0x0D to 90.0))
 
-        assertEquals(1.4933, derived.getValue(DerivedMetrics.FuelRate.key), 0.001)
-        assertEquals(1.6592, derived.getValue(DerivedMetrics.FuelPer100Km.key), 0.001)
+        // 5 g/s of air at λ=1 is 5/14.7 g/s of petrol, which at 745 g/L is 1.64 L/h.
+        assertEquals(1.6436, derived.getValue(DerivedMetrics.FuelRate.key), 0.001)
+        assertEquals(1.8262, derived.getValue(DerivedMetrics.FuelPer100Km.key), 0.001)
     }
 
     @Test
@@ -130,5 +132,201 @@ class PidDecodingTest {
         assertEquals(11.9, ElmVoltage.parse("11.9")!!, 0.001)
         assertEquals(12.6, ElmVoltage.parse(listOf("ATRV", "12.6V"))!!, 0.001)
         assertEquals(null, ElmVoltage.parse("?"))
+    }
+
+    // ---- multi-channel parameters ---------------------------------------------------
+
+    /** Decodes one channel of a PID out of a full `41 xx …` response line. */
+    private fun channel(response: String, pid: Int, channel: Int): Double {
+        val frames = ObdResponseParser.frames(listOf(response), ObdProtocol.Automatic)
+        val data = ObdResponseParser.values(frames, MODE_CURRENT_DATA, listOf(pid)).getValue(pid)
+        return Pids[pid]!!.channels.first { it.index == channel }.decode(data)
+    }
+
+    @Test
+    fun `narrow band oxygen sensor reports volts and the trim beside it`() {
+        // 0x80 = 128 counts of 5 mV = 0.64 V; 0x8A = 7.8125% of trim.
+        assertEquals(0.64, channel("4114808A", 0x14, 0), 0.001)
+        assertEquals(7.8125, channel("4114808A", 0x14, 1), 0.001)
+    }
+
+    @Test
+    fun `an oxygen sensor not used in the trim calculation reports no trim`() {
+        assertEquals(0.64, channel("411580FF", 0x15, 0), 0.001)
+        assertTrue(channel("411580FF", 0x15, 1).isNaN())
+    }
+
+    @Test
+    fun `all eight narrow band oxygen sensors are decodable`() {
+        (0x14..0x1B).forEach { pid ->
+            assertNotNull("PID %02X missing".format(pid), Pids[pid])
+            assertEquals(2, Pids[pid]!!.channels.size)
+            assertEquals(2, Pids[pid]!!.bytes)
+        }
+    }
+
+    @Test
+    fun `wide range oxygen sensor reports lambda and a voltage`() {
+        // 0x8000 of 65536 doubled is lambda 1.0; 0x4000 of 65536 times eight is 2.0 V.
+        assertEquals(1.0, channel("4124800040 00", 0x24, 0), 0.001)
+        assertEquals(2.0, channel("4124800040 00", 0x24, 1), 0.001)
+    }
+
+    @Test
+    fun `wide range oxygen sensor reports lambda and a current`() {
+        assertEquals(1.0, channel("41348000 8000", 0x34, 0), 0.001)
+        assertEquals(0.0, channel("41348000 8000", 0x34, 1), 0.001)
+        // A quarter of a count below centre is a quarter of a milliamp negative.
+        assertEquals(-1.0, channel("41348000 7F00", 0x34, 1), 0.001)
+    }
+
+    @Test
+    fun `secondary oxygen sensor trims carry two banks each`() {
+        assertEquals(0.0, channel("41558080", 0x55, 0), 0.001)
+        assertEquals(7.8125, channel("4155808A", 0x55, 1), 0.001)
+        assertEquals(-100.0, channel("41560000", 0x56, 0), 0.001)
+    }
+
+    @Test
+    fun `sensor arrays honour the bitmask that leads them`() {
+        // 0167: A=03 means both coolant sensors fitted; B and C are each minus forty.
+        assertEquals(50.0, channel("4167035A5A", 0x67, 0), 0.001)
+        assertEquals(50.0, channel("4167035A5A", 0x67, 1), 0.001)
+        // A=01 means only the first is fitted, so the second must not be invented.
+        assertEquals(50.0, channel("4167015A00", 0x67, 0), 0.001)
+        assertTrue(channel("4167015A00", 0x67, 1).isNaN())
+    }
+
+    @Test
+    fun `exhaust gas temperature reads four sensors behind one bitmask`() {
+        // A=03, then four words: 2000/10-40 = 160, 3000/10-40 = 260.
+        val response = "417803" + "07D0" + "0BB8" + "0000" + "0000"
+        assertEquals(160.0, channel(response, 0x78, 0), 0.001)
+        assertEquals(260.0, channel(response, 0x78, 1), 0.001)
+        assertTrue(channel(response, 0x78, 2).isNaN())
+        assertEquals(9, Pids[0x78]!!.bytes)
+    }
+
+    @Test
+    fun `turbocharger speed and exhaust pressure are diesel staples`() {
+        // 0174: A=01, B,C = 0x9C40 = 40000 rpm.
+        assertEquals(40_000.0, channel("4174019C400000", 0x74, 0), 0.001)
+        // 0173: A=01, B,C = 0x4000 = 16384, over 128 is 128 kPa.
+        assertEquals(128.0, channel("417301400000 00", 0x73, 0), 0.001)
+    }
+
+    @Test
+    fun `single value additions follow the standard`() {
+        assertEquals(0.0, decode("412D80", 0x2D), 0.001)
+        assertEquals(100.0, decode("4148FF", 0x48), 0.001)
+        assertEquals(100.0, decode("414BFF", 0x4B), 0.001)
+        assertEquals(4.0, decode("415104", 0x51), 0.001)
+        // 0154 is centred on 32767 rather than two's complement.
+        assertEquals(0.0, decode("41547FFF", 0x54), 0.001)
+        assertEquals(1.0, decode("41548000", 0x54), 0.001)
+        assertEquals(200.0, decode("419E03E8", 0x9E), 0.001)
+    }
+
+    @Test
+    fun `transmission gear is reported rather than guessed`() {
+        // A=01 supported, B reserved, C,D = 4000 thousandths = gear ratio 4.0.
+        assertEquals(4.0, channel("41A4010 00FA0", 0xA4, 0), 0.001)
+    }
+
+    @Test
+    fun `every catalogued PID declares a byte count its channels can index`() {
+        Pids.entries.forEach { pid ->
+            val data = IntArray(pid.bytes) { 0xFF }
+            pid.channels.forEach { channel ->
+                // Decoding all-ones must not walk off the end of the response.
+                channel.decode(data)
+            }
+        }
+    }
+
+    @Test
+    fun `no two catalogued PIDs claim the same id`() {
+        val ids = Pids.entries.map(Pid::id)
+
+        assertEquals(ids.size, ids.toSet().size)
+    }
+
+    @Test
+    fun `every channel gets a key of its own and channel zero keeps the bare PID`() {
+        assertEquals(Pids.sensorKeys.size, Pids.sensorKeys.toSet().size)
+        // The keys saved tiles and CSV headers were written with must not move.
+        assertEquals(Pids.ENGINE_RPM, sensorKey(Pids.ENGINE_RPM, 0))
+        Pids.entries.forEach { pid ->
+            pid.channels.forEach { channel ->
+                assertEquals(pid.id, keyPid(sensorKey(pid.id, channel.index)))
+                assertEquals(channel, Pids.channelOf(sensorKey(pid.id, channel.index)))
+            }
+        }
+    }
+
+    @Test
+    fun `the families a car is most likely to report are all covered`() {
+        val families = mapOf(
+            "narrow band oxygen sensors" to (0x14..0x1B),
+            "wide range lambda, voltage" to (0x24..0x2B),
+            "wide range lambda, current" to (0x34..0x3B),
+            "catalyst temperatures" to (0x3C..0x3F),
+            "secondary oxygen sensor trims" to (0x55..0x58),
+        )
+
+        families.forEach { (name, range) ->
+            range.forEach { assertNotNull("$name: %02X missing".format(it), Pids[it]) }
+        }
+        // The diesel block, which is what a DPF or turbo complaint is diagnosed from.
+        listOf(0x6B, 0x73, 0x74, 0x77, 0x78, 0x79, 0x9E).forEach {
+            assertNotNull("diesel PID %02X missing".format(it), Pids[it])
+        }
+    }
+
+    // ---- fuel rate ------------------------------------------------------------------
+
+    @Test
+    fun `a diesel is not costed as if it burned everything it breathed`() {
+        val air = mapOf(0x10 to 20.0)
+
+        val diesel = DerivedMetrics.compute(air, FuelType.Diesel)
+            .getValue(DerivedMetrics.FuelRate.key)
+        val petrol = DerivedMetrics.compute(air, FuelType.Petrol)
+            .getValue(DerivedMetrics.FuelRate.key)
+
+        // A diesel is qualitatively governed and always lean, so the same air flow is far
+        // less fuel than a throttled petrol engine's would be.
+        assertTrue("diesel $diesel vs petrol $petrol", diesel < petrol * 0.7)
+    }
+
+    @Test
+    fun `a measured lambda beats the nominal one a fuel type falls back on`() {
+        val air = mapOf(0x10 to 20.0, 0x24 to 2.0)
+
+        val measured = DerivedMetrics.compute(air, FuelType.Diesel)
+            .getValue(DerivedMetrics.FuelRate.key)
+
+        // 20 g/s of air at lambda 2 burns 20/(2 * 14.5) = 0.690 g/s, or 2.97 L/h at 835 g/L.
+        assertEquals(2.974, measured, 0.01)
+    }
+
+    @Test
+    fun `a rich petrol mixture burns more than a stoichiometric one`() {
+        val rich = DerivedMetrics.compute(mapOf(0x10 to 5.0, Pids.COMMANDED_EQUIV_RATIO to 0.8))
+        val neutral = DerivedMetrics.compute(mapOf(0x10 to 5.0))
+
+        assertTrue(
+            rich.getValue(DerivedMetrics.FuelRate.key) >
+                neutral.getValue(DerivedMetrics.FuelRate.key),
+        )
+    }
+
+
+    @Test
+    fun `an open loop engine commanding no ratio falls back on stoichiometric`() {
+        // 0144 reads zero in open loop; taken literally it would divide the estimate away.
+        val openLoop = DerivedMetrics.compute(mapOf(0x10 to 5.0, Pids.COMMANDED_EQUIV_RATIO to 0.0))
+
+        assertEquals(1.6436, openLoop.getValue(DerivedMetrics.FuelRate.key), 0.001)
     }
 }

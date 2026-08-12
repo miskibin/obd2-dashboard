@@ -62,6 +62,7 @@
     <string name="picker_unsupported">Not supported by your car</string>
     <string name="picker_unsupported_hint">Your car did not report these parameters when the app connected, so they would always read blank.</string>
     <string name="picker_no_results">Nothing matches that search.</string>
+    <string name="picker_undecoded">This car also reports %1$d parameter(s) this app cannot decode yet: %2$s. Everything above is decoded and can be charted and recorded.</string>
 
     <!-- Charts -->
     <string name="chart_window_30s">30 s</string>
@@ -230,7 +231,31 @@
     <string name="metric_pid_61">Requested torque</string>
     <string name="metric_pid_62">Actual torque</string>
     <string name="metric_pid_63">Reference torque</string>
+    <string name="metric_pid_2d">EGR error</string>
+    <string name="metric_pid_48">Absolute throttle position C</string>
+    <string name="metric_pid_4b">Accelerator pedal position F</string>
+    <string name="metric_pid_51">Fuel type</string>
+    <string name="metric_pid_54">Evap vapour pressure (wide range)</string>
+    <string name="metric_pid_9e">Exhaust flow rate</string>
+    <string name="metric_pid_a4">Transmission gear</string>
     <string name="metric_pid_a6">Odometer</string>
+
+    <!-- Sensor families, named from a template: a car can report eight oxygen sensors,
+         six intake air temperature sensors and four exhaust gas temperature sensors. -->
+    <string name="metric_o2_voltage">O2 sensor %1$d voltage</string>
+    <string name="metric_o2_trim">O2 sensor %1$d short term trim</string>
+    <string name="metric_o2_lambda">O2 sensor %1$d lambda</string>
+    <string name="metric_o2_current">O2 sensor %1$d current</string>
+    <string name="metric_secondary_trim_short">Secondary O2 short trim, bank %1$d</string>
+    <string name="metric_secondary_trim_long">Secondary O2 long trim, bank %1$d</string>
+    <string name="metric_maf_sensor">MAF sensor %1$d</string>
+    <string name="metric_ect_sensor">Coolant temperature sensor %1$d</string>
+    <string name="metric_iat_sensor">Intake air temp, bank %1$d sensor %2$d</string>
+    <string name="metric_egr_temp">EGR temperature, bank %1$d sensor %2$d</string>
+    <string name="metric_exhaust_pressure">Exhaust pressure, bank %1$d</string>
+    <string name="metric_turbo_speed">Turbocharger %1$d speed</string>
+    <string name="metric_charge_air_temp">Charge air cooler temp, bank %1$d sensor %2$d</string>
+    <string name="metric_exhaust_gas_temp">Exhaust gas temp, bank %1$d sensor %2$d</string>
     <string name="unit_rpm">rpm</string>
     <string name="dashboard_redline">Redline %1$d rpm</string>
     <string name="chart_now">now</string>

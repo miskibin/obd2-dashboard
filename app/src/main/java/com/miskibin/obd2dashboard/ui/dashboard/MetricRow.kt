@@ -51,6 +51,7 @@ import com.miskibin.obd2dashboard.ui.chart.LineChart
 import com.miskibin.obd2dashboard.ui.components.DesignSheet
 import com.miskibin.obd2dashboard.ui.components.NO_VALUE
 import com.miskibin.obd2dashboard.ui.components.formatReading
+import com.miskibin.obd2dashboard.ui.label
 import com.miskibin.obd2dashboard.ui.theme.AmberSurface
 import com.miskibin.obd2dashboard.ui.theme.AmberText
 import com.miskibin.obd2dashboard.ui.theme.AshDim
@@ -122,7 +123,7 @@ fun MetricRow(
         animationSpec = tween(durationMillis = DIM_ANIMATION_MILLIS),
         label = "row-accent",
     )
-    val label = stringResource(metric.nameRes)
+    val label = metric.label()
 
     Row(
         modifier = modifier

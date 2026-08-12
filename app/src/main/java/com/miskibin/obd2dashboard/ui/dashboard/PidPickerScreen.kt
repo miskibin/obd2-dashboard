@@ -4,8 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -43,6 +43,7 @@ import com.miskibin.obd2dashboard.data.Metrics
 import com.miskibin.obd2dashboard.ui.components.ScreenHeader
 import com.miskibin.obd2dashboard.ui.components.ScreenPadding
 import com.miskibin.obd2dashboard.ui.components.SectionHeader
+import com.miskibin.obd2dashboard.ui.label
 import com.miskibin.obd2dashboard.ui.theme.AshDim
 import com.miskibin.obd2dashboard.ui.theme.Chalk
 import com.miskibin.obd2dashboard.ui.theme.Dimens
@@ -66,6 +67,7 @@ import java.util.Locale
 fun PidPickerScreen(
     selected: List<MetricId>,
     supportedPids: Set<Int>,
+    undecodedPids: Set<Int>,
     onToggle: (MetricId) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
@@ -74,7 +76,7 @@ fun PidPickerScreen(
     var query by remember { mutableStateOf("") }
 
     val named = remember(context) {
-        Metrics.catalog.map { metric -> metric to context.getString(metric.nameRes) }
+        Metrics.catalog.map { metric -> metric to metric.label(context) }
     }
     val filtered = remember(named, query) {
         val needle = query.trim().lowercase(Locale.getDefault())
@@ -165,6 +167,23 @@ fun PidPickerScreen(
                             style = MaterialTheme.typography.bodyMedium,
                             color = Smoke,
                             modifier = Modifier.fillMaxWidth().padding(24.dp),
+                        )
+                    }
+                }
+                // The honest footnote: the car was asked what it answers for, and this is
+                // the part of that answer the app has no decoder for. Saying so beats
+                // letting a list that quietly stops short read as the whole of the car.
+                if (undecodedPids.isNotEmpty()) {
+                    item {
+                        Text(
+                            text = stringResource(
+                                R.string.picker_undecoded,
+                                undecodedPids.size,
+                                undecodedPids.joinToString(", ") { "%02X".format(Locale.ROOT, it) },
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Smoke,
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp, horizontal = 3.dp),
                         )
                     }
                 }

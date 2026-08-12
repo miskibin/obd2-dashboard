@@ -62,6 +62,7 @@
     <string name="picker_unsupported">Nieobsługiwane przez Twoje auto</string>
     <string name="picker_unsupported_hint">Twoje auto nie zgłosiło tych parametrów podczas łączenia, więc zawsze byłyby puste.</string>
     <string name="picker_no_results">Nic nie pasuje do wyszukiwania.</string>
+    <string name="picker_undecoded">To auto raportuje jeszcze %1$d parametr(ów), których aplikacja nie potrafi odczytać: %2$s. Wszystko powyżej jest odczytywane i można to wykresować oraz nagrywać.</string>
 
     <!-- Wykresy -->
     <string name="chart_window_30s">30 s</string>
@@ -234,7 +235,31 @@
     <string name="metric_pid_61">Moment żądany</string>
     <string name="metric_pid_62">Moment rzeczywisty</string>
     <string name="metric_pid_63">Moment referencyjny</string>
+    <string name="metric_pid_2d">Błąd EGR</string>
+    <string name="metric_pid_48">Przepustnica – pozycja bezwzględna C</string>
+    <string name="metric_pid_4b">Pedał gazu – pozycja F</string>
+    <string name="metric_pid_51">Rodzaj paliwa</string>
+    <string name="metric_pid_54">Ciśnienie par paliwa (szeroki zakres)</string>
+    <string name="metric_pid_9e">Przepływ spalin</string>
+    <string name="metric_pid_a4">Bieg skrzyni</string>
     <string name="metric_pid_a6">Przebieg</string>
+
+    <!-- Rodziny czujników nazywane z szablonu: auto może raportować osiem sond lambda,
+         sześć czujników temperatury powietrza i cztery czujniki temperatury spalin. -->
+    <string name="metric_o2_voltage">Sonda lambda %1$d – napięcie</string>
+    <string name="metric_o2_trim">Sonda lambda %1$d – korekta krótka</string>
+    <string name="metric_o2_lambda">Sonda lambda %1$d – współczynnik λ</string>
+    <string name="metric_o2_current">Sonda lambda %1$d – prąd</string>
+    <string name="metric_secondary_trim_short">Korekta krótka sondy wtórnej, rząd %1$d</string>
+    <string name="metric_secondary_trim_long">Korekta długa sondy wtórnej, rząd %1$d</string>
+    <string name="metric_maf_sensor">Przepływomierz %1$d</string>
+    <string name="metric_ect_sensor">Czujnik temp. płynu %1$d</string>
+    <string name="metric_iat_sensor">Temp. powietrza, rząd %1$d czujnik %2$d</string>
+    <string name="metric_egr_temp">Temperatura EGR, rząd %1$d czujnik %2$d</string>
+    <string name="metric_exhaust_pressure">Ciśnienie spalin, rząd %1$d</string>
+    <string name="metric_turbo_speed">Turbosprężarka %1$d – obroty</string>
+    <string name="metric_charge_air_temp">Temp. intercoolera, rząd %1$d czujnik %2$d</string>
+    <string name="metric_exhaust_gas_temp">Temperatura spalin, rząd %1$d czujnik %2$d</string>
     <string name="unit_rpm">rpm</string>
     <string name="dashboard_redline">Odcięcie %1$d rpm</string>
     <string name="chart_now">teraz</string>

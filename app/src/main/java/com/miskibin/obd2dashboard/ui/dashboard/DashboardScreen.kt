@@ -54,6 +54,7 @@ import com.miskibin.obd2dashboard.ui.components.EmptyState
 import com.miskibin.obd2dashboard.ui.components.MenuChoice
 import com.miskibin.obd2dashboard.ui.components.ScreenHeader
 import com.miskibin.obd2dashboard.ui.components.ScreenPadding
+import com.miskibin.obd2dashboard.ui.label
 import com.miskibin.obd2dashboard.ui.theme.AmberText
 import com.miskibin.obd2dashboard.ui.theme.CardCorner
 import com.miskibin.obd2dashboard.ui.theme.Dimens
@@ -307,7 +308,7 @@ fun DashboardScreen(
         }
         MetricSheet(
             metric = metric,
-            label = stringResource(metric.nameRes),
+            label = metric.label(),
             samples = samples,
             band = Metrics.bandFor(metricId, alertRules),
             accent = if (metricId in breached) AmberText else accents.getValue(metricId),
