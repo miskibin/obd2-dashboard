@@ -15,6 +15,7 @@ import com.miskibin.obd2dashboard.obd.ElmInitializer
 import com.miskibin.obd2dashboard.obd.ElmSession
 import com.miskibin.obd2dashboard.obd.ElmTransport
 import com.miskibin.obd2dashboard.obd.FreezeFrame
+import com.miskibin.obd2dashboard.obd.FuelType
 import com.miskibin.obd2dashboard.obd.InitOutcome
 import com.miskibin.obd2dashboard.obd.Obd2Client
 import com.miskibin.obd2dashboard.obd.ObdProtocol
@@ -132,6 +133,15 @@ class ConnectionManager(
     private var sessionJob: Job? = null
     private var mirrorJob: Job? = null
     private var keepAliveJob: Job? = null
+    private var vinJob: Job? = null
+
+    /**
+     * A device whose ECU did not answer mode 09, so the reconnect loop stops paying for it.
+     *
+     * Cleared whenever the driver connects deliberately: the same dongle in a different car
+     * is a different ECU, and that is exactly the case where the answer changes.
+     */
+    private var vinSilentAddress: String? = null
 
     private var transport: ElmTransport? = null
     private var session: ElmSession? = null
@@ -147,6 +157,9 @@ class ConnectionManager(
 
     private val _pollingEnabled = MutableStateFlow(true)
     val pollingEnabled: StateFlow<Boolean> = _pollingEnabled.asStateFlow()
+
+    /** What the vehicle profile says is in the tank; see [com.miskibin.obd2dashboard.data.Vehicle]. */
+    private val _fuel = MutableStateFlow(FuelType.Default)
 
     fun startScan() {
         if (scanJob?.isActive == true) return
@@ -217,6 +230,7 @@ class ConnectionManager(
     fun connect(device: DiscoveredDevice) {
         val previous = sessionJob
         previous?.cancel()
+        vinSilentAddress = null
         sessionJob = scope.launch {
             // The previous session's socket has to be gone before the next one opens:
             // a connectGatt issued against an unclosed client is a permanent 133.
@@ -235,6 +249,7 @@ class ConnectionManager(
     fun connectDemo() {
         val previous = sessionJob
         previous?.cancel()
+        vinSilentAddress = null
         sessionJob = scope.launch {
             previous?.join()
             stopScanAndSettle()
@@ -266,6 +281,10 @@ class ConnectionManager(
 
     fun setPollingEnabled(enabled: Boolean) {
         _pollingEnabled.value = enabled
+    }
+
+    fun setFuelType(fuel: FuelType) {
+        _fuel.value = fuel
     }
 
     suspend fun refreshDiagnostics(): Diagnostics? {
@@ -450,12 +469,31 @@ class ConnectionManager(
         val newScheduler = PidScheduler(
             client = newClient,
             pollingEnabled = { _pollingEnabled.value },
+            fuel = { _fuel.value },
         ).also { scheduler = it }
         newScheduler.configure(supported)
         mirrorJob = scope.launch { newScheduler.snapshot.collect { _snapshot.value = it } }
 
         setState(ConnectionState.Connected(device, info, demo))
         keepAliveJob = scope.launch { keepAlive(newClient, newScheduler) }
+
+        // Whatever VIN is held belongs to the *previous* session. Dropping it before the
+        // new one answers means the worst case is a car the app cannot name, rather than
+        // one it names wrongly — and a wrong VIN is not cosmetic here: it picks the profile,
+        // and therefore the fuel type the consumption is computed with, and it is what a
+        // profile edit would be saved against.
+        _vin.value = null
+
+        // The VIN identifies which car this is, and the vehicle profile hangs off it. It
+        // costs one request, but a car that ignores mode 09 makes that request sit on the
+        // scheduler's gate for the full VIN timeout with every gauge held still, so a
+        // device that has already stayed silent is not asked again on reconnect.
+        if (device.address != vinSilentAddress) {
+            vinJob = scope.launch {
+                val vin = runCatching { readVin() }.getOrNull()
+                if (vin == null) vinSilentAddress = device.address
+            }
+        }
 
         coroutineScope {
             // Without this the link can drop silently: the scheduler goes on asking, every
@@ -509,8 +547,10 @@ class ConnectionManager(
     private suspend fun tearDownSession(reason: String) {
         keepAliveJob?.cancel()
         mirrorJob?.cancel()
+        vinJob?.cancel()
         keepAliveJob = null
         mirrorJob = null
+        vinJob = null
         scheduler = null
         client = null
         session?.close()

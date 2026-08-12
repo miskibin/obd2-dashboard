@@ -94,7 +94,7 @@ class PidSchedulerTest {
     fun `pauses while polling is disabled`() = runTest {
         val transport = FakeElmTransport.scripted(script = script)
         val client = Obd2Client(ElmSession(transport, backgroundScope), ObdProtocol.Can11Bit500)
-        val scheduler = PidScheduler(client, cycleDelayMillis = CYCLE_MILLIS) { false }
+        val scheduler = PidScheduler(client, cycleDelayMillis = CYCLE_MILLIS, pollingEnabled = { false })
 
         withTimeoutOrNull(CYCLE_MILLIS * 5) { scheduler.run() }
 

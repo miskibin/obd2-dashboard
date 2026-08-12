@@ -14,6 +14,7 @@ import com.miskibin.obd2dashboard.data.AppTheme
 import com.miskibin.obd2dashboard.data.DtcLog
 import com.miskibin.obd2dashboard.data.DtcObservation
 import com.miskibin.obd2dashboard.data.FaultContext
+import com.miskibin.obd2dashboard.data.Garage
 import com.miskibin.obd2dashboard.data.GearEstimator
 import com.miskibin.obd2dashboard.data.GearReading
 import com.miskibin.obd2dashboard.data.MechanicReport
@@ -25,6 +26,9 @@ import com.miskibin.obd2dashboard.data.SessionKind
 import com.miskibin.obd2dashboard.data.Trip
 import com.miskibin.obd2dashboard.data.TripAnalyzer
 import com.miskibin.obd2dashboard.data.TripEntry
+import com.miskibin.obd2dashboard.data.Vehicle
+import com.miskibin.obd2dashboard.data.VinDecoder
+import com.miskibin.obd2dashboard.data.VinFacts
 import com.miskibin.obd2dashboard.data.presentMetrics
 import com.miskibin.obd2dashboard.data.valueOf
 import com.miskibin.obd2dashboard.obd.DerivedMetrics
@@ -119,6 +123,27 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
         preferences.dtcLog(SessionKind.Demo),
     ) { kind, real, demo -> if (kind.demo) demo else real }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /**
+     * The profile of whichever car is plugged in, blank until the driver fills it in.
+     *
+     * Null only while there is no VIN to key it on — no car connected, or one whose ECU
+     * will not answer mode 09. The vehicle screen has nothing to show in that case and says
+     * so rather than offering a form that would be saved against nothing.
+     */
+    val vehicle: StateFlow<Vehicle?> = combine(
+        connection.sessionKind,
+        connection.vin,
+        preferences.vehicles(SessionKind.Real),
+        preferences.vehicles(SessionKind.Demo),
+    ) { kind, vin, real, demo ->
+        Garage.profileFor(if (kind.demo) demo else real, vin)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    /** What the VIN says on its own, with no network and nothing leaving the phone. */
+    val vinFacts: StateFlow<VinFacts?> = connection.vin
+        .map(VinDecoder::decode)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     /** The ECU snapshot behind an expanded fault code, when the car had one stored. */
     val freezeFrame = connection.freezeFrame
@@ -331,6 +356,12 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setTheme(theme: AppTheme) {
         viewModelScope.launch { preferences.setTheme(theme) }
+    }
+
+    /** Saved into the garage of whichever car is connected, so demo edits stay in demo. */
+    fun saveVehicle(vehicle: Vehicle) {
+        val kind = connection.sessionKind.value
+        viewModelScope.launch { preferences.saveVehicle(kind, vehicle) }
     }
 
     // ---- tiles ------------------------------------------------------------------

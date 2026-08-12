@@ -80,6 +80,7 @@ import com.miskibin.obd2dashboard.ui.theme.ToastSurface
 import com.miskibin.obd2dashboard.ui.theme.ToastText
 import com.miskibin.obd2dashboard.ui.trips.TripDetailScreen
 import com.miskibin.obd2dashboard.ui.trips.TripsScreen
+import com.miskibin.obd2dashboard.ui.vehicle.VehicleScreen
 
 object Routes {
     const val DASHBOARD = "dashboard"
@@ -90,6 +91,7 @@ object Routes {
     const val CONNECT = "connect"
     const val PICKER = "picker"
     const val CONNECTION_LOG = "connection-log"
+    const val VEHICLE = "vehicle"
 
     const val TRIP_ARGUMENT = "trip"
     const val TRIP_DETAIL = "trip/{$TRIP_ARGUMENT}"
@@ -381,8 +383,10 @@ private fun AppNavHost(
             val supported by viewModel.supportedPids.collectAsStateWithLifecycle()
             val vin by viewModel.vin.collectAsStateWithLifecycle()
             val savedAdapter by viewModel.savedAdapter.collectAsStateWithLifecycle()
+            val vehicle by viewModel.vehicle.collectAsStateWithLifecycle()
+            val facts by viewModel.vinFacts.collectAsStateWithLifecycle()
             ChartsScreen(
-                vehicleLabel = vehicleLabel(vin, connectionState, savedAdapter),
+                vehicleLabel = vehicleLabel(vehicle?.label(facts), vin, connectionState, savedAdapter),
                 chartMetrics = chartMetrics,
                 supportedPids = supported,
                 snapshot = snapshot,
@@ -518,6 +522,23 @@ private fun AppNavHost(
                     }
                 },
                 onOpenConnectionLog = { navController.navigate(Routes.CONNECTION_LOG) },
+                onOpenVehicle = { navController.navigate(Routes.VEHICLE) },
+            )
+        }
+
+        composable(Routes.VEHICLE) {
+            val vehicle by viewModel.vehicle.collectAsStateWithLifecycle()
+            val facts by viewModel.vinFacts.collectAsStateWithLifecycle()
+            VehicleScreen(
+                vehicle = vehicle,
+                facts = facts,
+                // Saving is the end of the errand: the driver came here to state five facts
+                // about a car that will not change, not to sit on the screen afterwards.
+                onSave = { saved ->
+                    viewModel.saveVehicle(saved)
+                    navController.popBackStack()
+                },
+                onBack = { navController.popBackStack() },
             )
         }
 

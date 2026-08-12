@@ -77,6 +77,15 @@ class AppPreferences(context: Context) {
     /** Which ground the app draws on; [AppTheme.System] follows the phone. */
     val theme: Flow<AppTheme> = store.data.map { AppTheme.fromKey(it[KEY_THEME]) }
 
+    /**
+     * Every car the app has been plugged into, keyed by VIN rather than by adapter.
+     *
+     * One garage per [SessionKind], for the same reason the code log is split: the
+     * simulation reports a VIN, and the car it names does not exist.
+     */
+    fun vehicles(kind: SessionKind): Flow<List<Vehicle>> =
+        store.data.map { Garage.decode(it[vehicleKey(kind)]) }
+
     suspend fun saveAdapter(address: String, name: String?, classic: Boolean = false) {
         store.edit { prefs ->
             prefs[KEY_ADAPTER_ADDRESS] = address
@@ -129,6 +138,14 @@ class AppPreferences(context: Context) {
         store.edit { it[KEY_THEME] = theme.storageKey }
     }
 
+    /** Replaces the profile for this VIN, leaving every other car in the garage alone. */
+    suspend fun saveVehicle(kind: SessionKind, vehicle: Vehicle) {
+        val key = vehicleKey(kind)
+        store.edit { prefs ->
+            prefs[key] = Garage.encode(Garage.merge(Garage.decode(prefs[key]), vehicle))
+        }
+    }
+
     /**
      * Records that these codes were present just now.
      *
@@ -151,6 +168,9 @@ class AppPreferences(context: Context) {
     private companion object {
         fun dtcKey(kind: SessionKind): Preferences.Key<String> =
             stringPreferencesKey(DtcLog.storageKey(kind))
+
+        fun vehicleKey(kind: SessionKind): Preferences.Key<String> =
+            stringPreferencesKey(Garage.storageKey(kind))
 
         val KEY_ADAPTER_ADDRESS = stringPreferencesKey("adapter_address")
         val KEY_ADAPTER_NAME = stringPreferencesKey("adapter_name")
