@@ -29,14 +29,21 @@ fun ConnectionState.label(): String = when (this) {
 /**
  * What to call the car in a header.
  *
- * The VIN is the only identity that belongs to the vehicle rather than to the dongle, but
- * all seventeen characters of it are a paragraph where a title goes; the last eight — the
- * serial section — are the part that differs between two cars off the same line. Without a
- * VIN the adapter's own name is the closest thing to a car name the app has, and without
- * either there is only the word.
+ * Four answers, best first. [named] is the driver's own name for it or the marque decoded
+ * from its VIN, and beats everything because it is the only one that reads like a car. Then
+ * the VIN itself: it is the only identity that belongs to the vehicle rather than to the
+ * dongle, but all seventeen characters of it are a paragraph where a title goes, so only the
+ * last eight — the serial section, the part that differs between two cars off the same line
+ * — are shown. Failing that the adapter's own name, and failing that the word.
  */
 @Composable
-fun vehicleLabel(vin: String?, state: ConnectionState, saved: SavedAdapter?): String {
+fun vehicleLabel(
+    named: String?,
+    vin: String?,
+    state: ConnectionState,
+    saved: SavedAdapter?,
+): String {
+    named?.trim()?.takeIf(String::isNotEmpty)?.let { return it }
     val identity = vin?.trim()?.takeIf(String::isNotEmpty)
     if (identity != null) return identity.takeLast(VIN_TAIL)
     val connected = state as? ConnectionState.Connected

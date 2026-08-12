@@ -2,6 +2,7 @@ package com.miskibin.obd2dashboard.data
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -95,5 +96,53 @@ class DtcLogTest {
     fun `says nothing about a value it only has one side of`() {
         assertFalse(DtcLog.isNotable(Metrics.EngineLoad, before = null, at = 86.0))
         assertFalse(DtcLog.isNotable(Metrics.EngineLoad, before = 44.0, at = null))
+    }
+
+    // ---- demo and real are two logs, not one ------------------------------------
+
+    @Test
+    fun `the real log keeps the key it has always had`() {
+        // Anything else would silently throw away the history of every existing install.
+        assertEquals("dtc_log", DtcLog.storageKey(SessionKind.Real))
+        assertNotEquals(DtcLog.storageKey(SessionKind.Real), DtcLog.storageKey(SessionKind.Demo))
+    }
+
+    @Test
+    fun `a demo session cannot touch the history of the real car`() {
+        // The two lines the preference layer runs, against a store that is nothing but a
+        // map from the same keys.
+        val store = HashMap<String, String>()
+        fun record(kind: SessionKind, codes: List<String>, at: Long) {
+            val key = DtcLog.storageKey(kind)
+            store[key] = DtcLog.recordInto(store[key], codes, previouslyPresent = emptySet(), nowMillis = at)
+        }
+
+        record(SessionKind.Real, listOf("P0171"), start)
+        record(SessionKind.Demo, listOf("P0420", "P0301"), start + 60_000)
+
+        val real = DtcLog.decode(store[DtcLog.storageKey(SessionKind.Real)])
+        val demo = DtcLog.decode(store[DtcLog.storageKey(SessionKind.Demo)])
+
+        assertEquals(listOf("P0171"), real.map(DtcObservation::code))
+        assertEquals(listOf("P0301", "P0420"), demo.map(DtcObservation::code).sorted())
+    }
+
+    @Test
+    fun `the real car is not credited with a code the simulation was already showing`() {
+        val store = HashMap<String, String>()
+        val demoKey = DtcLog.storageKey(SessionKind.Demo)
+        val realKey = DtcLog.storageKey(SessionKind.Real)
+
+        // The simulation has shown P0420 twice over; then the same code turns up on the
+        // real car, and it has to look like the first time anybody saw it there.
+        store[demoKey] = DtcLog.recordInto(null, listOf("P0420"), emptySet(), start)
+        store[demoKey] = DtcLog.recordInto(store[demoKey], listOf("P0420"), emptySet(), start + 600_000)
+        store[realKey] = DtcLog.recordInto(null, listOf("P0420"), emptySet(), start + 900_000)
+
+        val real = DtcLog.decode(store[realKey]).single()
+
+        assertEquals(1, real.occurrences)
+        assertEquals(start + 900_000, real.firstSeenAtMillis)
+        assertEquals(2, DtcLog.decode(store[demoKey]).single().occurrences)
     }
 }

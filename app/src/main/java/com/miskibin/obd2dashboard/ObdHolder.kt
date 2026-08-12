@@ -11,15 +11,20 @@ import com.miskibin.obd2dashboard.ble.ConnectionManager
 import com.miskibin.obd2dashboard.ble.DeviceKind
 import com.miskibin.obd2dashboard.ble.DiscoveredDevice
 import com.miskibin.obd2dashboard.data.AppPreferences
+import com.miskibin.obd2dashboard.data.Garage
 import com.miskibin.obd2dashboard.log.LogTag
 import com.miskibin.obd2dashboard.log.ObdLog
 import com.miskibin.obd2dashboard.data.MetricHistory
+import com.miskibin.obd2dashboard.data.SessionKind
 import com.miskibin.obd2dashboard.data.TripRecorder
 import com.miskibin.obd2dashboard.data.TripRepository
+import com.miskibin.obd2dashboard.obd.FuelType
 import com.miskibin.obd2dashboard.service.AlertMonitor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -68,6 +73,31 @@ object ObdHolder {
 
         scope.launch { connection.snapshot.collect(history::record) }
         scope.launch { preferences.pollingEnabled.collect(connection::setPollingEnabled) }
+        // Changing cars ends the recording and drops the traces the old one left behind:
+        // the simulation's last ten minutes must not appear on the chart of a real drive,
+        // and a recording started in demo mode must not go on collecting real values.
+        scope.launch {
+            // Only actual changes: the first value is the car the app started on.
+            connection.sessionKind.drop(1).collect { kind ->
+                recorder.stopIfCarChanged(kind)
+                history.clear()
+            }
+        }
+        // The fuel maths runs inside the polling loop, which has no idea which car it is
+        // talking to; this is the one wire that tells it. All three sides move — the VIN
+        // when a session opens, the garage when the profile is edited, the kind when demo
+        // mode is entered — so it is a combine rather than a read at connect time, and
+        // editing the profile changes the gauges at once.
+        scope.launch {
+            combine(
+                connection.sessionKind,
+                connection.vin,
+                preferences.vehicles(SessionKind.Real),
+                preferences.vehicles(SessionKind.Demo),
+            ) { kind, vin, real, demo ->
+                Garage.find(if (kind.demo) demo else real, vin)?.fuel ?: FuelType.Default
+            }.collect(connection::setFuelType)
+        }
         alerts.start()
     }
 

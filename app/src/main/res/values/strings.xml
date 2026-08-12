@@ -119,7 +119,38 @@
     <string name="alert_channel_name">Vehicle alerts</string>
     <string name="alert_channel_description">Warns when coolant temperature, voltage or another watched value leaves its safe range.</string>
 
+    <!-- Vehicle profile -->
+    <string name="vehicle_title">Vehicle</string>
+    <string name="vehicle_identity">From the VIN</string>
+    <string name="vehicle_make">Make</string>
+    <string name="vehicle_country">Origin</string>
+    <string name="vehicle_model_year">Model year</string>
+    <string name="vehicle_unknown">Not recognised</string>
+    <string name="vehicle_fuel">Fuel</string>
+    <string name="vehicle_fuel_description">Consumption is worked out from air flow, which only becomes fuel flow once this is known.</string>
+    <string name="vehicle_fuel_unset">Not set — consumption is being worked out as if this were a petrol engine, which overstates a diesel by half again.</string>
+    <string name="vehicle_specification">Specification</string>
+    <string name="vehicle_specification_description">All four are on the registration document. They are recorded now and read as the figures that need them arrive: mass is what turns acceleration into power, and tank size is what turns the fuel gauge into a range.</string>
+    <string name="vehicle_displacement">Displacement</string>
+    <string name="vehicle_power">Rated power</string>
+    <string name="vehicle_mass">Kerb mass</string>
+    <string name="vehicle_tank">Tank capacity</string>
+    <string name="vehicle_name">Name</string>
+    <string name="vehicle_name_placeholder">What you call this car</string>
+    <string name="vehicle_no_vin_title">No VIN yet</string>
+    <string name="vehicle_no_vin_message">The profile is kept against the car\'s VIN, which is read on connecting. Connect to the car — and if it still says this, its ECU does not answer the VIN request, which is normal on older vehicles.</string>
+    <string name="fuel_petrol">Petrol</string>
+    <string name="fuel_diesel">Diesel</string>
+    <string name="fuel_lpg">LPG</string>
+    <string name="fuel_ethanol">E85</string>
+    <string name="unit_litres">l</string>
+    <string name="unit_kilowatts">kW</string>
+    <string name="unit_kilograms">kg</string>
+
     <!-- Settings -->
+    <string name="settings_vehicle">Vehicle</string>
+    <string name="settings_vehicle_profile">Vehicle profile</string>
+    <string name="settings_vehicle_description">Fuel, engine and mass — what the live readings are measured against</string>
     <string name="settings_adapter">Saved adapter</string>
     <string name="settings_adapter_none">None saved yet</string>
     <string name="settings_forget_adapter">Forget this adapter</string>
@@ -315,6 +346,7 @@
     <string name="trip_export">Export CSV</string>
     <string name="trip_loading">Reading the recording…</string>
     <string name="trip_stat_max">Max %1$s</string>
+    <string name="trip_tag_demo">Demo</string>
     <string name="trip_event_breach">%1$s %2$s %3$s</string>
     <string name="trip_event_at">at %1$s</string>
     <string name="trip_event_at_repeated">at %1$s · %2$d×</string>

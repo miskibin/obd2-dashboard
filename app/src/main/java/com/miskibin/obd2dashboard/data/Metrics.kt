@@ -240,7 +240,7 @@ object Metrics {
 
             Pids.SHORT_FUEL_TRIM_1, Pids.LONG_FUEL_TRIM_1, 0x08, 0x09, Pids.MAF_RATE,
             in 0x14..0x1B, in 0x24..0x2B, in 0x34..0x3B, in 0x55..0x58,
-            Pids.COMMANDED_AFR, 0x2C, 0x2D, 0x2E, 0x52, 0x53, 0x54, 0x66,
+            Pids.COMMANDED_EQUIV_RATIO, 0x2C, 0x2D, 0x2E, 0x52, 0x53, 0x54, 0x66,
             -> MetricGroup.Mixture
 
             Pids.VEHICLE_SPEED, Pids.FUEL_LEVEL, Pids.RUN_TIME, Pids.DISTANCE_WITH_MIL,

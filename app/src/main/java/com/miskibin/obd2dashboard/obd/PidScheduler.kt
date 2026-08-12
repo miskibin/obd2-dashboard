@@ -54,6 +54,8 @@ class PidScheduler(
     private val clock: () -> Long = System::currentTimeMillis,
     private val cycleDelayMillis: Long = DEFAULT_CYCLE_DELAY_MILLIS,
     private val pollingEnabled: () -> Boolean = { true },
+    /** Read per publish rather than held, so editing the profile takes effect mid-drive. */
+    private val fuel: () -> FuelType = { FuelType.Default },
 ) {
     private val _snapshot = MutableStateFlow(VehicleSnapshot())
     val snapshot: StateFlow<VehicleSnapshot> = _snapshot.asStateFlow()
@@ -184,7 +186,7 @@ class PidScheduler(
             val readings = current.readings + fresh
             current.copy(
                 readings = readings,
-                derived = DerivedMetrics.compute(readings.mapValues { it.value.value }),
+                derived = DerivedMetrics.compute(readings.mapValues { it.value.value }, fuel()),
                 cycle = cycle,
                 updatedAtMillis = now,
             )

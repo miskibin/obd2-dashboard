@@ -62,14 +62,29 @@ class AppPreferences(context: Context) {
     /** Always the full set of shipped rules; only the driver's edits are stored. */
     val alertRules: Flow<List<AlertRule>> = store.data.map { AlertRules.decode(it[KEY_ALERTS]) }
 
-    /** When each fault code was first and last seen, kept because OBD2 will not say. */
-    val dtcLog: Flow<List<DtcObservation>> = store.data.map { DtcLog.decode(it[KEY_DTC_LOG]) }
+    /**
+     * When each fault code was first and last seen, kept because OBD2 will not say.
+     *
+     * One log per [SessionKind]: the simulation's codes are a fixture and must never turn
+     * up in the history of the car in the driveway.
+     */
+    fun dtcLog(kind: SessionKind): Flow<List<DtcObservation>> =
+        store.data.map { DtcLog.decode(it[dtcKey(kind)]) }
 
     /** Whether the driver reads speed in miles; everything is polled in km/h regardless. */
     val imperialUnits: Flow<Boolean> = store.data.map { it[KEY_IMPERIAL] ?: false }
 
     /** Which ground the app draws on; [AppTheme.System] follows the phone. */
     val theme: Flow<AppTheme> = store.data.map { AppTheme.fromKey(it[KEY_THEME]) }
+
+    /**
+     * Every car the app has been plugged into, keyed by VIN rather than by adapter.
+     *
+     * One garage per [SessionKind], for the same reason the code log is split: the
+     * simulation reports a VIN, and the car it names does not exist.
+     */
+    fun vehicles(kind: SessionKind): Flow<List<Vehicle>> =
+        store.data.map { Garage.decode(it[vehicleKey(kind)]) }
 
     suspend fun saveAdapter(address: String, name: String?, classic: Boolean = false) {
         store.edit { prefs ->
@@ -123,6 +138,14 @@ class AppPreferences(context: Context) {
         store.edit { it[KEY_THEME] = theme.storageKey }
     }
 
+    /** Replaces the profile for this VIN, leaving every other car in the garage alone. */
+    suspend fun saveVehicle(kind: SessionKind, vehicle: Vehicle) {
+        val key = vehicleKey(kind)
+        store.edit { prefs ->
+            prefs[key] = Garage.encode(Garage.merge(Garage.decode(prefs[key]), vehicle))
+        }
+    }
+
     /**
      * Records that these codes were present just now.
      *
@@ -130,23 +153,25 @@ class AppPreferences(context: Context) {
      * has merely stayed stored does not inflate its own occurrence count.
      */
     suspend fun recordDtcSightings(
+        kind: SessionKind,
         codes: Collection<String>,
         previouslyPresent: Set<String>,
         nowMillis: Long,
     ) {
         if (codes.isEmpty()) return
+        val key = dtcKey(kind)
         store.edit { prefs ->
-            val merged = DtcLog.merge(
-                log = DtcLog.decode(prefs[KEY_DTC_LOG]),
-                codes = codes,
-                previouslyPresent = previouslyPresent,
-                nowMillis = nowMillis,
-            )
-            prefs[KEY_DTC_LOG] = DtcLog.encode(merged)
+            prefs[key] = DtcLog.recordInto(prefs[key], codes, previouslyPresent, nowMillis)
         }
     }
 
     private companion object {
+        fun dtcKey(kind: SessionKind): Preferences.Key<String> =
+            stringPreferencesKey(DtcLog.storageKey(kind))
+
+        fun vehicleKey(kind: SessionKind): Preferences.Key<String> =
+            stringPreferencesKey(Garage.storageKey(kind))
+
         val KEY_ADAPTER_ADDRESS = stringPreferencesKey("adapter_address")
         val KEY_ADAPTER_NAME = stringPreferencesKey("adapter_name")
         val KEY_ADAPTER_CLASSIC = booleanPreferencesKey("adapter_classic")
@@ -155,7 +180,6 @@ class AppPreferences(context: Context) {
         val KEY_POLLING_ENABLED = booleanPreferencesKey("polling_enabled")
         val KEY_REDLINE = intPreferencesKey("redline_rpm")
         val KEY_ALERTS = stringPreferencesKey("alert_rules")
-        val KEY_DTC_LOG = stringPreferencesKey("dtc_log")
         val KEY_IMPERIAL = booleanPreferencesKey("imperial_units")
         val KEY_THEME = stringPreferencesKey("theme")
 

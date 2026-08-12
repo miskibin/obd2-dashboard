@@ -26,10 +26,12 @@ class TripRecorderTest {
         probe
     }
 
+    private val demoDirectory = File(directory, "demo").apply { mkdirs() }
+
     private var now = 1_700_000_000_000L
 
     private fun recorder() = TripRecorder(
-        directory = { directory },
+        directory = { kind -> if (kind.demo) demoDirectory else directory },
         scope = CoroutineScope(Dispatchers.Unconfined),
         // Each read is a second later, so nothing is dropped by the row rate limit.
         clock = { now.also { now += 1_000L } },
@@ -39,8 +41,10 @@ class TripRecorderTest {
     private fun columnsOf(file: File): List<String> =
         CsvFormat.splitRow(file.readLines().first()).drop(2).map { it.substringBefore(" (") }
 
-    private fun recordedFile(): File = directory.listFiles().orEmpty()
-        .single { it.name.endsWith(TripRepository.FILE_SUFFIX) }
+    private fun recordingsIn(target: File): List<File> = target.listFiles().orEmpty()
+        .filter { it.name.endsWith(TripRepository.FILE_SUFFIX) }
+
+    private fun recordedFile(): File = recordingsIn(directory).single()
 
     @Test
     fun `records everything the car is answering for, not just the seeded columns`() {
@@ -116,7 +120,74 @@ class TripRecorderTest {
         recorder.start(MutableStateFlow(VehicleSnapshot()), listOf(Metrics.Rpm))
         recorder.stop()
 
-        assertTrue(directory.listFiles().orEmpty().toList().toString(), directory.listFiles().orEmpty().isEmpty())
+        assertTrue(recordingsIn(directory).toString(), recordingsIn(directory).isEmpty())
+    }
+
+    @Test
+    fun `a drive recorded against the simulation is written where the simulation's are kept`() {
+        val source = MutableStateFlow(VehicleSnapshot())
+        val recorder = recorder()
+
+        recorder.start(source, listOf(Metrics.Rpm), SessionKind.Demo)
+        source.value = snapshot(Pids.ENGINE_RPM to 900.0)
+        val active = recorder.state.value as RecordingState.Active
+        recorder.stop()
+
+        assertEquals(SessionKind.Demo, active.kind)
+        assertEquals(1, recordingsIn(demoDirectory).size)
+        assertTrue(recordingsIn(directory).isEmpty())
+    }
+
+    @Test
+    fun `a real drive stays out of the demo directory`() {
+        val source = MutableStateFlow(VehicleSnapshot())
+        val recorder = recorder()
+
+        recorder.start(source, listOf(Metrics.Rpm), SessionKind.Real)
+        source.value = snapshot(Pids.ENGINE_RPM to 900.0)
+        recorder.stop()
+
+        assertEquals(1, recordingsIn(directory).size)
+        assertTrue(recordingsIn(demoDirectory).isEmpty())
+    }
+
+    @Test
+    fun `the directory is fixed when recording starts, not when it is asked for`() {
+        val source = MutableStateFlow(VehicleSnapshot())
+        val recorder = recorder()
+
+        // Recording begins against the simulation; the real car is connected afterwards.
+        recorder.start(source, listOf(Metrics.Rpm), SessionKind.Demo)
+        source.value = snapshot(Pids.ENGINE_RPM to 900.0)
+
+        // The session changing car ends the recording rather than carrying it across, so
+        // the file it already wrote stays a demo file and no real value is appended to it.
+        assertTrue(recorder.stopIfCarChanged(SessionKind.Real))
+        assertFalse(recorder.isRecording)
+        assertEquals(1, recordingsIn(demoDirectory).size)
+        assertTrue(recordingsIn(directory).isEmpty())
+
+        // The next recording opens in the real directory, with nothing carried over.
+        recorder.start(source, listOf(Metrics.Rpm), SessionKind.Real)
+        source.value = snapshot(Pids.ENGINE_RPM to 2_100.0)
+        recorder.stop()
+
+        assertEquals(1, recordingsIn(directory).size)
+        assertEquals(1, recordingsIn(demoDirectory).size)
+    }
+
+    @Test
+    fun `a recording of the car it started against is left alone`() {
+        val source = MutableStateFlow(VehicleSnapshot())
+        val recorder = recorder()
+
+        recorder.start(source, listOf(Metrics.Rpm), SessionKind.Real)
+        source.value = snapshot(Pids.ENGINE_RPM to 900.0)
+
+        // A reconnect to the same car must not cost the driver their recording.
+        assertFalse(recorder.stopIfCarChanged(SessionKind.Real))
+        assertTrue(recorder.isRecording)
+        recorder.stop()
     }
 
     private fun snapshot(vararg values: Pair<Int, Double>): VehicleSnapshot {

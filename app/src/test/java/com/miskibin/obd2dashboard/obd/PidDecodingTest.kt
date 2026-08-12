@@ -286,25 +286,33 @@ class PidDecodingTest {
     // ---- fuel rate ------------------------------------------------------------------
 
     @Test
-    fun `a diesel without a reported fuel rate gets no petrol estimate`() {
-        val diesel = mapOf(0x10 to 20.0, 0x0D to 90.0, Pids.FUEL_TYPE to 4.0)
+    fun `a diesel is not costed as if it burned everything it breathed`() {
+        val air = mapOf(0x10 to 20.0)
 
-        // Running 20 g/s of air through petrol's numbers would claim 6.6 L/h; a diesel
-        // that reports no mixture gets nothing rather than a number that is simply wrong.
-        assertNull(DerivedMetrics.compute(diesel)[DerivedMetrics.FuelRate.key])
+        val diesel = DerivedMetrics.compute(air, FuelType.Diesel)
+            .getValue(DerivedMetrics.FuelRate.key)
+        val petrol = DerivedMetrics.compute(air, FuelType.Petrol)
+            .getValue(DerivedMetrics.FuelRate.key)
+
+        // A diesel is qualitatively governed and always lean, so the same air flow is far
+        // less fuel than a throttled petrol engine's would be.
+        assertTrue("diesel $diesel vs petrol $petrol", diesel < petrol * 0.7)
     }
 
     @Test
-    fun `a diesel with a measured lambda is estimated on that lambda`() {
-        val diesel = mapOf(0x10 to 20.0, Pids.FUEL_TYPE to 4.0, 0x24 to 2.0)
+    fun `a measured lambda beats the nominal one a fuel type falls back on`() {
+        val air = mapOf(0x10 to 20.0, 0x24 to 2.0)
 
-        // 20 g/s of air at lambda 2 burns 20/(2*14.5) = 0.6897 g/s, or 2.98 L/h at 832 g/L.
-        assertEquals(2.984, DerivedMetrics.compute(diesel).getValue(DerivedMetrics.FuelRate.key), 0.01)
+        val measured = DerivedMetrics.compute(air, FuelType.Diesel)
+            .getValue(DerivedMetrics.FuelRate.key)
+
+        // 20 g/s of air at lambda 2 burns 20/(2 * 14.5) = 0.690 g/s, or 2.97 L/h at 835 g/L.
+        assertEquals(2.974, measured, 0.01)
     }
 
     @Test
     fun `a rich petrol mixture burns more than a stoichiometric one`() {
-        val rich = DerivedMetrics.compute(mapOf(0x10 to 5.0, Pids.COMMANDED_AFR to 0.8))
+        val rich = DerivedMetrics.compute(mapOf(0x10 to 5.0, Pids.COMMANDED_EQUIV_RATIO to 0.8))
         val neutral = DerivedMetrics.compute(mapOf(0x10 to 5.0))
 
         assertTrue(
@@ -313,30 +321,11 @@ class PidDecodingTest {
         )
     }
 
-    @Test
-    fun `an electric drivetrain reports no litres per hour`() {
-        val electric = mapOf(0x10 to 5.0, Pids.FUEL_TYPE to 8.0)
-
-        assertNull(DerivedMetrics.compute(electric)[DerivedMetrics.FuelRate.key])
-    }
-
-    @Test
-    fun `a car that carries the fuel type PID but leaves it empty is still estimated`() {
-        // Code 0 is "not available", which says no more than not having the PID at all.
-        val unstated = DerivedMetrics.compute(mapOf(0x10 to 5.0, Pids.FUEL_TYPE to 0.0))
-        val absent = DerivedMetrics.compute(mapOf(0x10 to 5.0))
-
-        assertEquals(
-            absent.getValue(DerivedMetrics.FuelRate.key),
-            unstated.getValue(DerivedMetrics.FuelRate.key),
-            0.001,
-        )
-    }
 
     @Test
     fun `an open loop engine commanding no ratio falls back on stoichiometric`() {
         // 0144 reads zero in open loop; taken literally it would divide the estimate away.
-        val openLoop = DerivedMetrics.compute(mapOf(0x10 to 5.0, Pids.COMMANDED_AFR to 0.0))
+        val openLoop = DerivedMetrics.compute(mapOf(0x10 to 5.0, Pids.COMMANDED_EQUIV_RATIO to 0.0))
 
         assertEquals(1.6436, openLoop.getValue(DerivedMetrics.FuelRate.key), 0.001)
     }

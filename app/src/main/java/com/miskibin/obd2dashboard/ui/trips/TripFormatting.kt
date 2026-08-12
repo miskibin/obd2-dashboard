@@ -56,6 +56,26 @@ fun EventTag(event: TripEvent, modifier: Modifier = Modifier) {
     )
 }
 
+/**
+ * The badge on a recording made against the simulated car.
+ *
+ * These are only ever listed while the app is itself in demo mode, so the tag is not there
+ * to warn anybody off — it is there so that a list holding both a real drive and a
+ * simulated one says which is which at a glance.
+ */
+@Composable
+fun DemoTag(modifier: Modifier = Modifier) {
+    Text(
+        text = stringResource(R.string.trip_tag_demo),
+        style = MaterialTheme.typography.labelSmall,
+        color = AmberLight,
+        modifier = modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(AmberSurfaceStrong)
+            .padding(horizontal = 9.dp, vertical = 4.dp),
+    )
+}
+
 @Composable
 fun eventLabel(event: TripEvent): String {
     if (event.kind == TripEventKind.Redline) {

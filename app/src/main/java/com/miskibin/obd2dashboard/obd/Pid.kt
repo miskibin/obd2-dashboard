@@ -151,8 +151,8 @@ object Pids {
     const val FUEL_LEVEL = 0x2F
     const val DISTANCE_SINCE_CLEARED = 0x31
     const val BAROMETRIC_PRESSURE = 0x33
-    const val COMMANDED_AFR = 0x44
     const val CONTROL_MODULE_VOLTAGE = 0x42
+    const val COMMANDED_EQUIV_RATIO = 0x44
     const val AMBIENT_AIR_TEMP = 0x46
     const val FUEL_TYPE = 0x51
     const val OIL_TEMP = 0x5C
@@ -274,7 +274,7 @@ object Pids {
         add(pid(0x3F, "Catalyst temperature B2S2", CELSIUS, 2, PidTier.Slow) { word(it) / 10.0 - 40.0 })
         add(pid(CONTROL_MODULE_VOLTAGE, "Control module voltage", VOLT, 2, PidTier.Medium) { word(it) / 1000.0 })
         add(pid(0x43, "Absolute load value", PERCENT, 2, PidTier.Slow) { word(it) * 100.0 / 255.0 })
-        add(pid(COMMANDED_AFR, "Commanded air-fuel equivalence ratio", LAMBDA, 2, PidTier.Medium) {
+        add(pid(COMMANDED_EQUIV_RATIO, "Commanded air-fuel equivalence ratio", LAMBDA, 2, PidTier.Medium) {
             2.0 * word(it) / 65_536.0
         })
         add(pid(0x45, "Relative throttle position", PERCENT, 1, PidTier.Medium, ::ratio))
@@ -457,23 +457,6 @@ object Pids {
  */
 data class DerivedMetric(val key: String, val name: String, val unit: String)
 
-/**
- * What the engine is burning, which is what turns an air flow into a fuel flow.
- *
- * [stoichiometricAfr] and [densityGramsPerLitre] are the two constants the mass-airflow
- * estimate needs, and they are not close to interchangeable: running a diesel's air flow
- * through petrol's numbers is how a 6 L/100km car reads as 20.
- */
-private data class FuelProfile(
-    val stoichiometricAfr: Double,
-    val densityGramsPerLitre: Double,
-    /**
-     * Whether an unmeasured mixture may be assumed stoichiometric. True for spark
-     * ignition, which spends almost all of its life in closed loop at λ≈1, and false for
-     * compression ignition, which is always lean by a factor the app cannot guess.
-     */
-    val assumeClosedLoop: Boolean,
-)
 
 object DerivedMetrics {
 
@@ -486,37 +469,47 @@ object DerivedMetrics {
     /** Barometric pressure at sea level, used when PID 33 is unsupported. */
     const val SEA_LEVEL_KPA = 101.3
 
+    private const val SECONDS_PER_HOUR = 3600.0
+
     /**
-     * Fuel densities and stoichiometric ratios by PID `0151` code.
+     * Below this a λ reading is a placeholder, not a mixture.
      *
-     * Petrol is 745 g/L at 15 °C per EN 228, not the 820 g/L this used to use — that is
-     * diesel's density, and charging it to petrol understated every estimated
-     * consumption figure by about a tenth.
+     * An ECU that does not really implement PID 44 still answers it, usually with zero, and
+     * dividing by that produces an infinite fuel rate. The upper end needs no guard: the
+     * PID's own encoding saturates at 2.0, which is also why the fuel rate of a diesel at
+     * idle — genuinely leaner than that — is still overstated, just no longer by a factor
+     * of five.
      */
-    private val PETROL = FuelProfile(14.7, 745.0, assumeClosedLoop = true)
-    private val DIESEL = FuelProfile(14.5, 832.0, assumeClosedLoop = false)
-    private val ETHANOL = FuelProfile(9.8, 785.0, assumeClosedLoop = true)
-    private val METHANOL = FuelProfile(6.4, 792.0, assumeClosedLoop = true)
-    private val LPG = FuelProfile(15.6, 540.0, assumeClosedLoop = true)
+    private const val MIN_CREDIBLE_LAMBDA = 0.5
 
-    private val fuelProfiles: Map<Int, FuelProfile> = buildMap {
-        listOf(1, 9, 17).forEach { put(it, PETROL) }
-        listOf(2, 10).forEach { put(it, METHANOL) }
-        listOf(3, 11, 18).forEach { put(it, ETHANOL) }
-        listOf(4, 19, 23).forEach { put(it, DIESEL) }
-        listOf(5, 7, 12, 14).forEach { put(it, LPG) }
-    }
-
-    private const val SECONDS_PER_HOUR = 3_600.0
-
-    fun compute(values: Map<Int, Double>): Map<String, Double> {
+    /**
+     * @param fuel what is being burnt, which decides how much of it a given mass of air is.
+     */
+    fun compute(
+        values: Map<Int, Double>,
+        fuel: FuelType = FuelType.Default,
+    ): Map<String, Double> {
         val derived = mutableMapOf<String, Double>()
 
         values[Pids.INTAKE_MAP]?.let { map ->
             derived[Boost.key] = map - (values[Pids.BAROMETRIC_PRESSURE] ?: SEA_LEVEL_KPA)
         }
 
-        val fuelRate = values[Pids.FUEL_RATE] ?: estimateFuelRate(values)
+        // PID 5E when the car has it, and the air flow converted when it does not — which
+        // is most cars. The conversion is air mass ÷ (air per litre × λ): the ratio alone
+        // would assume every engine burns everything it breathes, which is true of a petrol
+        // engine under closed loop and of nothing else.
+        //
+        // λ is taken from a wide-range sensor before the commanded ratio, because the
+        // commanded value is what the ECU asked for and the sensor is what actually
+        // happened. It also has range the commanded PID does not: 0144 saturates at 2.0,
+        // so a diesel at idle reads as λ=2 there and as its real λ>5 here.
+        val fuelRate = values[Pids.FUEL_RATE] ?: values[Pids.MAF_RATE]?.let { maf ->
+            val lambda = measuredLambda(values)
+                ?: values[Pids.COMMANDED_EQUIV_RATIO]?.takeIf { it >= MIN_CREDIBLE_LAMBDA }
+                ?: fuel.nominalLambda
+            maf * SECONDS_PER_HOUR / (fuel.airMassPerLitre * lambda)
+        }
         if (fuelRate != null) {
             derived[FuelRate.key] = fuelRate
             val speed = values[Pids.VEHICLE_SPEED]
@@ -526,28 +519,6 @@ object DerivedMetrics {
         return derived
     }
 
-    /**
-     * Litres per hour worked back from the air the engine is breathing.
-     *
-     * Air flow only becomes fuel flow once the mixture is known, so the mixture is read
-     * rather than assumed wherever the car reports it: a wide-range sensor first, the
-     * commanded equivalence ratio second. Only a spark-ignition engine is allowed to fall
-     * back on λ=1, and a compression-ignition engine that reports no mixture at all gets
-     * no estimate — a blank is honest, and the number that used to appear there was not.
-     */
-    private fun estimateFuelRate(values: Map<Int, Double>): Double? {
-        val maf = values[Pids.MAF_RATE] ?: return null
-        val fuel = fuelProfileOf(values) ?: return null
-        // A commanded ratio of zero is what an engine running open loop reports, and it
-        // means "not commanding a ratio" rather than "commanding no fuel"; taking it
-        // literally would divide the estimate away instead of falling back on λ=1.
-        val lambda = measuredLambda(values)
-            ?: values[Pids.COMMANDED_AFR]?.takeIf { it > 0.0 }
-            ?: if (fuel.assumeClosedLoop) 1.0 else return null
-
-        val fuelGramsPerSecond = maf / (lambda * fuel.stoichiometricAfr)
-        return fuelGramsPerSecond * SECONDS_PER_HOUR / fuel.densityGramsPerLitre
-    }
 
     /**
      * Lambda as a wide-range sensor actually measured it.
@@ -559,16 +530,4 @@ object DerivedMetrics {
     private fun measuredLambda(values: Map<Int, Double>): Double? =
         (values[0x24] ?: values[0x34])?.takeIf { it > 0.0 }
 
-    /** Petrol when the car does not say, which is what all but the diesels are. */
-    private fun fuelProfileOf(values: Map<Int, Double>): FuelProfile? {
-        val code = values[Pids.FUEL_TYPE]?.toInt() ?: return PETROL
-        // Code 0 is the standard's "not available": the car carries the PID and has
-        // nothing to put in it, which says no more than not carrying it at all.
-        if (code == FUEL_TYPE_NOT_AVAILABLE) return PETROL
-        // A gaseous or electric drivetrain has no litres per hour to report, so it gets
-        // no estimate rather than one in a unit that does not describe it.
-        return fuelProfiles[code]
-    }
-
-    private const val FUEL_TYPE_NOT_AVAILABLE = 0
 }
