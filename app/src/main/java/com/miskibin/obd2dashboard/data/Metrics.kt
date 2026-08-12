@@ -70,10 +70,16 @@ sealed interface MetricId {
 /**
  * Presentation metadata for a [MetricId]: the localised label, the unit as shown next to
  * the value, and how many decimals reading it at a glance deserves.
+ *
+ * [hintRes] is the tile's one line of plain language: what the number means to somebody
+ * who has never seen the acronym before. "Air flow (MAF) 22 g/s" tells a mechanic
+ * something and an owner nothing; "how much air is going in" is the same reading with the
+ * jargon paid for.
  */
 data class Metric(
     val id: MetricId,
     @param:StringRes val nameRes: Int,
+    @param:StringRes val hintRes: Int,
     val unit: String,
     val decimals: Int,
     /**
@@ -148,6 +154,7 @@ object Metrics {
                     Metric(
                         id = MetricId.Sensor(key),
                         nameRes = nameRes,
+                        hintRes = hintOf(pid.id, channel.index),
                         unit = channel.unit,
                         decimals = decimalsFor(key, channel.unit),
                         nameArgs = args,
@@ -155,17 +162,42 @@ object Metrics {
                 )
             }
         }
-        add(Metric(MetricId.Derived(DerivedMetrics.Boost.key), R.string.metric_boost, "kPa", 0))
-        add(Metric(MetricId.Derived(DerivedMetrics.FuelRate.key), R.string.metric_fuel_rate, "L/h", 1))
+        add(
+            Metric(
+                MetricId.Derived(DerivedMetrics.Boost.key),
+                R.string.metric_boost,
+                R.string.metric_hint_boost,
+                "kPa",
+                0,
+            ),
+        )
+        add(
+            Metric(
+                MetricId.Derived(DerivedMetrics.FuelRate.key),
+                R.string.metric_fuel_rate,
+                R.string.metric_hint_fuel_rate,
+                "L/h",
+                1,
+            ),
+        )
         add(
             Metric(
                 MetricId.Derived(DerivedMetrics.FuelPer100Km.key),
                 R.string.metric_fuel_per_100km,
+                R.string.metric_hint_fuel_per_100km,
                 "L/100km",
                 1,
             ),
         )
-        add(Metric(MetricId.Battery, R.string.metric_battery, "V", 1))
+        add(
+            Metric(
+                MetricId.Battery,
+                R.string.metric_battery,
+                R.string.metric_hint_battery,
+                "V",
+                1,
+            ),
+        )
     }
 
     private val byId: Map<MetricId, Metric> = catalog.associateBy(Metric::id)
@@ -315,6 +347,37 @@ object Metrics {
         else -> nameResFor(pid) to emptyList()
     }
 
+    /**
+     * The plain-language subtitle for one channel; see [Metric.hintRes].
+     *
+     * Follows the same shape as [nameOf] because the same channels need explaining: which
+     * of a wideband probe's two numbers you are looking at is the whole difference between
+     * "1.000 is the ideal mixture" and "pump current from a wideband probe".
+     */
+    @StringRes
+    private fun hintOf(pid: Int, channel: Int): Int = when (pid) {
+        in 0x14..0x1B ->
+            if (channel == 0) R.string.metric_hint_o2_voltage else R.string.metric_hint_o2_trim
+
+        in 0x24..0x2B ->
+            if (channel == 0) R.string.metric_hint_o2_lambda else R.string.metric_hint_o2_voltage
+
+        in 0x34..0x3B ->
+            if (channel == 0) R.string.metric_hint_o2_lambda else R.string.metric_hint_o2_current
+
+        0x55, 0x57 -> R.string.metric_hint_secondary_trim_short
+        0x56, 0x58 -> R.string.metric_hint_secondary_trim_long
+        0x66 -> R.string.metric_hint_maf_sensor
+        0x67 -> R.string.metric_hint_ect_sensor
+        0x68 -> R.string.metric_hint_iat_sensor
+        0x6B -> R.string.metric_hint_egr_temp
+        0x73 -> R.string.metric_hint_exhaust_pressure
+        0x74 -> R.string.metric_hint_turbo_speed
+        0x77 -> R.string.metric_hint_charge_air_temp
+        0x78, 0x79 -> R.string.metric_hint_exhaust_gas_temp
+        else -> hintResFor(pid)
+    }
+
     /** `0155` and `0156` report banks 1 and 3; `0157` and `0158` report banks 2 and 4. */
     private fun secondaryBank(pid: Int, channel: Int): Int =
         if (pid == 0x55 || pid == 0x56) 1 + channel * 2 else 2 + channel * 2
@@ -381,6 +444,71 @@ object Metrics {
         0xA4 -> R.string.metric_pid_a4
         0xA6 -> R.string.metric_pid_a6
         else -> R.string.metric_unknown
+    }
+
+    /** The plain-language line under the name; see [Metric.hintRes]. */
+    @StringRes
+    private fun hintResFor(pid: Int): Int = when (pid) {
+        0x04 -> R.string.metric_hint_pid_04
+        0x05 -> R.string.metric_hint_pid_05
+        0x06 -> R.string.metric_hint_pid_06
+        0x07 -> R.string.metric_hint_pid_07
+        0x08 -> R.string.metric_hint_pid_08
+        0x09 -> R.string.metric_hint_pid_09
+        0x0A -> R.string.metric_hint_pid_0a
+        0x0B -> R.string.metric_hint_pid_0b
+        0x0C -> R.string.metric_hint_pid_0c
+        0x0D -> R.string.metric_hint_pid_0d
+        0x0E -> R.string.metric_hint_pid_0e
+        0x0F -> R.string.metric_hint_pid_0f
+        0x10 -> R.string.metric_hint_pid_10
+        0x11 -> R.string.metric_hint_pid_11
+        0x1F -> R.string.metric_hint_pid_1f
+        0x21 -> R.string.metric_hint_pid_21
+        0x22 -> R.string.metric_hint_pid_22
+        0x23 -> R.string.metric_hint_pid_23
+        0x2C -> R.string.metric_hint_pid_2c
+        0x2D -> R.string.metric_hint_pid_2d
+        0x2E -> R.string.metric_hint_pid_2e
+        0x2F -> R.string.metric_hint_pid_2f
+        0x30 -> R.string.metric_hint_pid_30
+        0x31 -> R.string.metric_hint_pid_31
+        0x32 -> R.string.metric_hint_pid_32
+        0x33 -> R.string.metric_hint_pid_33
+        0x3C -> R.string.metric_hint_pid_3c
+        0x3D -> R.string.metric_hint_pid_3d
+        0x3E -> R.string.metric_hint_pid_3e
+        0x3F -> R.string.metric_hint_pid_3f
+        0x42 -> R.string.metric_hint_pid_42
+        0x43 -> R.string.metric_hint_pid_43
+        0x44 -> R.string.metric_hint_pid_44
+        0x45 -> R.string.metric_hint_pid_45
+        0x46 -> R.string.metric_hint_pid_46
+        0x47 -> R.string.metric_hint_pid_47
+        0x48 -> R.string.metric_hint_pid_48
+        0x49 -> R.string.metric_hint_pid_49
+        0x4A -> R.string.metric_hint_pid_4a
+        0x4B -> R.string.metric_hint_pid_4b
+        0x4C -> R.string.metric_hint_pid_4c
+        0x4D -> R.string.metric_hint_pid_4d
+        0x4E -> R.string.metric_hint_pid_4e
+        0x51 -> R.string.metric_hint_pid_51
+        0x52 -> R.string.metric_hint_pid_52
+        0x53 -> R.string.metric_hint_pid_53
+        0x54 -> R.string.metric_hint_pid_54
+        0x59 -> R.string.metric_hint_pid_59
+        0x5A -> R.string.metric_hint_pid_5a
+        0x5B -> R.string.metric_hint_pid_5b
+        0x5C -> R.string.metric_hint_pid_5c
+        0x5D -> R.string.metric_hint_pid_5d
+        0x5E -> R.string.metric_hint_pid_5e
+        0x61 -> R.string.metric_hint_pid_61
+        0x62 -> R.string.metric_hint_pid_62
+        0x63 -> R.string.metric_hint_pid_63
+        0x9E -> R.string.metric_hint_pid_9e
+        0xA4 -> R.string.metric_hint_pid_a4
+        0xA6 -> R.string.metric_hint_pid_a6
+        else -> R.string.metric_hint_unknown
     }
 }
 

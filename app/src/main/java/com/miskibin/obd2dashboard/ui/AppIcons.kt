@@ -3,7 +3,10 @@ package com.miskibin.obd2dashboard.ui
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.PathBuilder
 import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.unit.dp
 
@@ -199,6 +202,58 @@ object AppIcons {
         }
     }
 
+    /**
+     * One glyph per family of readings, drawn as a line rather than a solid.
+     *
+     * A dashboard tile carries an icon at seventeen points inside a twenty-six point
+     * circle, which is far too small for a literal drawing of a sensor: what survives at
+     * that size is a silhouette — a bulb with a stem, a cell with a terminal, a drop — and
+     * anything more detailed turns into a smudge. They are strokes so they read as
+     * markings on the card rather than as buttons on it.
+     */
+    val Thermometer: ImageVector by lazy {
+        lineIcon("Thermometer") {
+            moveTo(12f, 3.6f)
+            arcToRelative(2.4f, 2.4f, 0f, false, true, 2.4f, 2.4f)
+            verticalLineToRelative(7f)
+            arcToRelative(4.4f, 4.4f, 0f, true, true, -4.8f, 0f)
+            verticalLineToRelative(-7f)
+            arcTo(2.4f, 2.4f, 0f, false, true, 12f, 3.6f)
+            close()
+        }
+    }
+
+    /** The battery: a cell, its terminal, and the plus that says which way round it goes. */
+    val Battery: ImageVector by lazy {
+        lineIcon("Battery") {
+            moveTo(3.5f, 8.5f)
+            horizontalLineToRelative(14f)
+            verticalLineToRelative(7f)
+            horizontalLineToRelative(-14f)
+            close()
+            moveTo(17.5f, 10.5f)
+            horizontalLineToRelative(2.5f)
+            verticalLineToRelative(3f)
+            horizontalLineToRelative(-2.5f)
+            close()
+            moveTo(7.5f, 12f)
+            horizontalLineToRelative(4f)
+            moveTo(9.5f, 10f)
+            verticalLineToRelative(4f)
+        }
+    }
+
+    /** Anything that is a fluid or is measured against one: fuel, mixture, air flow. */
+    val Droplet: ImageVector by lazy {
+        lineIcon("Droplet") {
+            moveTo(12f, 3.8f)
+            curveToRelative(3.4f, 4f, 5.3f, 6.7f, 5.3f, 9f)
+            arcToRelative(5.3f, 5.3f, 0f, true, true, -10.6f, 0f)
+            curveToRelative(0f, -2.3f, 1.9f, -5f, 5.3f, -9f)
+            close()
+        }
+    }
+
     /** A chevron for rows that lead somewhere. */
     val ChevronRight: ImageVector by lazy {
         icon("ChevronRight") {
@@ -214,6 +269,27 @@ object AppIcons {
         }
     }
 
+    /**
+     * A stroked glyph: one path, no fill, round joins.
+     *
+     * [androidx.compose.material3.Icon] tints the whole vector, so the white here is only
+     * the colour the tint replaces — the same convention the filled glyphs above use.
+     */
+    private inline fun lineIcon(
+        name: String,
+        crossinline block: PathBuilder.() -> Unit,
+    ): ImageVector = icon(name) {
+        path(
+            fill = null,
+            stroke = SolidColor(Color.White),
+            strokeLineWidth = LINE_STROKE,
+            strokeLineCap = StrokeCap.Round,
+            strokeLineJoin = StrokeJoin.Round,
+        ) {
+            block()
+        }
+    }
+
     private inline fun icon(name: String, block: ImageVector.Builder.() -> Unit): ImageVector =
         ImageVector.Builder(
             name = name,
@@ -222,4 +298,7 @@ object AppIcons {
             viewportWidth = 24f,
             viewportHeight = 24f,
         ).apply(block).build()
+
+    /** Thin enough to stay a line at seventeen points, heavy enough not to disappear. */
+    const val LINE_STROKE = 1.6f
 }

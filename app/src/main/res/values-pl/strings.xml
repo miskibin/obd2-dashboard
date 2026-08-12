@@ -260,6 +260,94 @@
     <string name="metric_turbo_speed">Turbosprężarka %1$d – obroty</string>
     <string name="metric_charge_air_temp">Temp. intercoolera, rząd %1$d czujnik %2$d</string>
     <string name="metric_exhaust_gas_temp">Temperatura spalin, rząd %1$d czujnik %2$d</string>
+
+    <!--
+        Podtytuły parametrów: jedna linijka zwykłego języka pod nazwą kafelka — co ta
+        liczba znaczy dla kogoś, kto nigdy nie widział tego skrótu. To różnica między
+        „AFR 14.8” a „ile gramów powietrza przypada na gram paliwa”.
+    -->
+    <string name="metric_hint_unknown">odczyt ze sterownika</string>
+    <string name="metric_hint_boost">ciśnienie z turbo</string>
+    <string name="metric_hint_fuel_rate">litry na godzinę, teraz</string>
+    <string name="metric_hint_fuel_per_100km">chwilowe, nie średnie</string>
+    <string name="metric_hint_battery">napięcie z alternatora</string>
+
+    <string name="metric_hint_pid_04">ile mocy silnik oddaje</string>
+    <string name="metric_hint_pid_05">temperatura silnika</string>
+    <string name="metric_hint_pid_06">doraźna poprawka paliwa</string>
+    <string name="metric_hint_pid_07">trwała poprawka paliwa</string>
+    <string name="metric_hint_pid_08">doraźna poprawka, drugi rząd</string>
+    <string name="metric_hint_pid_09">trwała poprawka, drugi rząd</string>
+    <string name="metric_hint_pid_0a">ciśnienie w układzie paliwowym</string>
+    <string name="metric_hint_pid_0b">ciśnienie za przepustnicą</string>
+    <string name="metric_hint_pid_0c">obroty wału korbowego</string>
+    <string name="metric_hint_pid_0d">z czujnika w skrzyni</string>
+    <string name="metric_hint_pid_0e">jak wcześnie iskra</string>
+    <string name="metric_hint_pid_0f">zimniejsze = więcej mocy</string>
+    <string name="metric_hint_pid_10">ile powietrza wchodzi</string>
+    <string name="metric_hint_pid_11">jak mocno otwarta</string>
+    <string name="metric_hint_pid_1f">od uruchomienia silnika</string>
+    <string name="metric_hint_pid_21">przejechane z kontrolką</string>
+    <string name="metric_hint_pid_22">ciśnienie przy wtryskiwaczach</string>
+    <string name="metric_hint_pid_23">przy wtryskiwaczach, ponad otoczenie</string>
+    <string name="metric_hint_pid_2c">ile spalin wraca do dolotu</string>
+    <string name="metric_hint_pid_2e">przepłukiwanie par paliwa</string>
+    <string name="metric_hint_pid_2f">ile paliwa w baku</string>
+    <string name="metric_hint_pid_30">pełne rozgrzewki od kasowania</string>
+    <string name="metric_hint_pid_31">przejechane od skasowania kodów</string>
+    <string name="metric_hint_pid_32">ciśnienie w układzie par paliwa</string>
+    <string name="metric_hint_pid_33">ciśnienie powietrza wokół auta</string>
+    <string name="metric_hint_pid_3c">temperatura spalin w katalizatorze</string>
+    <string name="metric_hint_pid_3d">temperatura spalin w katalizatorze</string>
+    <string name="metric_hint_pid_3e">temperatura spalin za katalizatorem</string>
+    <string name="metric_hint_pid_3f">temperatura spalin za katalizatorem</string>
+    <string name="metric_hint_pid_42">napięcie, które widzi sterownik</string>
+    <string name="metric_hint_pid_43">obciążenie względem maksimum</string>
+    <string name="metric_hint_pid_44">mieszanka zadana przez sterownik</string>
+    <string name="metric_hint_pid_45">przepustnica względem swojego zera</string>
+    <string name="metric_hint_pid_46">powietrze na zewnątrz auta</string>
+    <string name="metric_hint_pid_47">drugi czujnik przepustnicy</string>
+    <string name="metric_hint_pid_49">jak mocno wciśnięty pedał</string>
+    <string name="metric_hint_pid_4a">drugi czujnik pedału</string>
+    <string name="metric_hint_pid_4c">otwarcie zadane przez sterownik</string>
+    <string name="metric_hint_pid_4d">czas jazdy z kontrolką</string>
+    <string name="metric_hint_pid_4e">od skasowania kodów</string>
+    <string name="metric_hint_pid_52">ile etanolu w paliwie</string>
+    <string name="metric_hint_pid_53">ciśnienie par, bezwzględne</string>
+    <string name="metric_hint_pid_59">przy wtryskiwaczach, bezwzględne</string>
+    <string name="metric_hint_pid_5a">pedał względem swojego zera</string>
+    <string name="metric_hint_pid_5b">ile zostało z baterii</string>
+    <string name="metric_hint_pid_5c">gorętszy niż płyn</string>
+    <string name="metric_hint_pid_5d">kiedy wtryskiwane jest paliwo</string>
+    <string name="metric_hint_pid_5e">litry na godzinę, teraz</string>
+    <string name="metric_hint_pid_61">ile momentu żąda kierowca</string>
+    <string name="metric_hint_pid_62">ile momentu daje silnik</string>
+    <string name="metric_hint_pid_63">maksimum znamionowe silnika</string>
+    <string name="metric_hint_pid_a6">całkowity przejechany dystans</string>
+    <string name="metric_hint_pid_2d">o ile EGR mija się z zadaniem</string>
+    <string name="metric_hint_pid_48">trzeci czujnik przepustnicy</string>
+    <string name="metric_hint_pid_4b">trzeci czujnik pedału</string>
+    <string name="metric_hint_pid_51">czym według sterownika auto jeździ</string>
+    <string name="metric_hint_pid_54">ciśnienie par, szeroki zakres</string>
+    <string name="metric_hint_pid_9e">ile spalin wychodzi</string>
+    <string name="metric_hint_pid_a4">na którym biegu jedzie skrzynia</string>
+
+    <!-- Podtytuły rodzin czujników, wspólne dla każdego czujnika w rodzinie. -->
+    <string name="metric_hint_o2_voltage">co widzi sonda w wydechu</string>
+    <string name="metric_hint_o2_trim">poprawka paliwa z tej sondy</string>
+    <string name="metric_hint_o2_lambda">1,000 to mieszanka idealna</string>
+    <string name="metric_hint_o2_current">prąd pompy sondy szerokopasmowej</string>
+    <string name="metric_hint_secondary_trim_short">doraźna poprawka za katalizatorem</string>
+    <string name="metric_hint_secondary_trim_long">trwała poprawka za katalizatorem</string>
+    <string name="metric_hint_maf_sensor">ile powietrza wchodzi</string>
+    <string name="metric_hint_ect_sensor">temperatura silnika</string>
+    <string name="metric_hint_iat_sensor">zimniejsze = więcej mocy</string>
+    <string name="metric_hint_egr_temp">jak gorące są zawracane spaliny</string>
+    <string name="metric_hint_exhaust_pressure">przeciwciśnienie w wydechu</string>
+    <string name="metric_hint_turbo_speed">jak szybko kręci się turbo</string>
+    <string name="metric_hint_charge_air_temp">powietrze za intercoolerem</string>
+    <string name="metric_hint_exhaust_gas_temp">jak gorący jest wydech</string>
+
     <string name="unit_rpm">rpm</string>
     <string name="dashboard_redline">Odcięcie %1$d rpm</string>
     <string name="chart_now">teraz</string>
@@ -308,11 +396,19 @@
     <string name="dashboard_session_max">maks. w tej sesji %1$s</string>
     <string name="dashboard_units_metric">km/h · °C</string>
     <string name="dashboard_units_imperial">mph · °C</string>
-    <string name="dashboard_metric_high">%1$s · wysoka</string>
     <string name="dashboard_recording_active">Nagrywa · %1$s</string>
     <string name="unit_kmh">km/h</string>
     <string name="unit_mph">mph</string>
     <string name="action_move_up">Przesuń w górę</string>
+    <string name="dashboard_speed_label">Prędkość</string>
+    <string name="dashboard_gear_label">Bieg</string>
+    <string name="dashboard_edit_list">Edytuj listę</string>
+    <string name="dashboard_edit_list_on">włączone</string>
+
+    <!-- Co kafelek mówi o wartości względem normy -->
+    <string name="metric_state_normal">w normie</string>
+    <string name="metric_state_above">powyżej normy</string>
+    <string name="metric_state_below">poniżej normy</string>
 
     <!-- Arkusz parametru -->
     <string name="metric_sheet_subtitle">Ostatnie 60 sekund</string>

@@ -105,7 +105,8 @@ private val Obd2Shapes = Shapes(
 val CardCorner = RoundedCornerShape(16.dp)
 
 /** The radius of a panel sitting inside a card. */
-val PanelCorner = RoundedCornerShape(14.dp)
+val PanelRadius = 14.dp
+val PanelCorner = RoundedCornerShape(PanelRadius)
 
 /** Buttons, chips and segmented controls. */
 val ControlCorner = RoundedCornerShape(12.dp)
