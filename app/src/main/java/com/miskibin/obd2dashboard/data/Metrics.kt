@@ -269,7 +269,12 @@ object Metrics {
     val normalBands: Map<MetricId, NormalBand> = mapOf(
         CoolantTemp to NormalBand(82.0, 98.0),
         OilTemp to NormalBand(80.0, 110.0),
-        Battery to NormalBand(13.8, 14.4),
+        // ATRV is the voltage at the OBD socket, which is the resting battery with the
+        // engine off and the charging system with it running. One band has to cover both,
+        // or every key-on reading would be tinted for a battery that is perfectly healthy;
+        // a charging system that has actually stopped charging is the engine-running alert
+        // rule's job, not this band's.
+        Battery to NormalBand(12.2, 14.8),
         MetricId.Sensor(Pids.SHORT_FUEL_TRIM_1) to NormalBand(-10.0, 10.0),
         MetricId.Sensor(Pids.LONG_FUEL_TRIM_1) to NormalBand(-10.0, 10.0),
     )
@@ -412,8 +417,11 @@ object Metrics {
         in 0x14..0x1B ->
             if (channel == 0) R.string.metric_hint_o2_voltage else R.string.metric_hint_o2_trim
 
+        // The second channel of a wide-range sensor is the probe's own signal voltage, not
+        // the 0.1–0.9 V switch a narrow-band sensor makes, so it gets its own subtitle.
         in 0x24..0x2B ->
-            if (channel == 0) R.string.metric_hint_o2_lambda else R.string.metric_hint_o2_voltage
+            if (channel == 0) R.string.metric_hint_o2_lambda
+            else R.string.metric_hint_o2_wide_voltage
 
         in 0x34..0x3B ->
             if (channel == 0) R.string.metric_hint_o2_lambda else R.string.metric_hint_o2_current
