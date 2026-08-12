@@ -9,12 +9,14 @@ import androidx.core.app.NotificationCompat
 import com.miskibin.obd2dashboard.MainActivity
 import com.miskibin.obd2dashboard.R
 import com.miskibin.obd2dashboard.data.AlertComparison
-import com.miskibin.obd2dashboard.data.AlertEvent
 import com.miskibin.obd2dashboard.data.AlertEvaluator
+import com.miskibin.obd2dashboard.data.AlertEvent
 import com.miskibin.obd2dashboard.data.AlertRule
 import com.miskibin.obd2dashboard.data.LocalePreference
 import com.miskibin.obd2dashboard.data.Metrics
 import com.miskibin.obd2dashboard.obd.VehicleSnapshot
+import com.miskibin.obd2dashboard.ui.label
+import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -24,7 +26,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
-import java.util.Locale
 
 /**
  * Watches the live snapshot for threshold breaches and says so loudly.
@@ -113,7 +114,7 @@ class AlertMonitor(
 /** "Coolant temperature is 108 °C, above the 105 °C limit" — the one line both surfaces use. */
 fun describe(context: Context, event: AlertEvent): String {
     val metric = Metrics[event.rule.metric]
-    val name = context.getString(metric?.nameRes ?: R.string.metric_unknown)
+    val name = metric?.label(context) ?: context.getString(R.string.metric_unknown)
     val decimals = metric?.decimals ?: 1
     val unit = metric?.unit.orEmpty()
     val template = when (event.rule.comparison) {

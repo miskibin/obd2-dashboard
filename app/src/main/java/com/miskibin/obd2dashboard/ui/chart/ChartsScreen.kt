@@ -62,6 +62,7 @@ import com.miskibin.obd2dashboard.ui.components.MenuLabel
 import com.miskibin.obd2dashboard.ui.components.ScreenHeader
 import com.miskibin.obd2dashboard.ui.components.ScreenPadding
 import com.miskibin.obd2dashboard.ui.components.formatReading
+import com.miskibin.obd2dashboard.ui.label
 import com.miskibin.obd2dashboard.ui.theme.AmberText
 import com.miskibin.obd2dashboard.ui.theme.AshDim
 import com.miskibin.obd2dashboard.ui.theme.CardCorner
@@ -79,8 +80,8 @@ import com.miskibin.obd2dashboard.ui.theme.SlateLine
 import com.miskibin.obd2dashboard.ui.theme.Smoke
 import com.miskibin.obd2dashboard.ui.theme.SmokeDim
 import com.miskibin.obd2dashboard.ui.theme.SteelLight
-import kotlinx.coroutines.delay
 import java.util.Locale
+import kotlinx.coroutines.delay
 
 /** The three windows worth looking at from a driver's seat. */
 enum class ChartWindow(val millis: Long, val labelRes: Int, val summaryRes: Int) {
@@ -139,7 +140,7 @@ fun ChartsScreen(
             val metric = Metrics[id]
             ChartSeries(
                 key = id.storageKey,
-                label = metric?.let { context.getString(it.nameRes) }.orEmpty(),
+                label = metric?.let { it.label(context) }.orEmpty(),
                 color = palette[index % palette.size],
                 unit = metric?.unit.orEmpty(),
                 decimals = metric?.decimals ?: 1,

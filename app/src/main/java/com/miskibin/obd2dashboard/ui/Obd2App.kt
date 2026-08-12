@@ -349,13 +349,11 @@ private fun AppNavHost(
             val gear by viewModel.gear.collectAsStateWithLifecycle()
             val imperial by viewModel.imperialUnits.collectAsStateWithLifecycle()
             val recording by viewModel.recording.collectAsStateWithLifecycle()
-            val chartMetrics by viewModel.chartMetrics.collectAsStateWithLifecycle()
             DashboardScreen(
                 vehicleName = savedAdapter?.name?.takeIf(String::isNotBlank)
                     ?: stringResource(R.string.dashboard_vehicle_unknown),
                 connectionLabel = connectionState.label(),
                 tiles = tiles,
-                chartMetrics = chartMetrics,
                 snapshot = snapshot,
                 history = viewModel.history,
                 historyRevision = historyRevision,
@@ -587,9 +585,11 @@ private fun AppNavHost(
 
         composable(Routes.PICKER) {
             val supported by viewModel.supportedPids.collectAsStateWithLifecycle()
+            val undecoded by viewModel.undecodedPids.collectAsStateWithLifecycle()
             PidPickerScreen(
                 selected = tiles,
                 supportedPids = supported,
+                undecodedPids = undecoded,
                 onToggle = { id ->
                     if (id in tiles) viewModel.removeTile(id) else viewModel.addTile(id)
                 },

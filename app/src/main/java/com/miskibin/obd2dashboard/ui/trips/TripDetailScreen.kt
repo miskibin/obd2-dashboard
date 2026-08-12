@@ -54,6 +54,7 @@ import com.miskibin.obd2dashboard.ui.components.ScreenPadding
 import com.miskibin.obd2dashboard.ui.components.SectionHeader
 import com.miskibin.obd2dashboard.ui.components.SolidDangerButton
 import com.miskibin.obd2dashboard.ui.components.formatReading
+import com.miskibin.obd2dashboard.ui.label
 import com.miskibin.obd2dashboard.ui.theme.Amber
 import com.miskibin.obd2dashboard.ui.theme.AmberBorder
 import com.miskibin.obd2dashboard.ui.theme.CardCorner
@@ -355,7 +356,7 @@ private fun TraceLegend(traces: List<TripTrace>, modifier: Modifier = Modifier) 
                                 .background(traceColor(index)),
                         )
                         Text(
-                            text = Metrics[trace.metric]?.let { stringResource(it.nameRes) }
+                            text = Metrics[trace.metric]?.let { it.label() }
                                 .orEmpty(),
                             style = MaterialTheme.typography.labelMedium,
                             color = Smoke,

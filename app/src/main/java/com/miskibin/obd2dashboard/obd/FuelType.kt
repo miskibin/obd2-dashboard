@@ -8,12 +8,15 @@ package com.miskibin.obd2dashboard.obd
  * flow instead. That derivation is only as good as its assumption about what the air is
  * being burnt with, and it used to assume petrol at λ = 1 for every car.
  *
- * The two constants barely differ between petrol and diesel (14.7 × 820 = 12 054 g of air
- * per litre against 14.5 × 835 = 12 107, a 0.4 % gap). [nominalLambda] is where the real
- * difference lives: a spark-ignition engine is throttled and burns close to stoichiometric,
- * while a diesel is qualitatively governed and always lean, so dividing its air flow by the
- * stoichiometric ratio overstates its fuel flow by half again at cruise and several times
- * over at idle.
+ * [nominalLambda] is where most of the difference lives: a spark-ignition engine is
+ * throttled and burns close to stoichiometric, while a diesel is qualitatively governed and
+ * always lean, so dividing its air flow by the stoichiometric ratio overstates its fuel flow
+ * by half again at cruise and several times over at idle.
+ *
+ * The densities matter too, by about a tenth. Petrol is 745 g/L at 15 °C per EN 228, not the
+ * 820 g/L this carried at first — 820 is diesel's density, and charging it to petrol made
+ * every petrol estimate read low: 14.7 × 745 = 10 952 g of air per litre against diesel's
+ * 14.5 × 835 = 12 107, a 10 % gap rather than the 0.4 % the wrong constant suggested.
  */
 enum class FuelType(
     val storageKey: String,
@@ -21,7 +24,7 @@ enum class FuelType(
     val densityGramsPerLitre: Double,
     val nominalLambda: Double,
 ) {
-    Petrol("petrol", 14.7, 820.0, 1.0),
+    Petrol("petrol", 14.7, 745.0, 1.0),
     Diesel("diesel", 14.5, 835.0, DIESEL_CRUISE_LAMBDA),
     Lpg("lpg", 15.6, 540.0, 1.0),
     Ethanol("e85", 9.8, 781.0, 1.0),

@@ -62,6 +62,7 @@
     <string name="picker_unsupported">Not supported by your car</string>
     <string name="picker_unsupported_hint">Your car did not report these parameters when the app connected, so they would always read blank.</string>
     <string name="picker_no_results">Nothing matches that search.</string>
+    <string name="picker_undecoded">This car also reports %1$d parameter(s) this app cannot decode yet: %2$s. Everything above is decoded and can be charted and recorded.</string>
 
     <!-- Charts -->
     <string name="chart_window_30s">30 s</string>
@@ -230,7 +231,119 @@
     <string name="metric_pid_61">Requested torque</string>
     <string name="metric_pid_62">Actual torque</string>
     <string name="metric_pid_63">Reference torque</string>
+    <string name="metric_pid_2d">EGR error</string>
+    <string name="metric_pid_48">Absolute throttle position C</string>
+    <string name="metric_pid_4b">Accelerator pedal position F</string>
+    <string name="metric_pid_51">Fuel type</string>
+    <string name="metric_pid_54">Evap vapour pressure (wide range)</string>
+    <string name="metric_pid_9e">Exhaust flow rate</string>
+    <string name="metric_pid_a4">Transmission gear</string>
     <string name="metric_pid_a6">Odometer</string>
+
+    <!-- Sensor families, named from a template: a car can report eight oxygen sensors,
+         six intake air temperature sensors and four exhaust gas temperature sensors. -->
+    <string name="metric_o2_voltage">O2 sensor %1$d voltage</string>
+    <string name="metric_o2_trim">O2 sensor %1$d short term trim</string>
+    <string name="metric_o2_lambda">O2 sensor %1$d lambda</string>
+    <string name="metric_o2_current">O2 sensor %1$d current</string>
+    <string name="metric_secondary_trim_short">Secondary O2 short trim, bank %1$d</string>
+    <string name="metric_secondary_trim_long">Secondary O2 long trim, bank %1$d</string>
+    <string name="metric_maf_sensor">MAF sensor %1$d</string>
+    <string name="metric_ect_sensor">Coolant temperature sensor %1$d</string>
+    <string name="metric_iat_sensor">Intake air temp, bank %1$d sensor %2$d</string>
+    <string name="metric_egr_temp">EGR temperature, bank %1$d sensor %2$d</string>
+    <string name="metric_exhaust_pressure">Exhaust pressure, bank %1$d</string>
+    <string name="metric_turbo_speed">Turbocharger %1$d speed</string>
+    <string name="metric_charge_air_temp">Charge air cooler temp, bank %1$d sensor %2$d</string>
+    <string name="metric_exhaust_gas_temp">Exhaust gas temp, bank %1$d sensor %2$d</string>
+
+    <!--
+        Metric subtitles: the one line of plain language under a tile's name, saying what
+        the number means to somebody who has never seen the acronym before. It is the
+        difference between "AFR 14.8" and "grams of air per gram of fuel".
+    -->
+    <string name="metric_hint_unknown">a reading from the control unit</string>
+    <string name="metric_hint_boost">pressure from the turbo</string>
+    <string name="metric_hint_fuel_rate">litres an hour, right now</string>
+    <string name="metric_hint_fuel_per_100km">right now, not the average</string>
+    <string name="metric_hint_battery">voltage from the alternator</string>
+
+    <string name="metric_hint_pid_04">how hard the engine is working</string>
+    <string name="metric_hint_pid_05">engine temperature</string>
+    <string name="metric_hint_pid_06">the instant fuel correction</string>
+    <string name="metric_hint_pid_07">the learned fuel correction</string>
+    <string name="metric_hint_pid_08">instant correction, second bank</string>
+    <string name="metric_hint_pid_09">learned correction, second bank</string>
+    <string name="metric_hint_pid_0a">pressure in the fuel line</string>
+    <string name="metric_hint_pid_0b">pressure behind the throttle</string>
+    <string name="metric_hint_pid_0c">revolutions of the crankshaft</string>
+    <string name="metric_hint_pid_0d">from the sensor in the gearbox</string>
+    <string name="metric_hint_pid_0e">how early the spark fires</string>
+    <string name="metric_hint_pid_0f">colder means more power</string>
+    <string name="metric_hint_pid_10">how much air is going in</string>
+    <string name="metric_hint_pid_11">how far it is open</string>
+    <string name="metric_hint_pid_1f">since the engine started</string>
+    <string name="metric_hint_pid_21">driven with the light on</string>
+    <string name="metric_hint_pid_22">pressure at the injectors</string>
+    <string name="metric_hint_pid_23">at the injectors, above the air</string>
+    <string name="metric_hint_pid_2c">how much exhaust goes back in</string>
+    <string name="metric_hint_pid_2e">purging the fuel vapours</string>
+    <string name="metric_hint_pid_2f">how full the tank is</string>
+    <string name="metric_hint_pid_30">full warm-ups since the clear</string>
+    <string name="metric_hint_pid_31">driven since the codes were cleared</string>
+    <string name="metric_hint_pid_32">pressure in the vapour system</string>
+    <string name="metric_hint_pid_33">air pressure around the car</string>
+    <string name="metric_hint_pid_3c">exhaust temperature in the catalyst</string>
+    <string name="metric_hint_pid_3d">exhaust temperature in the catalyst</string>
+    <string name="metric_hint_pid_3e">exhaust temperature after the catalyst</string>
+    <string name="metric_hint_pid_3f">exhaust temperature after the catalyst</string>
+    <string name="metric_hint_pid_42">the voltage the ECU sees</string>
+    <string name="metric_hint_pid_43">load against the engine\'s maximum</string>
+    <string name="metric_hint_pid_44">the mixture the ECU asked for</string>
+    <string name="metric_hint_pid_45">throttle against its learned zero</string>
+    <string name="metric_hint_pid_46">the air outside the car</string>
+    <string name="metric_hint_pid_47">the second throttle sensor</string>
+    <string name="metric_hint_pid_49">how far the pedal is pressed</string>
+    <string name="metric_hint_pid_4a">the second pedal sensor</string>
+    <string name="metric_hint_pid_4c">the opening the ECU asked for</string>
+    <string name="metric_hint_pid_4d">driving time with the light on</string>
+    <string name="metric_hint_pid_4e">since the codes were cleared</string>
+    <string name="metric_hint_pid_52">how much ethanol is in the fuel</string>
+    <string name="metric_hint_pid_53">vapour pressure, absolute</string>
+    <string name="metric_hint_pid_59">at the injectors, absolute</string>
+    <string name="metric_hint_pid_5a">pedal against its learned zero</string>
+    <string name="metric_hint_pid_5b">how much of the pack is left</string>
+    <string name="metric_hint_pid_5c">hotter than the coolant</string>
+    <string name="metric_hint_pid_5d">when the fuel is injected</string>
+    <string name="metric_hint_pid_5e">litres an hour, right now</string>
+    <string name="metric_hint_pid_61">what the driver is asking for</string>
+    <string name="metric_hint_pid_62">what the engine is making</string>
+    <string name="metric_hint_pid_63">the engine\'s rated maximum</string>
+    <string name="metric_hint_pid_a6">total distance driven</string>
+    <string name="metric_hint_pid_2d">how far EGR is off its target</string>
+    <string name="metric_hint_pid_48">the third throttle sensor</string>
+    <string name="metric_hint_pid_4b">the third pedal sensor</string>
+    <string name="metric_hint_pid_51">what the ECU thinks it is burning</string>
+    <string name="metric_hint_pid_54">vapour pressure, wide range</string>
+    <string name="metric_hint_pid_9e">how much exhaust is leaving</string>
+    <string name="metric_hint_pid_a4">the gear the box is in</string>
+
+    <!-- Subtitles for the sensor families, shared by every sensor in the family. -->
+    <string name="metric_hint_o2_voltage">what the probe in the exhaust sees</string>
+    <string name="metric_hint_o2_trim">this probe\'s own fuel correction</string>
+    <string name="metric_hint_o2_lambda">1.000 is the ideal mixture</string>
+    <string name="metric_hint_o2_current">pump current from a wideband probe</string>
+    <string name="metric_hint_secondary_trim_short">instant correction after the catalyst</string>
+    <string name="metric_hint_secondary_trim_long">learned correction after the catalyst</string>
+    <string name="metric_hint_maf_sensor">how much air is going in</string>
+    <string name="metric_hint_ect_sensor">engine temperature</string>
+    <string name="metric_hint_iat_sensor">colder means more power</string>
+    <string name="metric_hint_egr_temp">how hot the recirculated exhaust runs</string>
+    <string name="metric_hint_exhaust_pressure">back pressure in the exhaust</string>
+    <string name="metric_hint_turbo_speed">how fast the turbo is spinning</string>
+    <string name="metric_hint_charge_air_temp">intake air after the intercooler</string>
+    <string name="metric_hint_exhaust_gas_temp">how hot the exhaust runs</string>
+
     <string name="unit_rpm">rpm</string>
     <string name="dashboard_redline">Redline %1$d rpm</string>
     <string name="chart_now">now</string>
@@ -277,11 +390,25 @@
     <string name="dashboard_session_max">max this session %1$s</string>
     <string name="dashboard_units_metric">km/h · °C</string>
     <string name="dashboard_units_imperial">mph · °C</string>
-    <string name="dashboard_metric_high">%1$s · high</string>
     <string name="dashboard_recording_active">Recording · %1$s</string>
     <string name="unit_kmh">km/h</string>
     <string name="unit_mph">mph</string>
     <string name="action_move_up">Move up</string>
+    <string name="dashboard_speed_label">Speed</string>
+    <string name="dashboard_gear_label">Gear</string>
+    <string name="dashboard_edit_list">Edit the list</string>
+    <string name="dashboard_edit_list_on">on</string>
+
+    <!-- What a tile says about the value against its normal range -->
+    <string name="metric_state_normal">normal</string>
+    <string name="metric_state_above">above normal</string>
+    <string name="metric_state_below">below normal</string>
+    <string name="metric_state_far_above">far above normal</string>
+    <string name="metric_state_far_below">far below normal</string>
+
+    <!-- The car diagram: each reading drawn where it is measured -->
+    <string name="dashboard_car_description">The car from the side, with each reading where it is measured</string>
+    <string name="dashboard_car_zone">%1$s: %2$s %3$s</string>
 
     <!-- Metric detail sheet -->
     <string name="metric_sheet_subtitle">Last 60 seconds</string>

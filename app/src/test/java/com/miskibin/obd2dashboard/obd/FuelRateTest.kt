@@ -20,8 +20,9 @@ class FuelRateTest {
 
     @Test
     fun `petrol burns what it breathes`() {
-        // 15 g/s × 3600 ÷ (14.7 × 820) = 4.48 L/h
-        assertEquals(4.480, rate(cruising, FuelType.Petrol)!!, 0.001)
+        // 15 g/s × 3600 ÷ (14.7 × 745) = 4.93 L/h. The density is 745 g/L per EN 228, not
+        // the 820 this first used — 820 is diesel's, and it read every petrol car low.
+        assertEquals(4.931, rate(cruising, FuelType.Petrol)!!, 0.001)
     }
 
     /**

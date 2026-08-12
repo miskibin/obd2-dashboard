@@ -38,13 +38,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.miskibin.obd2dashboard.R
 import com.miskibin.obd2dashboard.ble.ConnectionState
@@ -110,6 +117,33 @@ fun DashCard(
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(contentPadding),
         content = content,
+    )
+}
+
+/**
+ * A dashed outline instead of a solid one: a place for something rather than a thing.
+ *
+ * The dashes are what separate "add a value here" and "a recording is running" from the
+ * readings around them — both are the app talking about itself, and neither should read as
+ * one more card of numbers.
+ */
+fun Modifier.dashedBorder(
+    color: Color,
+    cornerRadius: Dp,
+    width: Dp = 1.dp,
+): Modifier = drawBehind {
+    val inset = width.toPx() / 2f
+    drawRoundRect(
+        color = color,
+        topLeft = Offset(inset, inset),
+        size = Size(size.width - inset * 2f, size.height - inset * 2f),
+        cornerRadius = CornerRadius(cornerRadius.toPx()),
+        style = Stroke(
+            width = width.toPx(),
+            pathEffect = PathEffect.dashPathEffect(
+                floatArrayOf(DASH_ON.dp.toPx(), DASH_OFF.dp.toPx()),
+            ),
+        ),
     )
 }
 
@@ -650,6 +684,10 @@ fun DesignSheet(
 }
 
 private const val DISABLED_ALPHA = 0.45f
+
+/** Long enough to read as a dash at one pixel, short enough to follow a 14 dp corner. */
+private const val DASH_ON = 4f
+private const val DASH_OFF = 3f
 
 /** A menu row is shorter than a button but still a thumb target in a stationary car. */
 private val MENU_ROW_HEIGHT = 42.dp

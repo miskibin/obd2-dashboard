@@ -50,6 +50,7 @@ import com.miskibin.obd2dashboard.ui.components.ScreenHeader
 import com.miskibin.obd2dashboard.ui.components.ScreenPadding
 import com.miskibin.obd2dashboard.ui.components.Tag
 import com.miskibin.obd2dashboard.ui.components.formatReading
+import com.miskibin.obd2dashboard.ui.label
 import com.miskibin.obd2dashboard.ui.theme.AmberBorder
 import com.miskibin.obd2dashboard.ui.theme.AmberLight
 import com.miskibin.obd2dashboard.ui.theme.AmberSurface
@@ -356,7 +357,7 @@ private fun TimelineCard(context: FaultContext) {
                 val definition = Metrics[trace.metric]
                 ChartSeries(
                     key = trace.metric.storageKey,
-                    label = definition?.let { stringResource(it.nameRes) }.orEmpty(),
+                    label = definition?.let { it.label() }.orEmpty(),
                     color = trace.color,
                     unit = definition?.unit.orEmpty(),
                     decimals = definition?.decimals ?: 0,
@@ -463,7 +464,7 @@ private fun FaultTable(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Text(
-                    text = definition?.let { stringResource(it.nameRes) }.orEmpty(),
+                    text = definition?.let { it.label() }.orEmpty(),
                     style = MaterialTheme.typography.bodySmall,
                     color = if (row.notable) AmberText else AshDim,
                     maxLines = 1,
@@ -517,7 +518,9 @@ private fun FaultTable(
  */
 private fun faultRows(context: FaultContext?, freezeFrame: FreezeFrame?): List<FaultRow> =
     DtcLog.SNAPSHOT_METRICS.mapNotNull { metric ->
-        val frozen = (metric as? MetricId.Sensor)?.let { freezeFrame?.values?.get(it.pid) }
+        // Keyed by the reading key, not by the PID: a frame that ever carries a
+        // multi-value parameter must not print its first channel under a second one's name.
+        val frozen = (metric as? MetricId.Sensor)?.let { freezeFrame?.values?.get(it.key) }
         val before = context?.before?.get(metric)
         val at = frozen ?: context?.at?.get(metric)
         if (before == null && at == null) return@mapNotNull null

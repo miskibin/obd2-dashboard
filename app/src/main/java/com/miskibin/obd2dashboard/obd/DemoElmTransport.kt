@@ -415,6 +415,11 @@ class DemoElmTransport(
         Pids.MAF_RATE -> word(state.mafGramsPerSecond * MAF_HUNDREDTHS)
         Pids.THROTTLE_POSITION -> listOf(ratio(state.throttlePercent))
         0x13 -> listOf(0x03)
+        // Sensor 1 tracks the short term trim across the switching band, sensor 2 sits
+        // where a healthy catalyst holds it; both report the trim byte alongside.
+        0x14 -> listOf(o2Volts(O2_SWITCH_CENTRE + state.shortTrimPercent / O2_SWING_DIVISOR),
+            fuelTrim(state.shortTrimPercent))
+        0x15 -> listOf(o2Volts(O2_SENSOR_2_VOLTS), NOT_USED_TRIM_BYTE)
         0x1C -> listOf(OBD_STANDARD_EOBD)
         Pids.RUN_TIME -> word(state.runTimeSeconds.toDouble())
         Pids.DISTANCE_WITH_MIL -> word(DISTANCE_WITH_MIL_KM)
@@ -429,6 +434,7 @@ class DemoElmTransport(
         0x49 -> listOf(ratio(state.throttlePercent + PEDAL_OFFSET))
         0x4A -> listOf(ratio(state.throttlePercent))
         0x4C -> listOf(ratio(state.throttlePercent))
+        Pids.FUEL_TYPE -> listOf(FUEL_TYPE_PETROL)
         Pids.OIL_TEMP -> listOf(temperature(state.oilC))
         Pids.FUEL_RATE -> word(state.fuelRateLitersPerHour * FUEL_RATE_TWENTIETHS)
         else -> null
@@ -512,6 +518,9 @@ class DemoElmTransport(
 
     private fun fuelTrim(percent: Double): Int = byte((percent + 100.0) * TRIM_SCALE / 100.0)
 
+    /** `0114`-style voltage: 0-1.275 V in 5 mV steps. */
+    private fun o2Volts(volts: Double): Int = byte(volts * O2_VOLTS_PER_STEP)
+
     private fun word(value: Double): List<Int> {
         val raw = value.roundToInt().coerceIn(0, 0xFFFF)
         return listOf(raw shr Byte.SIZE_BITS, raw and 0xFF)
@@ -535,9 +544,28 @@ class DemoElmTransport(
         val SUPPORTED_PIDS = sortedSetOf(
             0x01, 0x03, 0x04, 0x05, 0x06, 0x07, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11,
             0x13, 0x1C, 0x1F, 0x20,
+            // The pre- and post-catalyst probes of a two-sensor petrol car, which is what
+            // makes the oxygen-sensor rows demoable without a car in the driveway.
+            0x14, 0x15,
             0x21, 0x2F, 0x30, 0x31, 0x33, 0x40,
-            0x42, 0x43, 0x45, 0x46, 0x49, 0x4A, 0x4C, 0x5C, 0x5E,
+            0x42, 0x43, 0x45, 0x46, 0x49, 0x4A, 0x4C, 0x51, 0x5C, 0x5E,
         )
+
+        /** Sensor 1 swings with the closed-loop correction; sensor 2 sits flat behind the cat. */
+        const val O2_SENSOR_2_VOLTS = 0.72
+
+        /** The voltage a switching probe oscillates about, and how far the trim moves it. */
+        const val O2_SWITCH_CENTRE = 0.45
+        const val O2_SWING_DIVISOR = 20.0
+
+        /** `0114` reports volts in 5 mV steps, so a volt is 200 counts. */
+        const val O2_VOLTS_PER_STEP = 200.0
+
+        /** `0xFF` in the trim byte: this sensor is not used in the trim calculation. */
+        const val NOT_USED_TRIM_BYTE = 0xFF
+
+        /** `0151` code 1: petrol, which is what the simulated car burns. */
+        const val FUEL_TYPE_PETROL = 1
 
         val STORED_CODES = listOf("P0420", "P0301")
         val PENDING_CODES = listOf("P0171")
