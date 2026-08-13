@@ -493,6 +493,16 @@
     <string name="car_app_live_title">Live data</string>
     <string name="car_app_disconnected_title">Not connected</string>
     <string name="car_app_disconnected_text">Open the app on your phone and connect to the OBD2 adapter.</string>
+    <string name="car_app_no_reading">—</string>
+    <!-- Sits beside the gear strip on the car screen, where there is room for one word;
+         the tilde is what is left of "estimated" once it has to fit. -->
+    <string name="car_app_gear">Gear</string>
+    <string name="car_app_gear_estimated">Gear ≈</string>
+    <string name="car_app_redline_short">cut-off %1$s</string>
+    <string name="car_app_near_redline">redline close</string>
+    <string name="car_app_session_max">max %1$d this session</string>
+    <string name="car_app_alert_above">Above the %1$s threshold</string>
+    <string name="car_app_alert_below">Below the %1$s threshold</string>
     <string name="trip_ai_title">Send to an AI assistant</string>
     <string name="trip_ai_subtitle">The recording goes over as a CSV attachment; the conversation starts in the assistant\'s app.</string>
     <string name="trip_ai_other">Another app…</string>

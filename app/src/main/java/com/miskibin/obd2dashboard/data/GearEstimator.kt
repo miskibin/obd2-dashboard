@@ -1,6 +1,8 @@
 package com.miskibin.obd2dashboard.data
 
+import com.miskibin.obd2dashboard.obd.ExtendedPids
 import com.miskibin.obd2dashboard.obd.Provenance
+import com.miskibin.obd2dashboard.obd.VehicleSnapshot
 import kotlin.math.abs
 
 /**
@@ -268,3 +270,23 @@ class GearEstimator(private val maxGears: Int = MAX_GEARS) {
         private val PRIOR_BOUNDARIES = listOf(11.0, 17.5, 25.0, 33.0, 41.5, 50.5)
     }
 }
+
+/**
+ * The gear the gearbox itself reported, when this car has a module that reports one.
+ *
+ * Only while it is fresh. The reading is absent in park, reverse and neutral — those are
+ * not forward gears and the decoder publishes nothing for them — so without the staleness
+ * check the strip would go on lighting the last gear engaged for as long as the car sat at
+ * the lights.
+ *
+ * Here rather than in the phone's view model because the car screen asks the same question
+ * of the same snapshot, and two copies of this would be two chances to answer it differently.
+ */
+fun VehicleSnapshot.reportedGear(nowMillis: Long = System.currentTimeMillis()): GearReading? {
+    val gear = valueOf(REPORTED_GEAR)?.takeIf { it >= 1.0 } ?: return null
+    if (isStale(REPORTED_GEAR, nowMillis)) return null
+    return GearReading.measured(gear.toInt())
+}
+
+/** The gearbox's own answer, on the cars whose module gives one. */
+private val REPORTED_GEAR = MetricId.Extended(ExtendedPids.GEAR)

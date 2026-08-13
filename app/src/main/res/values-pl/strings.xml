@@ -501,6 +501,14 @@
     <string name="car_app_live_title">Dane na żywo</string>
     <string name="car_app_disconnected_title">Brak połączenia</string>
     <string name="car_app_disconnected_text">Otwórz aplikację na telefonie i połącz się z adapterem OBD2.</string>
+    <string name="car_app_no_reading">—</string>
+    <string name="car_app_gear">Bieg</string>
+    <string name="car_app_gear_estimated">Bieg ≈</string>
+    <string name="car_app_redline_short">odcięcie %1$s</string>
+    <string name="car_app_near_redline">odcięcie tuż-tuż</string>
+    <string name="car_app_session_max">maks. %1$d w tej sesji</string>
+    <string name="car_app_alert_above">Powyżej progu %1$s</string>
+    <string name="car_app_alert_below">Poniżej progu %1$s</string>
     <string name="trip_ai_title">Wyślij do asystenta AI</string>
     <string name="trip_ai_subtitle">Nagranie trafia jako załącznik CSV; rozmowa zaczyna się w aplikacji asystenta.</string>
     <string name="trip_ai_other">Inna aplikacja…</string>

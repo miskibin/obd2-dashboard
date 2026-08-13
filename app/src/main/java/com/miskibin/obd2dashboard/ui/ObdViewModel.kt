@@ -32,14 +32,13 @@ import com.miskibin.obd2dashboard.data.TripEntry
 import com.miskibin.obd2dashboard.data.Vehicle
 import com.miskibin.obd2dashboard.data.VinDecoder
 import com.miskibin.obd2dashboard.data.VinFacts
-import com.miskibin.obd2dashboard.data.isStale
 import com.miskibin.obd2dashboard.data.presentMetrics
+import com.miskibin.obd2dashboard.data.reportedGear
 import com.miskibin.obd2dashboard.data.updatedAtOf
 import com.miskibin.obd2dashboard.data.valueOf
 import com.miskibin.obd2dashboard.data.worstMisfire
 import com.miskibin.obd2dashboard.obd.DerivedMetrics
 import com.miskibin.obd2dashboard.obd.Dtc
-import com.miskibin.obd2dashboard.obd.ExtendedPids
 import com.miskibin.obd2dashboard.obd.MonitorTests
 import com.miskibin.obd2dashboard.obd.PerformanceTracking
 import com.miskibin.obd2dashboard.obd.Pids
@@ -277,7 +276,7 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
                     rpmAtMillis = snapshot.updatedAtOf(Metrics.Rpm),
                     speedAtMillis = snapshot.updatedAtOf(Metrics.Speed),
                 )
-                _gear.value = reportedGear(snapshot) ?: estimated
+                _gear.value = snapshot.reportedGear() ?: estimated
             }
         }
         viewModelScope.launch {
@@ -310,20 +309,6 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 }
         }
-    }
-
-    /**
-     * The gear the gearbox itself reported, when this car has a module that reports one.
-     *
-     * Only while it is fresh. The reading is absent in park, reverse and neutral — those
-     * are not forward gears and the decoder publishes nothing for them — so without the
-     * staleness check the strip would go on lighting the last gear engaged for as long as
-     * the car sat at the lights.
-     */
-    private fun reportedGear(snapshot: VehicleSnapshot): GearReading? {
-        val gear = snapshot.valueOf(REPORTED_GEAR)?.takeIf { it >= 1.0 } ?: return null
-        if (snapshot.isStale(REPORTED_GEAR, System.currentTimeMillis())) return null
-        return GearReading.measured(gear.toInt())
     }
 
     // ---- fault history ----------------------------------------------------------
@@ -659,9 +644,6 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
 
     companion object {
         const val MAX_CHART_SERIES = 6
-
-        /** The gearbox's own answer, on the cars whose module gives one. */
-        private val REPORTED_GEAR = MetricId.Extended(ExtendedPids.GEAR)
 
         /** How wide a window the "before" reading may be picked from, in half-offsets. */
         private const val BEFORE_SPAN = 2
