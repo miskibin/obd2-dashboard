@@ -72,8 +72,10 @@ you ever lose the upload key it can be reset via support.
 
 All under **App content** *(„Zawartość aplikacji")*:
 
-- **Privacy policy URL** — host `docs/play/privacy-policy.md` publicly (see
-  the comment at the top of that file), paste the URL.
+- **Privacy policy URL** — the repository is public, so once this file is on
+  `main` the ready-to-paste URL is:
+  `https://github.com/miskibin/obd2-dashboard/blob/main/docs/play/privacy-policy.md`
+  (a GitHub Pages URL also works if you prefer a cleaner look).
 - **Ads** → No, the app contains no ads.
 - **Data safety** → answers in `docs/play/data-safety.md`.
 - **Foreground service** declaration (`connectedDevice`, video link) — see
