@@ -379,9 +379,21 @@ class ConnectionManager(
      */
     fun disconnect() {
         ObdLog.log(LogTag.CONN, "disconnect requested")
-        sessionJob?.cancel()
+        val ending = sessionJob
+        ending?.cancel()
         setState(ConnectionState.Idle)
-        clearSessionData()
+        // Cleared once the session has actually finished, not the moment it is cancelled.
+        // The snapshot mirror is a job of its own and outlives the cancel by however long
+        // the teardown takes, so a clear issued here would be undone by the last poll of
+        // the session the driver had just ended — which is the whole thing being fixed.
+        //
+        // Skipped if a new session has been started in the meantime: [connect] assigns its
+        // job synchronously, so an unchanged reference is proof that nothing has replaced
+        // the car whose readings are being dropped.
+        scope.launch {
+            ending?.join()
+            if (sessionJob === ending) clearSessionData()
+        }
     }
 
     /** Cancels a connection attempt and leaves the screen able to say why nothing happened. */

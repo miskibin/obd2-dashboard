@@ -215,6 +215,28 @@ class DemoElmTransportTest {
         assertEquals(setOf("7E0", "7E1", "726"), candidates.map(ExtendedPid::header).toSet())
     }
 
+    /**
+     * The measured gear is the one reading that replaces an estimate rather than adding to
+     * it, so the simulation answers for it: otherwise nothing but a real Mazda would ever
+     * take that path.
+     */
+    @Test
+    fun `the gearbox module reports a gear on the ladder the decoder expects`() = runTest {
+        val (client, _) = connect(backgroundScope)
+        val vin = client.readVin()!!
+        val pid = ExtendedPids.entries.single {
+            it.id == ExtendedPids.GEAR && it.applies(ExtendedVehicle(vin = vin))
+        }
+
+        val read = client.withModule(pid.header, pid.receiveHeader, flowControl = false) {
+            client.readExtended(pid)
+        }
+
+        val gear = (read as ExtendedRead.Value).value
+        assertTrue("a forward gear, not park or neutral", gear >= 1.0 && gear <= 6.0)
+        assertEquals(gear, gear.toInt().toDouble(), 0.0)
+    }
+
     @Test
     fun `mode 06 reports a healthy catalyst and a misfiring second cylinder`() = runTest {
         val (client, _) = connect(backgroundScope)

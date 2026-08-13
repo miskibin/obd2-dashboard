@@ -115,10 +115,14 @@ internal object MazdaPids {
                 unit = "",
                 decimals = 0,
                 bytes = 1,
-                // The one extended reading worth a request every cycle: it is what the hero
-                // card draws, and a gear that arrives two seconds after the shift is a gear
-                // the driver has already felt.
-                tier = PidTier.Fast,
+                // Medium rather than fast, and the reasoning is worth writing down. Every
+                // extended read off the engine ECU costs an `ATSH` there and another to put
+                // the adapter back, so a gear on the fast tier would put three commands on
+                // a cycle that the batched fast tier gets through in one or two — a third
+                // off the rate the speed and the rev counter update at, to follow a number
+                // that changes a few times a minute. Every fifth cycle is about a second,
+                // which is quicker than the shift itself.
+                tier = PidTier.Medium,
                 applies = ::isMazda,
                 decode = ::gearPosition,
             ),

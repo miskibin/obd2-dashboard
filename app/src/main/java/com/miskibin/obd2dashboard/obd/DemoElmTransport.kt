@@ -522,6 +522,13 @@ class DemoElmTransport(
             header == TRANSMISSION_HEADER && did == DID_FLUID_TEMPERATURE ->
                 word((state.oilC - FLUID_TEMPERATURE_LAG_C) * FLUID_TEMPERATURE_COUNTS)
 
+            // The gear the box is actually in, on the ladder of sixteens Mazda reports it
+            // on. Answered so the measured-gear path is exercised by something other than
+            // a real car: the estimator it replaces is the one thing on the dashboard that
+            // cannot be checked against a simulation of itself.
+            header == TRANSMISSION_HEADER && did == DID_GEAR ->
+                listOf(recommendedGear(state) * GEAR_STEP)
+
             header == BODY_HEADER && did in TYRE_PRESSURE_DIDS ->
                 listOf(TYRE_PRESSURE_COUNTS[did - TYRE_PRESSURE_DIDS.first])
 
@@ -835,6 +842,10 @@ class DemoElmTransport(
         const val DID_OIL_PRESSURE = 0x0415
         const val DID_OIL_TEMPERATURE = 0x1310
         const val DID_FLUID_TEMPERATURE = 0x1E1C
+        const val DID_GEAR = 0x1E12
+
+        /** Mazda numbers the forward gears in steps of sixteen: `0x10` is first. */
+        const val GEAR_STEP = 0x10
 
         /** `D922`-`D925`: the four tyre pressures on the BP-generation body module. */
         val TYRE_PRESSURE_DIDS = 0xD922..0xD925

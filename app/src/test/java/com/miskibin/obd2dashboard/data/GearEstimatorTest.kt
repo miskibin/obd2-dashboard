@@ -8,10 +8,25 @@ import org.junit.Test
 
 class GearEstimatorTest {
 
+    /**
+     * A clock that ticks once per delivered reading.
+     *
+     * The estimator counts distinct measurements rather than calls, so every test has to
+     * say when its readings were taken — which is also how the repeat-delivery case below
+     * is written.
+     */
+    private var clock = 0L
+
     private fun estimator(gears: Int = GearEstimator.MAX_GEARS) = GearEstimator(maxGears = gears)
 
     /** Speed that produces a given km/h per 1 000 rpm ratio at 2 000 rpm. */
     private fun speedFor(ratio: Double, rpm: Double = 2_000.0) = ratio * rpm / 1_000.0
+
+    /** One fresh pairing of the two readings, a tick after the last. */
+    private fun GearEstimator.sample(rpm: Double?, speed: Double?): GearReading {
+        clock += TICK_MILLIS
+        return observe(rpm, speed, rpmAtMillis = clock, speedAtMillis = clock)
+    }
 
     /**
      * Holds a ratio for as long as it takes the estimator to believe it.
@@ -25,13 +40,13 @@ class GearEstimatorTest {
         samples: Int = 5,
     ): GearReading {
         var last = GearReading.NONE
-        repeat(samples) { last = observe(rpm, speedFor(ratio, rpm)) }
+        repeat(samples) { last = sample(rpm, speedFor(ratio, rpm)) }
         return last
     }
 
     @Test
     fun `says nothing while the car is stopped`() {
-        val reading = estimator().observe(rpm = 800.0, speed = 0.0)
+        val reading = estimator().sample(rpm = 800.0, speed = 0.0)
 
         assertFalse(reading.moving)
         assertNull(reading.gear)
@@ -39,8 +54,8 @@ class GearEstimatorTest {
 
     @Test
     fun `says nothing without readings`() {
-        assertNull(estimator().observe(rpm = null, speed = 40.0).gear)
-        assertNull(estimator().observe(rpm = 2_000.0, speed = null).gear)
+        assertNull(estimator().sample(rpm = null, speed = 40.0).gear)
+        assertNull(estimator().sample(rpm = 2_000.0, speed = null).gear)
     }
 
     @Test
@@ -89,7 +104,7 @@ class GearEstimatorTest {
 
     @Test
     fun `ignores a ratio no road car could produce`() {
-        val reading = estimator().observe(rpm = 600.0, speed = 200.0)
+        val reading = estimator().sample(rpm = 600.0, speed = 200.0)
 
         assertTrue(reading.moving)
         assertNull(reading.gear)
@@ -107,19 +122,39 @@ class GearEstimatorTest {
         val estimator = estimator()
 
         val sweeping = listOf(12.0, 15.0, 19.0, 23.0).map { ratio ->
-            estimator.observe(rpm = 2_000.0, speed = speedFor(ratio))
+            estimator.sample(rpm = 2_000.0, speed = speedFor(ratio))
         }
 
         assertTrue(sweeping.all { it.moving })
         assertTrue("a sweeping ratio is not a gear", sweeping.all { it.gear == null })
     }
 
+    /**
+     * The snapshot is republished whenever any parameter lands, so one pair of speed and
+     * rev readings reaches the estimator several times a cycle. Those repeats must not add
+     * up to agreement, or a shift would qualify as steady before the car had finished it.
+     */
+    @Test
+    fun `the same reading arriving repeatedly is still one reading`() {
+        val estimator = estimator()
+
+        // One physical measurement, delivered five times under the same timestamp, and
+        // then the shift carries on.
+        repeat(5) {
+            estimator.observe(3_000.0, speedFor(19.0, 3_000.0), rpmAtMillis = 100, speedAtMillis = 100)
+        }
+        val stillShifting =
+            estimator.observe(2_400.0, speedFor(23.0, 2_400.0), rpmAtMillis = 200, speedAtMillis = 200)
+
+        assertNull("five copies of one sample are not a steady ratio", stillShifting.gear)
+    }
+
     @Test
     fun `a ratio that settles is reported once it has held`() {
         val estimator = estimator()
 
-        estimator.observe(rpm = 2_000.0, speed = speedFor(12.0))
-        estimator.observe(rpm = 2_000.0, speed = speedFor(19.0))
+        estimator.sample(rpm = 2_000.0, speed = speedFor(12.0))
+        estimator.sample(rpm = 2_000.0, speed = speedFor(19.0))
         val settled = estimator.hold(27.0)
 
         assertEquals(4, settled.gear)
@@ -172,12 +207,14 @@ class GearEstimatorTest {
         val estimator = estimator()
         estimator.hold(27.0)
 
-        // Three samples: the first two are a ratio in motion and read as no gear at all,
-        // the third has settled — and still has to argue against the gear on the strip.
-        val excursion = (1..3).map { estimator.observe(rpm = 2_000.0, speed = speedFor(19.0)) }
+        // Three samples: the first two are a ratio in motion, the third has settled — and
+        // one settled sample does not outvote the gear already on the strip. Nothing is
+        // lit for any of them, which is the honest answer while the two disagree.
+        val excursion = (1..3).map { estimator.sample(rpm = 2_000.0, speed = speedFor(19.0)) }
 
-        assertNull(excursion[0].gear)
-        assertEquals(4, excursion.last().gear)
+        assertTrue(excursion.all { it.gear == null })
+        // And the gear it was in is still what the estimator goes back to.
+        assertEquals(4, estimator.hold(27.0).gear)
     }
 
     @Test
@@ -188,5 +225,33 @@ class GearEstimatorTest {
         val shifted = estimator.hold(38.0)
 
         assertEquals(5, shifted.gear)
+    }
+
+    /**
+     * Revs from one moment over a speed from another is not the ratio of anything; under
+     * acceleration the quotient is skewed by however much the car sped up in between.
+     */
+    @Test
+    fun `readings taken too far apart are not paired into a ratio`() {
+        val estimator = estimator()
+
+        val skewed = (1..4).map {
+            clock += TICK_MILLIS
+            estimator.observe(
+                rpm = 2_000.0,
+                speed = speedFor(27.0),
+                rpmAtMillis = clock,
+                speedAtMillis = clock - SKEW_MILLIS,
+            )
+        }
+
+        assertTrue(skewed.all { it.gear == null })
+    }
+
+    private companion object {
+        const val TICK_MILLIS = 100L
+
+        /** Wider than the estimator will pair across. */
+        const val SKEW_MILLIS = 900L
     }
 }

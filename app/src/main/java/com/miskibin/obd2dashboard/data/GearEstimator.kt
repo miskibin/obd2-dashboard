@@ -63,14 +63,36 @@ class GearEstimator(private val maxGears: Int = MAX_GEARS) {
     private var shown: Int? = null
     private var dissent = 0
 
+    /** The moment the last accepted pair of readings was taken; see [observe]. */
+    private var lastSampleAt = Long.MIN_VALUE
+
     private data class Cluster(var ratio: Double, val gear: Int, var samples: Int)
 
-    fun observe(rpm: Double?, speed: Double?): GearReading {
+    /**
+     * @param rpmAtMillis when the engine speed behind this call was read, and
+     * [speedAtMillis] the same for the road speed. Both are needed, and not for staleness:
+     * a snapshot is republished every time *any* parameter lands, so one pair of readings
+     * reaches this several times a cycle, and counting those repeats as agreement would let
+     * any three of them pass for a steady ratio — including the three that arrive in the
+     * middle of a shift. They also say whether the two halves of the quotient describe the
+     * same moment, which under acceleration is the difference between a gear and a number.
+     */
+    fun observe(rpm: Double?, speed: Double?, rpmAtMillis: Long, speedAtMillis: Long): GearReading {
         if (rpm == null || speed == null || !rpm.isFinite() || !speed.isFinite()) return stop()
         if (speed < MIN_SPEED_KMH || rpm < MIN_RPM) return stop()
 
+        val at = maxOf(rpmAtMillis, speedAtMillis)
+        if (at == lastSampleAt) return GearReading(moving = true, gear = shown, ratio = null)
+        lastSampleAt = at
+
         val ratio = speed / rpm * 1_000.0
         if (ratio <= 0.0 || ratio > MAX_RATIO) return unknown(ratio)
+
+        // Revs from one moment over a speed from another is not the ratio of anything. The
+        // two normally arrive in the same batch and share a timestamp to the millisecond;
+        // when they do not, the car was accelerating through the gap and the quotient is
+        // skewed by however much it accelerated.
+        if (abs(rpmAtMillis - speedAtMillis) > MAX_SKEW_MILLIS) return unknown(ratio)
 
         recent.addLast(ratio)
         while (recent.size > STEADY_SAMPLES) recent.removeFirst()
@@ -90,6 +112,7 @@ class GearEstimator(private val maxGears: Int = MAX_GEARS) {
         recent.clear()
         shown = null
         dissent = 0
+        lastSampleAt = Long.MIN_VALUE
     }
 
     /** The learned ratios, lowest gear first — for tests and for anybody debugging a car. */
@@ -162,11 +185,17 @@ class GearEstimator(private val maxGears: Int = MAX_GEARS) {
     private fun settle(gear: Int, ratio: Double): GearReading {
         if (gear == shown) {
             dissent = 0
-        } else if (++dissent >= CONFIRMATIONS || shown == null) {
+            return GearReading(moving = true, gear = shown, ratio = ratio)
+        }
+        if (++dissent >= CONFIRMATIONS || shown == null) {
             shown = gear
             dissent = 0
+            return GearReading(moving = true, gear = gear, ratio = ratio)
         }
-        return GearReading(moving = true, gear = shown, ratio = ratio)
+        // Disagreed with but not yet outvoted. The strip stays dark for the sample rather
+        // than flashing the old gear back up between the shift and its confirmation, which
+        // would read as the box going 4 → nothing → 4 → 5 on every change.
+        return GearReading(moving = true, gear = null, ratio = ratio)
     }
 
     /**
@@ -188,6 +217,7 @@ class GearEstimator(private val maxGears: Int = MAX_GEARS) {
         dissent = 0
         return GearReading.NONE
     }
+
 
     private fun priorGearFor(ratio: Double): Int {
         val index = PRIOR_BOUNDARIES.indexOfFirst { ratio < it }
@@ -224,6 +254,9 @@ class GearEstimator(private val maxGears: Int = MAX_GEARS) {
 
         /** How many steady samples of a different gear it takes to move the strip. */
         private const val CONFIRMATIONS = 2
+
+        /** How far apart the two readings may be taken and still describe one moment. */
+        private const val MAX_SKEW_MILLIS = 400L
 
         private const val MAX_SAMPLES = 40
 

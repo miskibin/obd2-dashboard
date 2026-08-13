@@ -33,6 +33,7 @@ import com.miskibin.obd2dashboard.data.VinDecoder
 import com.miskibin.obd2dashboard.data.VinFacts
 import com.miskibin.obd2dashboard.data.isStale
 import com.miskibin.obd2dashboard.data.presentMetrics
+import com.miskibin.obd2dashboard.data.updatedAtOf
 import com.miskibin.obd2dashboard.data.valueOf
 import com.miskibin.obd2dashboard.data.worstMisfire
 import com.miskibin.obd2dashboard.obd.DerivedMetrics
@@ -267,7 +268,14 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
                 // The estimator is fed either way, so that a car whose gearbox module drops
                 // out mid-drive falls back to an estimator that has been learning all along
                 // rather than to one starting from nothing.
-                val estimated = gearEstimator.observe(rpm, snapshot.valueOf(Metrics.Speed))
+                val estimated = gearEstimator.observe(
+                    rpm = rpm,
+                    speed = snapshot.valueOf(Metrics.Speed),
+                    // The estimator counts distinct measurements, not deliveries: this
+                    // collector fires on every parameter that lands, not only on these two.
+                    rpmAtMillis = snapshot.updatedAtOf(Metrics.Rpm),
+                    speedAtMillis = snapshot.updatedAtOf(Metrics.Speed),
+                )
                 _gear.value = reportedGear(snapshot) ?: estimated
             }
         }
