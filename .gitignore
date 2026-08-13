@@ -15,8 +15,13 @@ captures/
 *.keystore
 !app/debug.keystore
 keystore.properties
+play-service-account.json
 
 # IDE
 .idea/
 *.iml
 .DS_Store
+
+# Store screenshots are kept as the finished, captioned set; the unframed
+# emulator captures they were built from are regenerable and not worth the bulk.
+docs/play/assets/raw-*/

@@ -17,6 +17,9 @@ keytool -genkeypair -v \
 Store `upload-keystore.jks` outside the repo (and back it up somewhere safe —
 with Play App Signing it is recoverable, but painfully). Use a real password.
 
+Already done for this app: the key exists, its fingerprints, backup location
+and the loss-recovery procedure are in [signing.md](signing.md).
+
 ## 2. keystore.properties + wire it into the build
 
 Create `keystore.properties` in the project root:
@@ -46,8 +49,12 @@ your upload certificate, not `CN=Android Debug`.
 ```
 
 Play requires AAB, not APK. Check `versionCode`/`versionName` in
-`app/build.gradle.kts` first (currently 2 / "0.2.0"); every upload needs a
+`app/build.gradle.kts` first (currently 3 / "0.3.0"); every upload needs a
 higher `versionCode`.
+
+Steps 3–9 only have to be done by hand once, and they were. From now on
+`./gradlew publishBundle` uploads straight to the internal track — see
+[publishing.md](publishing.md).
 
 ## 4. Sanity-check the bundle
 

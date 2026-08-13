@@ -17,8 +17,8 @@ android {
         // Bumped per tagged release. The name is what the mechanic report prints at the
         // top of itself, so it has to be the version somebody could be asked to reinstall;
         // the code is what lets a newer APK replace an older one on the phone.
-        versionCode = 3
-        versionName = "0.3.0"
+        versionCode = 4
+        versionName = "0.4.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -99,6 +99,30 @@ android {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
+    }
+}
+
+// Uploading a bundle to Play, without a browser and without a file picker.
+//
+// The plugin only exists when `play-service-account.json` does, mirroring how the
+// upload key is wired above: a clone without the key still builds and tests
+// everything, it just has no `publish*` tasks. The key is a Google Cloud service
+// account that was granted release access in Play Console; it is gitignored, and
+// it is not the upload key - it proves *who is uploading*, not *what is signed*.
+val playCredentials = rootProject.file("play-service-account.json")
+if (playCredentials.exists()) {
+    apply(plugin = "com.github.triplet.play")
+    configure<com.github.triplet.gradle.play.PlayPublisherExtension> {
+        serviceAccountCredentials.set(playCredentials)
+        // Bundles, never APKs: Play rejects APKs for new apps anyway.
+        defaultToAppBundles.set(true)
+        // Internal testing by default. Promoting further is a deliberate act:
+        // `./gradlew promoteArtifact --from-track internal --promote-track production`.
+        track.set("internal")
+        releaseStatus.set(com.github.triplet.gradle.androidpublisher.ReleaseStatus.COMPLETED)
+        // Fail loudly when versionCode was not bumped, rather than silently
+        // uploading a build Play will refuse or, worse, quietly ignore.
+        resolutionStrategy.set(com.github.triplet.gradle.androidpublisher.ResolutionStrategy.FAIL)
     }
 }
 

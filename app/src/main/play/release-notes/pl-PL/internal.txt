@@ -1,0 +1,5 @@
+Android Auto: ekran w aucie rysuje teraz zegar z pulpitu - prędkość w środku obrotomierza, bieg pod spodem, zaznaczone odcięcie - obok listy odczytów na żywo. Wartość, która przekroczy ustawiony przez Ciebie próg, mówi o tym wprost na ekranie auta.
+
+Bieg jest oznaczony jako szacowany, gdy nie da się go odczytać - tak samo jak w telefonie.
+
+Poza tym: ikona aplikacji była lekko krzywa. Już nie jest.

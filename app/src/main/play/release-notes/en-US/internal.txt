@@ -1,0 +1,5 @@
+Android Auto: the car screen now draws the dashboard's own gauge - road speed inside the rev counter, the gear under it, the redline marked - alongside rows of live readings. A reading that crosses a threshold you set says so on the car screen.
+
+Gear on the car screen is marked when it is estimated rather than read, same as on the phone.
+
+Also: the app icon was very slightly crooked. It is not any more.
