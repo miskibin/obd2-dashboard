@@ -4,29 +4,36 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Gauge arc -->
+    <!--
+      One gauge, one circle: every stroke below sits on the circle centred at
+      (54,60) with radius 24, and the needle pivots on that same centre. The
+      arc used to be drawn from endpoints that were not all the same distance
+      from the centre, so the redline bulged off the sweep and the hub floated
+      above the pivot - visible as a crooked icon once scaled up to 512 px.
+    -->
+    <!-- Gauge arc: 150 deg to 30 deg, over the top -->
     <path
         android:strokeColor="#4DD8E6"
         android:strokeWidth="5"
         android:strokeLineCap="round"
         android:fillColor="#00000000"
-        android:pathData="M 33,72 A 24,24 0 1 1 75,72" />
-    <!-- Redline segment -->
+        android:pathData="M 33.22,72 A 24,24 0 1 1 74.78,72" />
+    <!-- Redline segment: the last 85 deg of the same sweep -->
     <path
         android:strokeColor="#FF6B6B"
         android:strokeWidth="5"
         android:strokeLineCap="round"
         android:fillColor="#00000000"
-        android:pathData="M 68.5,39.5 A 24,24 0 0 1 75,72" />
-    <!-- Needle -->
+        android:pathData="M 67.77,40.34 A 24,24 0 0 1 74.78,72" />
+    <!-- Needle: from the centre, pointing into the redline -->
     <path
         android:strokeColor="#FFB74D"
         android:strokeWidth="4"
         android:strokeLineCap="round"
         android:fillColor="#00000000"
-        android:pathData="M 54,62 L 66,44" />
-    <!-- Hub -->
+        android:pathData="M 54,60 L 64.93,46.98" />
+    <!-- Hub: on the centre the needle pivots about -->
     <path
         android:fillColor="#FFB74D"
-        android:pathData="M 54,58 m -4,0 a 4,4 0 1,0 8,0 a 4,4 0 1,0 -8,0" />
+        android:pathData="M 54,60 m -4,0 a 4,4 0 1,0 8,0 a 4,4 0 1,0 -8,0" />
 </vector>
