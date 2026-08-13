@@ -107,6 +107,22 @@ internal object MazdaPids {
                 decode = { sane(word(it) / FLUID_TEMPERATURE_DIVISOR, FLUID_TEMPERATURE_RANGE) },
             ),
         )
+        add(
+            ExtendedPid(
+                id = ExtendedPids.GEAR,
+                header = TCM,
+                did = 0x1E12,
+                unit = "",
+                decimals = 0,
+                bytes = 1,
+                // The one extended reading worth a request every cycle: it is what the hero
+                // card draws, and a gear that arrives two seconds after the shift is a gear
+                // the driver has already felt.
+                tier = PidTier.Fast,
+                applies = ::isMazda,
+                decode = ::gearPosition,
+            ),
+        )
         ExtendedNames.WHEELS.forEachIndexed { index, wheel ->
             add(tyrePressure(wheel, BODY_BP, BODY_BP_RESPONSE, 0xD922 + index, BP_YEARS) {
                 barFromPsi(it[0] * PSI_PER_COUNT)
@@ -118,6 +134,32 @@ internal object MazdaPids {
             add(tyreTemperature(wheel, BODY_BM, BODY_BM_RESPONSE, 0x2A0A + index, BM_YEARS))
         }
     }
+
+    /**
+     * The gear the transmission says it is in, from the enumeration `221E12` answers with.
+     *
+     * The forward gears are numbered in steps of sixteen — `0x10` is first, `0x60` is sixth
+     * — and park, reverse and neutral are three values that are not on that ladder at all.
+     * Anything outside the ladder yields no reading rather than a number: a gearbox in
+     * neutral is not in a gear, and a car whose module turns out to encode this differently
+     * should say nothing rather than confidently light the wrong chip.
+     *
+     * This is worth having over [com.miskibin.obd2dashboard.data.GearEstimator] for the
+     * reason the estimator exists to apologise for: speed ÷ revs is only the gear when the
+     * torque converter is locked, and on an automatic in town it frequently is not.
+     */
+    private fun gearPosition(data: IntArray): Double {
+        val raw = data[0]
+        if (raw % GEAR_STEP != 0) return NOT_USED
+        val gear = raw / GEAR_STEP
+        return if (gear in 1..MAX_GEAR) gear.toDouble() else NOT_USED
+    }
+
+    /** `0x10` per gear: 16 is first, 96 is sixth. */
+    private const val GEAR_STEP = 0x10
+
+    /** The tallest box Mazda puts behind this identifier. */
+    private const val MAX_GEAR = 6
 
     private fun tyrePressure(
         wheel: String,

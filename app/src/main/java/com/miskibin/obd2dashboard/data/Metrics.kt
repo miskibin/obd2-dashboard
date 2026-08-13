@@ -5,6 +5,7 @@ import com.miskibin.obd2dashboard.R
 import com.miskibin.obd2dashboard.obd.Assumption
 import com.miskibin.obd2dashboard.obd.DerivedMetrics
 import com.miskibin.obd2dashboard.obd.ExtendedPids
+import com.miskibin.obd2dashboard.obd.PidTier
 import com.miskibin.obd2dashboard.obd.Pids
 import com.miskibin.obd2dashboard.obd.Provenance
 import com.miskibin.obd2dashboard.obd.VehicleSnapshot
@@ -231,6 +232,7 @@ object Metrics {
     /** The ones that describe the vehicle rather than its engine: batteries, distance. */
     private val EXTENDED_VEHICLE = setOf(
         ExtendedPids.ODOMETER,
+        ExtendedPids.GEAR,
         ExtendedPids.BATTERY_SOC,
         ExtendedPids.BATTERY_HEALTH,
         ExtendedPids.BATTERY_VOLTAGE,
@@ -667,6 +669,7 @@ object Metrics {
         ExtendedPids.WASTEGATE_DUTY -> R.string.metric_ext_wastegate_duty
         ExtendedPids.ENGINE_TORQUE -> R.string.metric_ext_engine_torque
         ExtendedPids.ODOMETER -> R.string.metric_ext_odometer
+        ExtendedPids.GEAR -> R.string.metric_ext_gear
         ExtendedPids.ALTERNATOR_POWER -> R.string.metric_ext_alternator_power
         ExtendedPids.AC_PRESSURE -> R.string.metric_ext_ac_pressure
         ExtendedPids.EGR_POSITION -> R.string.metric_ext_egr_position
@@ -732,6 +735,7 @@ object Metrics {
             ExtendedPids.WASTEGATE_DUTY -> R.string.metric_hint_ext_wastegate_duty
             ExtendedPids.ENGINE_TORQUE -> R.string.metric_hint_ext_engine_torque
             ExtendedPids.ODOMETER -> R.string.metric_hint_ext_odometer
+            ExtendedPids.GEAR -> R.string.metric_hint_ext_gear
             ExtendedPids.ALTERNATOR_POWER -> R.string.metric_hint_ext_alternator_power
             ExtendedPids.AC_PRESSURE -> R.string.metric_hint_ext_ac_pressure
             ExtendedPids.EGR_POSITION -> R.string.metric_hint_ext_egr_position
@@ -780,6 +784,7 @@ object Metrics {
             ExtendedPids.WASTEGATE_DUTY -> R.string.metric_desc_ext_wastegate_duty
             ExtendedPids.ENGINE_TORQUE -> R.string.metric_desc_ext_engine_torque
             ExtendedPids.ODOMETER -> R.string.metric_desc_ext_odometer
+            ExtendedPids.GEAR -> R.string.metric_desc_ext_gear
             ExtendedPids.ALTERNATOR_POWER -> R.string.metric_desc_ext_alternator_power
             ExtendedPids.AC_PRESSURE -> R.string.metric_desc_ext_ac_pressure
             ExtendedPids.EGR_POSITION -> R.string.metric_desc_ext_egr_position
@@ -1066,10 +1071,19 @@ fun staleAfterMillis(id: MetricId): Long = when (id) {
     // rides on a barometric pressure that comes round once every five cycles.
     is MetricId.Derived -> DERIVED_STALE_MILLIS
 
-    is MetricId.Extended -> maxOf(
-        SLOW_STALE_MILLIS,
-        (ExtendedPids[id.id]?.minIntervalMillis ?: 0L) * STALE_INTERVAL_FACTOR,
-    )
+    // By how often the app asks for it, which for an extended parameter is its tier and
+    // its own rate limit. The gear is the reason the tier matters: it is asked for every
+    // cycle and is worthless a few seconds old, while a tyre pressure is asked for once a
+    // quarter minute and is perfectly good a minute later.
+    is MetricId.Extended -> {
+        val pid = ExtendedPids[id.id]
+        val byTier = when (pid?.tier) {
+            PidTier.Fast -> EXTENDED_FAST_STALE_MILLIS
+            PidTier.Medium -> DERIVED_STALE_MILLIS
+            else -> SLOW_STALE_MILLIS
+        }
+        maxOf(byTier, (pid?.minIntervalMillis ?: 0L) * STALE_INTERVAL_FACTOR)
+    }
 
     // `ATRV` rides along with the slow tier's sweep.
     MetricId.Battery -> SLOW_STALE_MILLIS
@@ -1083,6 +1097,12 @@ fun VehicleSnapshot.isStale(id: MetricId, nowMillis: Long): Boolean =
 const val LIVE_STALE_MILLIS = 3_000L
 
 private const val DERIVED_STALE_MILLIS = 10_000L
+
+/**
+ * An extended parameter on the fast tier still waits its turn: the modules take one cycle
+ * each, so "every cycle" means every few seconds on a car with three of them answering.
+ */
+private const val EXTENDED_FAST_STALE_MILLIS = 6_000L
 private const val SLOW_STALE_MILLIS = 40_000L
 private const val STALE_INTERVAL_FACTOR = 2L
 

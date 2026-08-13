@@ -105,6 +105,7 @@ class ExtendedPidTest {
                 ExtendedPids.OIL_PRESSURE,
                 ExtendedPids.OIL_TEMPERATURE,
                 ExtendedPids.TRANSMISSION_FLUID_TEMPERATURE,
+                ExtendedPids.GEAR,
             ),
             candidates.map(ExtendedPid::id).toSet(),
         )

@@ -133,11 +133,12 @@
     <string name="vehicle_fuel_description">Consumption is worked out from air flow, which only becomes fuel flow once this is known.</string>
     <string name="vehicle_fuel_unset">Not set — consumption is being worked out as if this were a petrol engine, which overstates a diesel by half again.</string>
     <string name="vehicle_specification">Specification</string>
-    <string name="vehicle_specification_description">All four are on the registration document. Nothing in the app reads them yet — they are stored against the car for the screens that will need them, and only the fuel type above changes a number you can see today.</string>
+    <string name="vehicle_specification_description">All of these are on the registration document. The number of gears is used today: it is how long the gear strip is, and it stops a five-speed car reading its top gear as sixth. The other four are stored against the car for the screens that will need them and are not read by anything yet.</string>
     <string name="vehicle_displacement">Displacement</string>
     <string name="vehicle_power">Rated power</string>
     <string name="vehicle_mass">Kerb mass</string>
     <string name="vehicle_tank">Tank capacity</string>
+    <string name="vehicle_gears">Forward gears</string>
     <string name="vehicle_name">Name</string>
     <string name="vehicle_name_placeholder">What you call this car</string>
     <string name="vehicle_no_vin_title">No VIN yet</string>
@@ -401,6 +402,8 @@
     <string name="dashboard_speed_label">Speed</string>
     <string name="dashboard_gear_label">Gear · est.</string>
     <string name="dashboard_gear_estimated">Estimated gear: worked out from road speed and engine speed, because generic OBD2 has no PID for the gear actually engaged.</string>
+    <string name="dashboard_gear_label_measured">Gear</string>
+    <string name="dashboard_gear_measured_detail">Gear reported by the gearbox control unit.</string>
     <string name="dashboard_edit_list">Edit the list</string>
     <string name="dashboard_edit_list_on">on</string>
 
@@ -723,8 +726,11 @@
     <string name="metric_hint_ext_engine_torque">the twist the engine says it is making</string>
     <string name="metric_desc_ext_engine_torque">Torque at the flywheel as the control unit\'s own model works it out, in newton metres. It is a calculation rather than a measurement — no production car has a torque sensor — but it is the number the engine, the gearbox and the stability system all negotiate with, and watching it against the throttle shows where a torque limit is being applied.</string>
     <string name="metric_ext_odometer">Odometer</string>
+    <string name="metric_ext_gear">Gear</string>
     <string name="metric_hint_ext_odometer">total distance, from the car itself</string>
+    <string name="metric_hint_ext_gear">which gear the gearbox is in</string>
     <string name="metric_desc_ext_odometer">The car\'s own accumulated distance, read out of the module that keeps it rather than off the dashboard. Worth having for two reasons: it dates every other reading in this app against the car\'s life, and a figure that disagrees with the instrument cluster is the loudest thing a used car can say about itself.</string>
+    <string name="metric_desc_ext_gear">The gear the transmission itself reports, read from the gearbox control unit rather than worked out from speed and revs. This is the trustworthy version of the gear on the dashboard: the estimate has to assume the torque converter is locked, and on an automatic in town it often is not. Park, reverse and neutral are not forward gears, so the reading is simply absent in them.</string>
     <string name="metric_ext_alternator_power">Alternator output</string>
     <string name="metric_hint_ext_alternator_power">what the charging system is producing</string>
     <string name="metric_desc_ext_alternator_power">Electrical power the alternator is delivering, in watts. It rises when the battery is low or the heated screen is on and falls to almost nothing on a full battery at cruise, which is the engine being spared the work. An alternator that never comes down is charging a battery that will not hold, and one that never goes up on a cold morning is not charging at all.</string>

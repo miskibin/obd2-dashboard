@@ -347,6 +347,7 @@ private fun AppNavHost(
             val savedAdapter by viewModel.savedAdapter.collectAsStateWithLifecycle()
             val sessionMaxRpm by viewModel.sessionMaxRpm.collectAsStateWithLifecycle()
             val gear by viewModel.gear.collectAsStateWithLifecycle()
+            val gearCount by viewModel.gearCount.collectAsStateWithLifecycle()
             val imperial by viewModel.imperialUnits.collectAsStateWithLifecycle()
             val recording by viewModel.recording.collectAsStateWithLifecycle()
             val carZones by viewModel.carZones.collectAsStateWithLifecycle()
@@ -371,6 +372,7 @@ private fun AppNavHost(
                 redline = redline,
                 sessionMaxRpm = sessionMaxRpm,
                 gear = gear,
+                gearCount = gearCount,
                 imperial = imperial,
                 alertRules = alertRules,
                 recording = recording,

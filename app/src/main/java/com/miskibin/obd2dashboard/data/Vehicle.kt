@@ -29,11 +29,20 @@ data class Vehicle(
     val ratedPowerKw: Int? = null,
     val kerbMassKg: Int? = null,
     val tankLitres: Int? = null,
+    /**
+     * How many forward gears the box has.
+     *
+     * Nothing on the OBD bus reports it, and the gear strip needs it: the estimator numbers
+     * gears against a table of typical ratios that runs to six, so a five-speed car reads
+     * its top gear as sixth until somebody says otherwise.
+     */
+    val gearCount: Int? = null,
 ) {
     /** True while the driver has filled in nothing at all. */
     val isBlank: Boolean
         get() = name == null && fuel == null && displacementLitres == null &&
-            ratedPowerKw == null && kerbMassKg == null && tankLitres == null
+            ratedPowerKw == null && kerbMassKg == null && tankLitres == null &&
+            gearCount == null
 
     /** What the app calls this car when it has to call it something short. */
     fun label(facts: VinFacts?): String? =
@@ -88,6 +97,7 @@ object Garage {
             vehicle.ratedPowerKw?.toString().orEmpty(),
             vehicle.kerbMassKg?.toString().orEmpty(),
             vehicle.tankLitres?.toString().orEmpty(),
+            vehicle.gearCount?.toString().orEmpty(),
         ).joinToString(FIELD)
     }
 
@@ -104,6 +114,7 @@ object Garage {
                 ratedPowerKw = parts.getOrNull(4)?.toIntOrNull(),
                 kerbMassKg = parts.getOrNull(5)?.toIntOrNull(),
                 tankLitres = parts.getOrNull(6)?.toIntOrNull(),
+                gearCount = parts.getOrNull(7)?.toIntOrNull(),
             )
         }
     }

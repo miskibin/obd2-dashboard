@@ -31,14 +31,17 @@ import com.miskibin.obd2dashboard.data.TripEntry
 import com.miskibin.obd2dashboard.data.Vehicle
 import com.miskibin.obd2dashboard.data.VinDecoder
 import com.miskibin.obd2dashboard.data.VinFacts
+import com.miskibin.obd2dashboard.data.isStale
 import com.miskibin.obd2dashboard.data.presentMetrics
 import com.miskibin.obd2dashboard.data.valueOf
 import com.miskibin.obd2dashboard.data.worstMisfire
 import com.miskibin.obd2dashboard.obd.DerivedMetrics
 import com.miskibin.obd2dashboard.obd.Dtc
+import com.miskibin.obd2dashboard.obd.ExtendedPids
 import com.miskibin.obd2dashboard.obd.MonitorTests
 import com.miskibin.obd2dashboard.obd.PerformanceTracking
 import com.miskibin.obd2dashboard.obd.Pids
+import com.miskibin.obd2dashboard.obd.VehicleSnapshot
 import com.miskibin.obd2dashboard.obd.sensorKey
 import com.miskibin.obd2dashboard.service.ObdConnectionService
 import kotlinx.coroutines.Dispatchers
@@ -208,10 +211,20 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
     private val _sessionMaxRpm = MutableStateFlow<Double?>(null)
     val sessionMaxRpm: StateFlow<Double?> = _sessionMaxRpm.asStateFlow()
 
-    private val gearEstimator = GearEstimator()
+    /**
+     * Rebuilt when the driver says how many gears the car has, because that is the one
+     * thing the estimator cannot learn: a five-speed's top gear and a six-speed's fifth sit
+     * at much the same ratio, and only the profile can tell them apart.
+     */
+    private var gearEstimator = GearEstimator()
 
-    private val _gear = MutableStateFlow(GearReading(moving = false, gear = null, ratio = null))
+    private val _gear = MutableStateFlow(GearReading.NONE)
     val gear: StateFlow<GearReading> = _gear.asStateFlow()
+
+    /** How many chips the gear strip draws, and the highest gear the estimate will report. */
+    val gearCount: StateFlow<Int> = vehicle
+        .map { it?.gearCount?.coerceIn(1, GearEstimator.GEAR_LIMIT) ?: GearEstimator.MAX_GEARS }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, GearEstimator.MAX_GEARS)
 
     /** What the app itself saw around each code it watched appear, this session only. */
     private val _faultContexts = MutableStateFlow<Map<String, FaultContext>>(emptyMap())
@@ -251,7 +264,16 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
             connection.snapshot.collect { snapshot ->
                 val rpm = snapshot.valueOf(Metrics.Rpm)
                 if (rpm != null && rpm > (_sessionMaxRpm.value ?: 0.0)) _sessionMaxRpm.value = rpm
-                _gear.value = gearEstimator.observe(rpm, snapshot.valueOf(Metrics.Speed))
+                // The estimator is fed either way, so that a car whose gearbox module drops
+                // out mid-drive falls back to an estimator that has been learning all along
+                // rather than to one starting from nothing.
+                val estimated = gearEstimator.observe(rpm, snapshot.valueOf(Metrics.Speed))
+                _gear.value = reportedGear(snapshot) ?: estimated
+            }
+        }
+        viewModelScope.launch {
+            gearCount.drop(1).collect { count ->
+                gearEstimator = GearEstimator(maxGears = count)
             }
         }
         viewModelScope.launch {
@@ -279,6 +301,20 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 }
         }
+    }
+
+    /**
+     * The gear the gearbox itself reported, when this car has a module that reports one.
+     *
+     * Only while it is fresh. The reading is absent in park, reverse and neutral — those
+     * are not forward gears and the decoder publishes nothing for them — so without the
+     * staleness check the strip would go on lighting the last gear engaged for as long as
+     * the car sat at the lights.
+     */
+    private fun reportedGear(snapshot: VehicleSnapshot): GearReading? {
+        val gear = snapshot.valueOf(REPORTED_GEAR)?.takeIf { it >= 1.0 } ?: return null
+        if (snapshot.isStale(REPORTED_GEAR, System.currentTimeMillis())) return null
+        return GearReading.measured(gear.toInt())
     }
 
     // ---- fault history ----------------------------------------------------------
@@ -610,6 +646,9 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
 
     companion object {
         const val MAX_CHART_SERIES = 6
+
+        /** The gearbox's own answer, on the cars whose module gives one. */
+        private val REPORTED_GEAR = MetricId.Extended(ExtendedPids.GEAR)
 
         /** How wide a window the "before" reading may be picked from, in half-offsets. */
         private const val BEFORE_SPAN = 2

@@ -211,7 +211,7 @@ class DemoElmTransportTest {
         assertTrue("the demo VIN must pass the marque gate", vehicle.isMazda)
         // Gating that nothing exercised would be gating nobody could trust.
         val candidates = ExtendedPids.candidatesFor(vehicle)
-        assertEquals(11, candidates.size)
+        assertEquals(12, candidates.size)
         assertEquals(setOf("7E0", "7E1", "726"), candidates.map(ExtendedPid::header).toSet())
     }
 

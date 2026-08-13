@@ -67,6 +67,8 @@ data class HeroState(
     val speed: Double?,
     val speedUnit: String,
     val gear: GearReading,
+    /** How many chips the strip draws, from the vehicle profile. */
+    val gearCount: Int,
     val stale: Boolean,
 )
 
@@ -192,8 +194,19 @@ fun HeroCard(
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(7.dp),
             ) {
-                CardLabel(stringResource(R.string.dashboard_gear_label))
-                GearStrip(gear = state.gear)
+                // The label says which of the two answers this is. A measured gear and an
+                // estimated one look identical as a lit chip, and only one of them is
+                // worth trusting through a shift.
+                CardLabel(
+                    stringResource(
+                        if (state.gear.measured) {
+                            R.string.dashboard_gear_label_measured
+                        } else {
+                            R.string.dashboard_gear_label
+                        },
+                    ),
+                )
+                GearStrip(gear = state.gear, count = state.gearCount)
             }
         }
 
@@ -276,13 +289,19 @@ private fun CardLabel(text: String) {
  * carries the whole sentence for a screen reader, which cannot see the "· est." above it.
  */
 @Composable
-private fun GearStrip(gear: GearReading, modifier: Modifier = Modifier) {
-    val description = stringResource(R.string.dashboard_gear_estimated)
+private fun GearStrip(gear: GearReading, count: Int, modifier: Modifier = Modifier) {
+    val description = stringResource(
+        if (gear.measured) {
+            R.string.dashboard_gear_measured_detail
+        } else {
+            R.string.dashboard_gear_estimated
+        },
+    )
     Row(
         modifier = modifier.semantics { contentDescription = description },
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        (1..GearEstimator.MAX_GEARS).forEach { number ->
+        (1..count.coerceIn(1, GearEstimator.GEAR_LIMIT)).forEach { number ->
             val on = gear.gear == number
             Box(
                 modifier = Modifier

@@ -137,11 +137,12 @@
     <string name="vehicle_fuel_description">Spalanie liczone jest z przepływu powietrza, a ten staje się przepływem paliwa dopiero, gdy wiadomo jakiego.</string>
     <string name="vehicle_fuel_unset">Nie ustawiono — spalanie liczone jest jak dla benzyny, co przy dieslu zawyża wynik o połowę.</string>
     <string name="vehicle_specification">Dane techniczne</string>
-    <string name="vehicle_specification_description">Wszystkie cztery są w dowodzie rejestracyjnym. Aplikacja jeszcze z nich nie korzysta — zapisuje je przy aucie na potrzeby ekranów, które ich będą wymagać. Na liczby, które widzisz dziś, wpływa tylko rodzaj paliwa powyżej.</string>
+    <string name="vehicle_specification_description">Wszystkie są w dowodzie rejestracyjnym. Liczba biegów działa już teraz: wyznacza długość paska biegów i sprawia, że auto z pięciobiegową skrzynią nie pokazuje najwyższego biegu jako szóstego. Pozostałe cztery są zapisywane przy aucie na potrzeby ekranów, które ich będą wymagać, i nic ich jeszcze nie czyta.</string>
     <string name="vehicle_displacement">Pojemność skokowa</string>
     <string name="vehicle_power">Moc znamionowa</string>
     <string name="vehicle_mass">Masa własna</string>
     <string name="vehicle_tank">Pojemność baku</string>
+    <string name="vehicle_gears">Liczba biegów</string>
     <string name="vehicle_name">Nazwa</string>
     <string name="vehicle_name_placeholder">Jak nazywasz to auto</string>
     <string name="vehicle_no_vin_title">Brak numeru VIN</string>
@@ -407,6 +408,8 @@
     <string name="dashboard_speed_label">Prędkość</string>
     <string name="dashboard_gear_label">Bieg · szac.</string>
     <string name="dashboard_gear_estimated">Szacowany bieg: wyliczony z prędkości i obrotów, bo standardowe OBD2 nie ma PID-u z faktycznie włączonym biegiem.</string>
+    <string name="dashboard_gear_label_measured">Bieg</string>
+    <string name="dashboard_gear_measured_detail">Bieg zgłaszany przez sterownik skrzyni.</string>
     <string name="dashboard_edit_list">Edytuj listę</string>
     <string name="dashboard_edit_list_on">włączone</string>
 
@@ -727,8 +730,11 @@
     <string name="metric_hint_ext_engine_torque">moment, który silnik deklaruje</string>
     <string name="metric_desc_ext_engine_torque">Moment obrotowy na kole zamachowym wyliczony przez model sterownika, w niutonometrach. To wyliczenie, nie pomiar — żadne auto seryjne nie ma czujnika momentu — ale to właśnie tę wartość uzgadniają między sobą silnik, skrzynia i układ stabilizacji, a porównanie jej z położeniem pedału pokazuje, gdzie działa ograniczenie momentu.</string>
     <string name="metric_ext_odometer">Przebieg</string>
+    <string name="metric_ext_gear">Bieg</string>
     <string name="metric_hint_ext_odometer">całkowity dystans, prosto z auta</string>
+    <string name="metric_hint_ext_gear">który bieg jest włączony</string>
     <string name="metric_desc_ext_odometer">Własny licznik przebiegu auta, odczytany z modułu, który go prowadzi, a nie z deski rozdzielczej. Wart uwagi z dwóch powodów: osadza każdy inny odczyt tej aplikacji w życiorysie auta, a wartość niezgodna z zegarami to najgłośniejsza rzecz, jaką używane auto może o sobie powiedzieć.</string>
+    <string name="metric_desc_ext_gear">Bieg zgłaszany przez samą skrzynię, odczytany ze sterownika przekładni, a nie wyliczony z prędkości i obrotów. To wiarygodna wersja biegu z pulpitu: oszacowanie musi zakładać, że przetwornik momentu jest zablokowany, a w mieście przy automacie często nie jest. Parking, bieg wsteczny i luz nie są biegami do przodu, więc wtedy wartości po prostu nie ma.</string>
     <string name="metric_ext_alternator_power">Moc alternatora</string>
     <string name="metric_hint_ext_alternator_power">co produkuje układ ładowania</string>
     <string name="metric_desc_ext_alternator_power">Moc elektryczna oddawana przez alternator, w watach. Rośnie, gdy akumulator jest rozładowany albo włączona jest szyba grzana, i spada niemal do zera przy naładowanym akumulatorze w trasie — wtedy silnik ma z głowy tę pracę. Alternator, który nigdy nie schodzi nisko, ładuje akumulator nietrzymający ładunku, a taki, który zimnym rankiem nie rusza w górę, nie ładuje wcale.</string>

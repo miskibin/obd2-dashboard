@@ -33,6 +33,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.miskibin.obd2dashboard.R
+import com.miskibin.obd2dashboard.data.GearEstimator
 import com.miskibin.obd2dashboard.data.Vehicle
 import com.miskibin.obd2dashboard.data.VinFacts
 import com.miskibin.obd2dashboard.obd.FuelType
@@ -171,6 +172,20 @@ fun VehicleScreen(
                     initial = vehicle.tankLitres?.toString(),
                     identity = vehicle.vin,
                     onChange = { draft = draft.copy(tankLitres = it?.toIntOrNull()) },
+                )
+                // The one entry in this group the app already acts on: it is the length of
+                // the gear strip, and the difference between a five-speed's top gear
+                // reading as fifth and reading as sixth.
+                NumberRow(
+                    label = R.string.vehicle_gears,
+                    unit = "",
+                    initial = vehicle.gearCount?.toString(),
+                    identity = vehicle.vin,
+                    onChange = {
+                        draft = draft.copy(
+                            gearCount = it?.toIntOrNull()?.coerceIn(1, GearEstimator.GEAR_LIMIT),
+                        )
+                    },
                 )
             }
             Hint(text = stringResource(R.string.vehicle_specification_description))

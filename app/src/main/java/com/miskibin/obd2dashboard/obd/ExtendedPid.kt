@@ -246,6 +246,15 @@ object ExtendedPids {
     const val WASTEGATE_DUTY = "ext_wastegate_duty"
     const val ENGINE_TORQUE = "ext_engine_torque"
     const val ODOMETER = "ext_odometer"
+
+    /**
+     * The gear the gearbox reports itself to be in, as a number.
+     *
+     * Not the shift indicator of `0165` — that is the gear the ECU would *like* — and not
+     * the ratio of `01A4`. This is the transmission's own answer, and it is the only one
+     * that is a measurement rather than an inference.
+     */
+    const val GEAR = "ext_gear"
     const val ALTERNATOR_POWER = "ext_alternator_power"
     const val AC_PRESSURE = "ext_ac_pressure"
     const val EGR_POSITION = "ext_egr_position"
