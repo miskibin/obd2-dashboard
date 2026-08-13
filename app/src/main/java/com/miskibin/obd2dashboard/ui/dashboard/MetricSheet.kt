@@ -171,12 +171,20 @@ fun MetricSheet(
         }
 
         // Under the numbers rather than over them: somebody who taps a tile is looking at
-        // the trace first, and reads what the reading actually is once they have.
+        // the trace first, and reads what the reading actually is once they have. The
+        // heading is what makes the paragraph findable by the driver who long-pressed the
+        // tile precisely to be told what the parameter means.
+        Text(
+            text = stringResource(R.string.metric_sheet_about),
+            style = MaterialTheme.typography.labelLarge,
+            color = Chalk,
+            modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
+        )
         Text(
             text = stringResource(metric.descriptionRes),
             style = MaterialTheme.typography.bodyMedium,
             color = Smoke,
-            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = 5.dp),
         )
 
         // What the app is claiming by showing this at all, and — where one was needed —

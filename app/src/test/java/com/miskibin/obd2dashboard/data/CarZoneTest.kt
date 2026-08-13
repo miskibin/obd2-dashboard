@@ -48,14 +48,6 @@ class CarZoneTest {
     ) = zone.sourceOn(snapshot, supportedPids, supportedExtended, misfire)
 
     @Test
-    fun `a fresh install draws the four places every car has something to say about`() {
-        assertEquals(
-            setOf(CarZone.Engine, CarZone.Coolant, CarZone.Battery, CarZone.Oil),
-            CarZone.DEFAULTS,
-        )
-    }
-
-    @Test
     fun `every zone has a key and a name of its own`() {
         val keys = CarZone.entries.map(CarZone::storageKey)
         assertEquals(keys.size, keys.distinct().size)

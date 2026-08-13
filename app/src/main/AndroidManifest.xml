@@ -30,6 +30,19 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!--
+        The AI assistant apps a recorded trip can be sent to directly. Android 11+ hides
+        other packages unless they are declared here, so this list must stay in step with
+        AiAssistants.KNOWN_PACKAGES — a package missing here is silently never offered.
+    -->
+    <queries>
+        <package android:name="com.openai.chatgpt" />
+        <package android:name="com.google.android.apps.bard" />
+        <package android:name="com.anthropic.claude" />
+        <package android:name="com.microsoft.copilot" />
+        <package android:name="ai.perplexity.app.android" />
+    </queries>
+
+    <!--
         Not required: a classic-SPP dongle over RFCOMM is a first-class transport here, and
         a phone with Bluetooth but no LE can still use one.
     -->
@@ -70,6 +83,24 @@
             android:name=".service.ObdConnectionService"
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
+
+        <!-- Android Auto: the templated car-screen app. Exported because the Auto host
+             binds to it from outside; who may bind is enforced by the service's
+             HostValidator rather than by a permission. -->
+        <meta-data
+            android:name="com.google.android.gms.car.application"
+            android:resource="@xml/automotive_app_desc" />
+        <meta-data
+            android:name="androidx.car.app.minCarApiLevel"
+            android:value="1" />
+        <service
+            android:name=".car.DashboardCarAppService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="androidx.car.app.CarAppService" />
+                <category android:name="androidx.car.app.category.IOT" />
+            </intent-filter>
+        </service>
 
         <!-- Grants the share sheet read access to a single exported trip CSV. -->
         <provider

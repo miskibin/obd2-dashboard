@@ -184,15 +184,6 @@ enum class CarZone(
 
     companion object {
 
-        /**
-         * What a fresh install draws: the four places every car has something to say about.
-         *
-         * The rest are off until the driver asks for them — fourteen chips on one drawing
-         * is a diagram of chips rather than of a car, and most of them would be blank on
-         * most cars anyway.
-         */
-        val DEFAULTS: Set<CarZone> = setOf(Engine, Coolant, Battery, Oil)
-
         /** Mode 06 reports misfires as a plain count of events. */
         const val MISFIRE_UNIT = "count"
 

@@ -55,12 +55,12 @@ class AppPreferences(context: Context) {
     /**
      * Which parts of the car diagram the driver keeps on it.
      *
-     * Absent means "never chosen" and gets [CarZone.DEFAULTS]; an empty string means every
-     * zone was ticked off, which is a choice and not a fresh install, and leaves the card
-     * collapsed rather than quietly putting the defaults back.
+     * Empty until the driver ticks a zone on, so a fresh install shows no car drawing at
+     * all: the diagram is opt-in, reached through the dashboard menu, rather than a card
+     * that arrives unasked and has to be ticked off zone by zone.
      */
     val carZones: Flow<Set<CarZone>> = store.data.map { prefs ->
-        prefs[KEY_CAR_ZONES]?.let(CarZone::decode) ?: CarZone.DEFAULTS
+        prefs[KEY_CAR_ZONES]?.let(CarZone::decode).orEmpty()
     }
 
     val pollingEnabled: Flow<Boolean> = store.data.map { it[KEY_POLLING_ENABLED] ?: true }

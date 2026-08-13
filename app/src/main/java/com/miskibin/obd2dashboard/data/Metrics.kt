@@ -404,6 +404,12 @@ object Metrics {
      */
     const val REDLINE_DEFAULT = 8_000
 
+    /**
+     * Everything is polled in km/h and converted at the last moment of display; every
+     * screen that offers miles shares this one constant so they can never disagree.
+     */
+    const val MILES_PER_KM = 0.621371
+
     const val REDLINE_MIN = 5_000
 
     const val REDLINE_MAX = 9_000

@@ -29,6 +29,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -56,6 +57,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.miskibin.obd2dashboard.R
 import com.miskibin.obd2dashboard.ble.ConnectionState
+import com.miskibin.obd2dashboard.data.AiAssistants
 import com.miskibin.obd2dashboard.data.AppLanguage
 import com.miskibin.obd2dashboard.data.DtcLog
 import com.miskibin.obd2dashboard.data.DtcDescriptions
@@ -81,6 +83,8 @@ import com.miskibin.obd2dashboard.ui.theme.ToastText
 import com.miskibin.obd2dashboard.ui.trips.TripDetailScreen
 import com.miskibin.obd2dashboard.ui.trips.TripsScreen
 import com.miskibin.obd2dashboard.ui.vehicle.VehicleScreen
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 object Routes {
     const val DASHBOARD = "dashboard"
@@ -439,15 +443,33 @@ private fun AppNavHost(
                 LaunchedEffect(name) { navController.popBackStack() }
                 return@composable
             }
+            // Probed once per screen entry, off the main thread: the check is a couple of
+            // dozen PackageManager round-trips, which is nothing on a background thread
+            // and a visible hitch inside the first frame of a navigation.
+            val aiAssistants by produceState(emptyList<AiAssistants.Assistant>(), context) {
+                value = withContext(Dispatchers.IO) { AiAssistants.installed(context) }
+            }
             TripDetailScreen(
                 trip = selected.trip,
                 analysis = selected.analysis,
+                aiAssistants = aiAssistants,
                 onExport = {
                     runCatching {
                         context.startActivity(
                             Intent.createChooser(
                                 viewModel.shareIntentFor(selected.trip),
                                 context.getString(R.string.action_share),
+                            ),
+                        )
+                    }
+                },
+                onSendToAi = { assistant ->
+                    runCatching {
+                        context.startActivity(
+                            viewModel.shareIntentFor(
+                                selected.trip,
+                                assistant,
+                                context.getString(R.string.trip_ai_prompt),
                             ),
                         )
                     }

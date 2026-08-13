@@ -25,6 +25,7 @@ import com.miskibin.obd2dashboard.data.Metrics
 import com.miskibin.obd2dashboard.data.MisfireReading
 import com.miskibin.obd2dashboard.data.SavedAdapter
 import com.miskibin.obd2dashboard.data.SessionKind
+import com.miskibin.obd2dashboard.data.AiAssistants
 import com.miskibin.obd2dashboard.data.Trip
 import com.miskibin.obd2dashboard.data.TripAnalyzer
 import com.miskibin.obd2dashboard.data.TripEntry
@@ -141,7 +142,7 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Which parts of the car the diagram draws readings on. */
     val carZones: StateFlow<Set<CarZone>> = preferences.carZones
-        .stateIn(viewModelScope, SharingStarted.Eagerly, CarZone.DEFAULTS)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
 
     /** Which ground the app is drawn on, as chosen in Settings. */
     val theme: StateFlow<AppTheme> = preferences.theme
@@ -623,6 +624,10 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun shareIntentFor(trip: Trip) = ObdHolder.trips.shareIntent(getApplication(), trip)
+
+    /** The same CSV, aimed straight at one assistant's app with a line of context. */
+    fun shareIntentFor(trip: Trip, assistant: AiAssistants.Assistant, prompt: String) =
+        ObdHolder.trips.shareIntent(getApplication(), trip, assistant, prompt)
 
     /**
      * The columns a recording opens with, in the order they are written.

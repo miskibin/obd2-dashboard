@@ -61,6 +61,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.miskibin.obd2dashboard.R
+import com.miskibin.obd2dashboard.data.AiAssistants
 import com.miskibin.obd2dashboard.data.MetricId
 import com.miskibin.obd2dashboard.data.Metrics
 import com.miskibin.obd2dashboard.data.Sample
@@ -135,13 +136,16 @@ import kotlinx.coroutines.launch
 fun TripDetailScreen(
     trip: Trip,
     analysis: TripAnalysis?,
+    aiAssistants: List<AiAssistants.Assistant>,
     onExport: () -> Unit,
+    onSendToAi: (AiAssistants.Assistant) -> Unit,
     onDelete: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var confirmDelete by remember { mutableStateOf(false) }
     var picking by remember { mutableStateOf(false) }
+    var sendingToAi by remember { mutableStateOf(false) }
 
     val traces = analysis?.traces.orEmpty()
     val events = analysis?.events.orEmpty()
@@ -317,19 +321,37 @@ fun TripDetailScreen(
             }
 
             item(key = "actions") {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                // With an assistant installed the question "what happened on this drive?"
+                // is the headline action and plain export steps back a rank; without one
+                // the screen looks exactly as it always did.
+                Column(
+                    modifier = Modifier.padding(top = 2.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    AccentButton(
-                        label = stringResource(R.string.trip_export),
-                        onClick = onExport,
-                        modifier = Modifier.weight(1f),
-                    )
-                    QuietButton(
-                        label = stringResource(R.string.action_delete),
-                        onClick = { confirmDelete = true },
-                    )
+                    val askAi = aiAssistants.isNotEmpty()
+                    if (askAi) {
+                        AccentButton(
+                            label = stringResource(R.string.trip_send_ai),
+                            onClick = { sendingToAi = true },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        val exportLabel = stringResource(R.string.trip_export)
+                        val exportCell = Modifier.weight(1f)
+                        if (askAi) {
+                            QuietButton(label = exportLabel, onClick = onExport, modifier = exportCell)
+                        } else {
+                            AccentButton(label = exportLabel, onClick = onExport, modifier = exportCell)
+                        }
+                        QuietButton(
+                            label = stringResource(R.string.action_delete),
+                            onClick = { confirmDelete = true },
+                        )
+                    }
                 }
             }
         }
@@ -342,6 +364,35 @@ fun TripDetailScreen(
             onToggle = select,
             onDismiss = { picking = false },
         )
+    }
+
+    if (sendingToAi) {
+        DesignSheet(
+            title = stringResource(R.string.trip_ai_title),
+            subtitle = stringResource(R.string.trip_ai_subtitle),
+            onDismiss = { sendingToAi = false },
+        ) {
+            Column(modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
+                aiAssistants.forEach { assistant ->
+                    MenuChoice(
+                        label = assistant.label,
+                        onClick = {
+                            sendingToAi = false
+                            onSendToAi(assistant)
+                        },
+                    )
+                }
+                // The share sheet stays one row away for the assistant this list has
+                // never heard of.
+                MenuChoice(
+                    label = stringResource(R.string.trip_ai_other),
+                    onClick = {
+                        sendingToAi = false
+                        onExport()
+                    },
+                )
+            }
+        }
     }
 
     if (confirmDelete) {

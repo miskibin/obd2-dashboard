@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -15,8 +17,8 @@ android {
         // Bumped per tagged release. The name is what the mechanic report prints at the
         // top of itself, so it has to be the version somebody could be asked to reinstall;
         // the code is what lets a newer APK replace an older one on the phone.
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.3.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -36,6 +38,26 @@ android {
             keyAlias = "androiddebugkey"
             keyPassword = "android"
         }
+        // The Play upload key, read from an untracked keystore.properties in the repo
+        // root (storeFile, storePassword, keyAlias, keyPassword). The config only exists
+        // when the file does, so a machine without the key still builds everything else.
+        if (rootProject.file("keystore.properties").exists()) {
+            create("release") {
+                val props = Properties()
+                rootProject.file("keystore.properties").inputStream().use(props::load)
+                // Named at the point of failure: a typo in one key would otherwise
+                // surface as "file(null)" with no mention of which property was wrong.
+                fun prop(name: String): String = props.getProperty(name)
+                    ?: error(
+                        "keystore.properties is missing '$name' " +
+                            "(expected storeFile, storePassword, keyAlias, keyPassword)",
+                    )
+                storeFile = rootProject.file(prop("storeFile"))
+                storePassword = prop("storePassword")
+                keyAlias = prop("keyAlias")
+                keyPassword = prop("keyPassword")
+            }
+        }
     }
 
     buildTypes {
@@ -50,9 +72,11 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            // Until a real release keystore exists, release builds also use the
-            // shared debug key so they remain installable and upgradeable.
-            signingConfig = signingConfigs.getByName("debug")
+            // The Play upload key when keystore.properties is present; otherwise the
+            // shared debug key, so a release build stays installable and upgradeable on
+            // a machine that does not hold the upload key.
+            signingConfig = signingConfigs.findByName("release")
+                ?: signingConfigs.getByName("debug")
         }
     }
 
@@ -93,6 +117,7 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.androidx.car.app)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

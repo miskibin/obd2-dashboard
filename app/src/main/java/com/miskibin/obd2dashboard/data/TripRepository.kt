@@ -1,5 +1,6 @@
 package com.miskibin.obd2dashboard.data
 
+import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import androidx.core.content.FileProvider
@@ -56,13 +57,31 @@ class TripRepository(private val directoryOf: (SessionKind) -> File) {
 
     fun delete(trip: Trip): Boolean = trip.file.delete()
 
-    fun shareIntent(context: Context, trip: Trip): Intent {
+    /**
+     * The CSV as a send intent — for the share sheet when [target] is null, or straight
+     * into one assistant's app when it is not.
+     *
+     * A targeted send uses the MIME type the assistant's own filter was seen to accept,
+     * because the type is what resolution matches on: `text/csv` at an app that only
+     * declared `text/plain` is not a lenient delivery but an [android.content.ActivityNotFoundException].
+     * The `ClipData` mirror of the stream is what the permission grant rides on for
+     * receivers that read the clip rather than the extra.
+     */
+    fun shareIntent(
+        context: Context,
+        trip: Trip,
+        target: AiAssistants.Assistant? = null,
+        text: String? = null,
+    ): Intent {
         val appContext = context.applicationContext
         val uri = FileProvider.getUriForFile(appContext, authority(appContext), trip.file)
         return Intent(Intent.ACTION_SEND).apply {
-            type = MIME_TYPE
+            type = target?.sendType ?: MIME_TYPE
             putExtra(Intent.EXTRA_STREAM, uri)
             putExtra(Intent.EXTRA_SUBJECT, trip.name)
+            if (text != null) putExtra(Intent.EXTRA_TEXT, text)
+            if (target != null) setPackage(target.packageName)
+            clipData = ClipData.newRawUri(trip.name, uri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
     }

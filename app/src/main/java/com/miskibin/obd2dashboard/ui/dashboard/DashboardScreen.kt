@@ -89,8 +89,9 @@ import kotlinx.coroutines.delay
  * tile pairs the number with the one line of plain language that says what it *is* and the
  * strip that says whether it is where it should be, and six of them fit above the fold.
  *
- * Any tile opens onto its own trace, and a long press turns the grid into something the
- * driver can prune and reorder.
+ * Any tile opens onto its own trace — tapped or long-pressed, both land on the sheet that
+ * explains the reading — and the menu turns the grid into something the driver can prune
+ * and reorder.
  */
 @Composable
 fun DashboardScreen(
@@ -220,7 +221,7 @@ fun DashboardScreen(
                     redline = redline,
                     sessionMaxRpm = sessionMaxRpm,
                     speed = snapshot.valueOf(Metrics.Speed)
-                        ?.let { if (imperial) it * MILES_PER_KM else it },
+                        ?.let { if (imperial) it * Metrics.MILES_PER_KM else it },
                     speedUnit = stringResource(
                         if (imperial) R.string.unit_mph else R.string.unit_kmh,
                     ),
@@ -294,9 +295,13 @@ fun DashboardScreen(
                                 editing = editing,
                                 canMoveUp = index > 0,
                                 onClick = { openMetric = id },
+                                // The same sheet as a tap: a long press is how somebody
+                                // who does not know what a tile means asks to be told, so
+                                // it must never do something destructive-looking instead.
+                                // Pruning and reordering live in the menu.
                                 onLongClick = {
-                                    editing = true
                                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    openMetric = id
                                 },
                                 onMoveUp = {
                                     if (index > 0) {
@@ -499,5 +504,4 @@ const val METRIC_SHEET_WINDOW_MILLIS = 60_000L
 /** Two across: wide enough for a number at 26 sp with its unit, on the narrowest phone. */
 private const val COLUMNS = 2
 
-private const val MILES_PER_KM = 0.621371
 private const val STALENESS_TICK_MILLIS = 500L
