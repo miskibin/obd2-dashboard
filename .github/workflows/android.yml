@@ -45,4 +45,8 @@ jobs:
           tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'latest' }}
           name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'Latest build' }}
           prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          # Otherwise a tagged release is a download with nothing said about it. The commit
+          # subjects are the changelog: they are written to be read by somebody deciding
+          # whether this build is worth putting on their phone.
+          generate_release_notes: true
           files: app/build/outputs/apk/debug/*.apk
