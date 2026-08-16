@@ -1,5 +1,3 @@
-Android Auto: ekran w aucie rysuje teraz zegar z pulpitu - prędkość w środku obrotomierza, bieg pod spodem, zaznaczone odcięcie - obok listy odczytów na żywo. Wartość, która przekroczy ustawiony przez Ciebie próg, mówi o tym wprost na ekranie auta.
+Ekran w aucie zbudowany od nowa wokół tego, czego nie mówią zegary. Prędkość i obroty zniknęły - masz je na desce - a w ich miejsce weszło sześć kafli na żywo: spalanie chwilowe, olej, płyn chłodzący, powietrze dolotowe, akumulator i korekta długoterminowa. Każdy rysuje własne ostatnie pół minuty i próg ustawiony w telefonie.
 
-Bieg jest oznaczony jako szacowany, gdy nie da się go odczytać - tak samo jak w telefonie.
-
-Poza tym: ikona aplikacji była lekko krzywa. Już nie jest.
+Do tego dwie zakładki: zapisane błędy wraz z opisem każdego, testy gotowości i stop-klatka ze sterownika; oraz sterowanie sesją - start zapisu, odczyt stop-klatki, kasowanie błędów i podgląd progów, przy czym dwa ostatnie tylko na postoju.

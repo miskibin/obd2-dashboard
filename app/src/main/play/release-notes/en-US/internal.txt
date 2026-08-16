@@ -1,5 +1,3 @@
-Android Auto: the car screen now draws the dashboard's own gauge - road speed inside the rev counter, the gear under it, the redline marked - alongside rows of live readings. A reading that crosses a threshold you set says so on the car screen.
+The car screen is rebuilt around what your dashboard does not tell you. Speed and revs are gone - your car has those - and in their place are six live tiles: instant consumption, oil, coolant, intake air, battery and long-term fuel trim. Each draws its own last half minute and the threshold you set on the phone.
 
-Gear on the car screen is marked when it is estimated rather than read, same as on the phone.
-
-Also: the app icon was very slightly crooked. It is not any more.
+Two more tabs: stored fault codes with what each one means, readiness monitors and the ECU's freeze frame; and session controls - start a recording, read a freeze frame, clear codes or check your thresholds, the last two only while parked.

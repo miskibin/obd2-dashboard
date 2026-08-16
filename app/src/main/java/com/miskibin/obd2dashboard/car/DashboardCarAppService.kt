@@ -34,6 +34,6 @@ class DashboardCarAppService : CarAppService() {
         }
 
     override fun onCreateSession(): Session = object : Session() {
-        override fun onCreateScreen(intent: Intent): Screen = LiveDataScreen(carContext)
+        override fun onCreateScreen(intent: Intent): Screen = CarDashboardScreen(carContext)
     }
 }

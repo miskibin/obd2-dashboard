@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Traced from the Android Auto design's own icon set; stroked so the host's tint
+     colours the line rather than filling a silhouette. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M20.4 8.6l-1.2 1.8a8 8 0 0 1 -0.2 7.6H5.1A8 8 0 0 1 15.6 6.9l1.8 -1.2M10.6 15.4a2 2 0 0 0 2.8 0l5.7 -8.5l-8.5 5.7a2 2 0 0 0 0 2.8z"
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.9"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

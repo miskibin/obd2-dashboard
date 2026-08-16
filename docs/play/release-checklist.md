@@ -132,10 +132,24 @@ typically takes a few days for a new personal account.
 - Bump `versionCode` for every future upload.
 - Tag the released commit (`v0.2.0`-style, matches existing CI convention).
 
-## Android Auto (future)
+## Android Auto — required from 0.5.0 on
 
-The README plans an Android Auto screen via `androidx.car.app`. When that
-ships: Play distribution is **mandatory** for Android Auto apps (sideloaded
-builds only work in developer mode), and you must opt in to the **Android
-Auto form in Play Console → App content** and pass the car-app quality
-review. Nothing to do now — just budget review time for that release.
+The car screen ships: `androidx.car.app` templates under
+`androidx.car.app.category.IOT`, three tabs, entry point
+`.car.DashboardCarAppService`. That makes two things mandatory rather than
+optional.
+
+- **Play distribution.** A sideloaded build only reaches the head unit with
+  developer mode enabled in the Android Auto app. Real use means the internal
+  track at minimum.
+- **The Android Auto form.** Play Console → App content → *Android Auto* →
+  declare the app, then it goes through the car-app quality review against
+  [Android Auto app quality][quality]. Budget review time; a first submission
+  bouncing is normal.
+
+Worth reading before submitting, because they are what the review actually
+checks: no custom drawing outside a template's image slot, no action that
+needs attention while driving (ours are behind `ParkedOnlyOnClickListener`),
+and the app must survive the host refusing a template.
+
+[quality]: https://developer.android.com/docs/quality-guidelines/car-app-quality

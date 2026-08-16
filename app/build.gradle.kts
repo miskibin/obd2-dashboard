@@ -17,8 +17,8 @@ android {
         // Bumped per tagged release. The name is what the mechanic report prints at the
         // top of itself, so it has to be the version somebody could be asked to reinstall;
         // the code is what lets a newer APK replace an older one on the phone.
-        versionCode = 4
-        versionName = "0.4.0"
+        versionCode = 5
+        versionName = "0.5.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
